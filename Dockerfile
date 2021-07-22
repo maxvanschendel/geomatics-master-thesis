@@ -29,13 +29,11 @@ RUN apt -y install libeigen3-dev libglew-dev libboost-all-dev libssl-dev
 RUN apt -y install python3-pip
 RUN pip3 install opencv-python
 
-ADD run.sh /app/
 ADD src/ /app/src/
 ADD Thirdparty/ /app/thirdparty/
 
-RUN export PYTHONPATH=/opt/ros/noetic/lib/python3/dist-packages
-RUN apt-get -y install ros-noetic-cv-bridge
+RUN apt-get -y install ros-noetic-cv-bridge ros-noetic-vision-opencv
 RUN rosdep update
 
-ENTRYPOINT python3 /app/src/image_capture_server.py && /bin/bash
+ENTRYPOINT roscore && export PYTHONPATH=/opt/ros/noetic/lib/python3/dist-packages && python3 /app/src/image_capture_server.py && /bin/bash
 
