@@ -14,6 +14,7 @@ class PiZeroCaptureClient:
         self.client_socket = socket.socket()
 
     def connect(self):
+        print(f"Connecting to server | host: {self.host} | port: {self.port}")
         self.client_socket.connect((self.host, self.port))
 
     def disconnect(self):
@@ -35,8 +36,7 @@ class PiZeroCaptureClient:
             # our protocol simple)
             stream = io.BytesIO()
             for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
-                # Write the length of the capture to the stream and flush to
-                # ensure it actually gets sent
+                # Write the length of the capture to the stream and flush to ensure it actually gets sent
                 connection.write(struct.pack('<L', stream.tell()))
                 connection.flush()
                 # Rewind the stream and send the image data over the wire
