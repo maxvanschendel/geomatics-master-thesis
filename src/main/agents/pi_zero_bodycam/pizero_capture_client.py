@@ -67,3 +67,6 @@ if __name__ == "__main__":
     client = PiZeroCaptureClient(host=args.host,
                                  port=args.port,
                                  res=(args.xres, args.yres))
+
+    client.connect()
+    client.stream_video()
