@@ -14,13 +14,16 @@ class PiZeroCaptureClient:
         self.client_socket = socket.socket()
 
     def connect(self):
-        print(f"Connecting to server | host: {self.host} | port: {self.port}")
+        print(f"Connecting to socket | host: {self.host} | port: {self.port}")
         self.client_socket.connect((self.host, self.port))
 
     def disconnect(self):
+        print(f"Disconnecting from socket | host: {self.host} | port: {self.port}")
         self.client_socket.close()
 
     def stream_video(self):
+        print("Initializing video streaming")
+
         # Make a file-like object out of the connection
         connection = self.client_socket.makefile('wb')
         try:
@@ -61,6 +64,6 @@ if __name__ == "__main__":
     parser.add_argument('yres', type=int)
 
     args = parser.parse_args()
-    client = PiZeroCaptureClient(host=args['host'],
-                                 port=args['port'],
-                                 res=(args['xres'], args['yres']))
+    client = PiZeroCaptureClient(host=args.host,
+                                 port=args.port,
+                                 res=(args.xres, args.yres))
