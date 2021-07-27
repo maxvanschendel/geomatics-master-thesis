@@ -24,7 +24,7 @@ class SensorMessage(ABC):
         self.data = data
 
     def serialize(self):
-        return json.dumps(self)
+        return json.dumps({'msg_type': self.msg_type, 'agent': self.agent, 'time': self.time, 'data': self.data})
 
 
 class PiZeroCaptureClient:
