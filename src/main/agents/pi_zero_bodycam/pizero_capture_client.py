@@ -26,13 +26,13 @@ class PiZeroCaptureClient:
 
         camera = picamera.PiCamera()
         camera.resolution = self.res
+        time.sleep(2)
 
         # Create the in-memory stream
         stream = io.BytesIO()
 
         for i in range(n):
-            with picamera.PiCamera() as camera:
-                camera.capture(stream, format='jpeg')
+            camera.capture(stream, format='jpeg')
 
             connection.write(struct.pack('<L', stream.tell()))
             connection.flush()
