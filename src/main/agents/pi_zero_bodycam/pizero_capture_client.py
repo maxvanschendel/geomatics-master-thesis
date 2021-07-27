@@ -4,25 +4,6 @@ import struct
 import time
 import picamera
 import argparse
-from PIL import Image
-from abc import ABC, abstractmethod, abstractproperty
-from enum import Enum
-import json
-
-class SensorMessageType(Enum):
-    RGB = 1
-    RGBD = 2
-    DEPTH = 3
-    IMU = 4
-
-
-class SensorMessage(ABC):
-    def __init__(self, msg_type: SensorMessageType, agent: str, time: int, data):
-        self.msg_type = msg_type
-        self.agent = agent
-        self.time = time
-        self.data = data
-
 
 
 class PiZeroCaptureClient:
@@ -40,19 +21,31 @@ class PiZeroCaptureClient:
         print(f"Disconnecting from socket | host: {self.host} | port: {self.port}")
         self.client_socket.close()
 
-    def capture_image(self):
+    def capture_image_sequence(self, n, interval):
+        connection = self.client_socket.makefile('wb')
+
         camera = picamera.PiCamera()
         camera.resolution = self.res
 
         # Create the in-memory stream
         stream = io.BytesIO()
-        with picamera.PiCamera() as camera:
-            camera.capture(stream, format='jpeg')
 
-        # "Rewind" the stream to the beginning so we can read its content
-        stream.seek(0)
+        for i in range(n):
+            with picamera.PiCamera() as camera:
+                camera.capture(stream, format='jpeg')
 
-        return Image.open(stream)
+            connection.write(struct.pack('<L', stream.tell()))
+            connection.flush()
+
+            # Rewind the stream and send the image data over the wire
+            stream.seek(0)
+            connection.write(stream.read())
+
+            # Reset the stream for the next capture
+            stream.seek(0)
+            stream.truncate()
+
+            time.sleep(interval)
 
     def capture_video(self):
         print("Initializing video streaming")
