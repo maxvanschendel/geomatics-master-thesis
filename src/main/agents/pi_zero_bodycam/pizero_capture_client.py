@@ -23,8 +23,6 @@ class SensorMessage(ABC):
         self.time = time
         self.data = data
 
-    def serialize(self):
-        return json.dumps({'msg_type': self.msg_type, 'agent': self.agent, 'time': self.time, 'data': self.data})
 
 
 class PiZeroCaptureClient:
@@ -70,11 +68,15 @@ class PiZeroCaptureClient:
 
             stream = io.BytesIO()
             for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
-                msg = SensorMessage(SensorMessageType.RGB, "raspberry", 0, stream.read())
-                msg_serialized = msg.serialize()
+                # Write the length of the capture to the stream and flush to ensure it actually gets sent
+                connection.write(struct.pack('<L', stream.tell()))
+                connection.flush()
 
-                connection.send(msg_serialized.encode(encoding="utf-8"))
+                # Rewind the stream and send the image data over the wire
+                stream.seek(0)
+                connection.write(stream.read())
 
+                # Reset the stream for the next capture
                 stream.seek(0)
                 stream.truncate()
             # Write a length of zero to the stream to signal we're done
