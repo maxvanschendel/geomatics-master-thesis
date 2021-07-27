@@ -15,5 +15,5 @@ if __name__ == "__main__":
                                          port=args.port,
                                          res=(args.xres, args.yres))
     capture_client.connect()
-    capture_client.capture_img_sequence(args.n, 2)
+    capture_client.capture_image_sequence(args.n, 2)
 
