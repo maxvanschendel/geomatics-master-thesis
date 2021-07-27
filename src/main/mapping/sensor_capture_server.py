@@ -50,10 +50,6 @@ class RosImagePublisher(RosDataPublisher):
         self.publisher.publish(msg)
 
 
-class SensorCaptureServerException(Exception):
-    pass
-
-
 class SocketListener:
     def __init__(self, ip: str, port: int):
         self.ip = ip
@@ -73,7 +69,7 @@ class SocketListener:
         self.connection.close()
         self.server_socket.close()
 
-    def listen(self, callback: Callable[[object], None] = None):
+    def listen(self, callback: Callable[[], None] = None):
         try:
             while True:
                 # Read the length of the data as a 32-bit unsigned int. If the length is zero, quit the loop
@@ -85,6 +81,8 @@ class SocketListener:
                 stream = io.BytesIO()
                 stream.write(self.connection.read(stream_len))
 
+                print(stream)
+
                 # Rewind the stream, open it as an image with PIL and do some processing on it
                 stream.seek(0)
                 callback(stream)
@@ -92,72 +90,27 @@ class SocketListener:
             self.close_connection()
 
 
-class SensorCaptureServer:
-    def __init__(self, ip: str, port: int):
-        self.ip = ip
-        self.port = port
-        self.server_socket, self.connection = self.open_connection()
+class SensorCaptureNodeException(Exception):
+    pass
 
-    def open_connection(self):
-        server_socket = socket.socket()
-        server_socket.bind((self.ip, self.port))
-        server_socket.listen(0)
 
-        # Accept a single connection and make a file-like object out of it
-        connection = server_socket.accept()[0].makefile('rb')
-        return server_socket, connection
+class SensorCaptureNode:
+    def __init__(self, ip: str, port: int, name: str, publish_path: str):
+        self.name = name
+        self.publish_path = publish_path
+        self.publisher = RosImagePublisher(self.name, self.publish_path)
 
-    def close_connection(self):
-        self.connection.close()
-        self.server_socket.close()
+        self.server_socket = SocketListener(ip, port)
+        self.server_socket.listen(callback=self.read_stream)
 
-    def read_stream(self, stream, show_imgs: bool, img_callback: Callable[[SensorImage], None] = None,):
-        img = Image.open(stream)
-        img_np = np.array(img)
+    def read_stream(self, stream):
+        data = np.frombuffer(stream.getvalue(), dtype=np.uint8)
+        image = cv2.imdecode(data, 1)
+        image = image[:, :, ::-1]
 
-        sensor_img = CvBridge().cv2_to_imgmsg(img_np)
-        img_callback(sensor_img)
-
-        if show_imgs:
-            cv2.imshow('incoming_image_window', img_np)
-            cv2.waitKey(10)
-
-    def listen(self, show_imgs: bool,
-               img_callback: Callable[[SensorImage], None] = None,
-               imu_callback: Callable[[Imu], None] = None):
-
-        # Start a socket listening for connections on 0.0.0.0:8000 (0.0.0.0 means all interfaces)
-        try:
-            while True:
-                # Read the length of the image as a 32-bit unsigned int. If the length is zero, quit the loop
-                image_len = struct.unpack('<L', self.connection.read(struct.calcsize('<L')))[0]
-                if not image_len:
-                    break
-
-                # Construct a stream to hold the image data and read the image data from the connection
-                image_stream = io.BytesIO()
-                image_stream.write(self.connection.read(image_len))
-
-                # Rewind the stream, open it as an image with PIL and do some processing on it
-                image_stream.seek(0)
-                img = Image.open(image_stream)
-                img_np = np.array(img)
-
-                sensor_img = CvBridge().cv2_to_imgmsg(img_np)
-                img_callback(sensor_img)
-
-                if show_imgs:
-                    cv2.imshow('incoming_image_window', img_np)
-                    cv2.waitKey(10)
-        finally:
-            self.close_connection()
+        sensor_img = CvBridge().cv2_to_imgmsg(image)
+        self.publisher.publish(sensor_img)
 
 
 if __name__ == "__main__":
-    ros_image_publisher = RosImagePublisher("SENSOR_CAPTURE_SERVER", "/camera/image_raw")
-    #ros_odom_publisher = RosOdometryPublisher("ROS_ODOMETRY_PUBLISHER", "/imu")
-
-    sensor_capture_server = SensorCaptureServer('0.0.0.0', 8000)
-    sensor_capture_server.listen(show_imgs=True,
-                                 img_callback=ros_image_publisher.publish,
-                                 imu_callback=None)
+    sensor_capture_server = SensorCaptureNode('0.0.0.0', 8000, "IMAGE_CAPTURE_NODE", "/camera/image_raw")

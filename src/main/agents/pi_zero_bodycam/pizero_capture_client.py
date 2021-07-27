@@ -79,6 +79,7 @@ class PiZeroCaptureClient:
                 # Reset the stream for the next capture
                 stream.seek(0)
                 stream.truncate()
+
             # Write a length of zero to the stream to signal we're done
             connection.write(struct.pack('<L', 0))
         finally:
