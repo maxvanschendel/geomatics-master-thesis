@@ -1,4 +1,4 @@
-from src.main.agents.pi_zero_bodycam.pizero_capture_client import PiZeroCaptureClient
+from pizero_capture_client import PiZeroCaptureClient
 import argparse
 import cv2
 import numpy as np
