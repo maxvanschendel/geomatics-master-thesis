@@ -4,6 +4,27 @@ import struct
 import time
 import picamera
 import argparse
+from PIL import Image
+from abc import ABC, abstractmethod, abstractproperty
+from enum import Enum
+import json
+
+class SensorMessageType(Enum):
+    RGB = 1
+    RGBD = 2
+    DEPTH = 3
+    IMU = 4
+
+
+class SensorMessage(ABC):
+    def __init__(self, msg_type: SensorMessageType, agent: str, time: int, data):
+        self.msg_type = msg_type
+        self.agent = agent
+        self.time = time
+        self.data = data
+
+    def serialize(self):
+        return json.dumps(self)
 
 
 class PiZeroCaptureClient:
@@ -21,7 +42,21 @@ class PiZeroCaptureClient:
         print(f"Disconnecting from socket | host: {self.host} | port: {self.port}")
         self.client_socket.close()
 
-    def stream_video(self):
+    def capture_image(self):
+        camera = picamera.PiCamera()
+        camera.resolution = self.res
+
+        # Create the in-memory stream
+        stream = io.BytesIO()
+        with picamera.PiCamera() as camera:
+            camera.capture(stream, format='jpeg')
+
+        # "Rewind" the stream to the beginning so we can read its content
+        stream.seek(0)
+
+        return Image.open(stream)
+
+    def capture_video(self):
         print("Initializing video streaming")
 
         # Make a file-like object out of the connection
@@ -30,23 +65,16 @@ class PiZeroCaptureClient:
             camera = picamera.PiCamera()
             camera.resolution = self.res
 
-            # Let the camera warm up for 2 seconds
+            print("Warming up camera")
             time.sleep(2)
 
-            # Note the start time and construct a stream to hold image data
-            # temporarily (we could write it directly to connection but in this
-            # case we want to find out the size of each capture first to keep
-            # our protocol simple)
             stream = io.BytesIO()
             for foo in camera.capture_continuous(stream, 'jpeg', use_video_port=True):
-                # Write the length of the capture to the stream and flush to ensure it actually gets sent
-                connection.write(struct.pack('<L', stream.tell()))
-                connection.flush()
-                # Rewind the stream and send the image data over the wire
-                stream.seek(0)
-                connection.write(stream.read())
+                msg = SensorMessage(SensorMessageType.RGB, "raspberry", 0, stream.read())
+                msg_serialized = msg.serialize()
 
-                # Reset the stream for the next capture
+                connection.send(msg_serialized.encode(encoding="utf-8"))
+
                 stream.seek(0)
                 stream.truncate()
             # Write a length of zero to the stream to signal we're done
@@ -69,4 +97,4 @@ if __name__ == "__main__":
                                  res=(args.xres, args.yres))
 
     client.connect()
-    client.stream_video()
+    client.capture_video()

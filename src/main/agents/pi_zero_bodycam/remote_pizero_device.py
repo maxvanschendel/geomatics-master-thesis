@@ -1,20 +1,24 @@
 import paramiko
-import asyncio
 from sty import fg
 
 
-class SSHConnectionException(Exception):
+class RemotePiZeroDeviceException(Exception):
     pass
 
 
-class RemotePiZeroConnection:
+class RemotePiZeroDevice:
     """Remote device connection which can be used to automate network connection and data capture."""
 
+    # Where the scripts for the Raspberry Pi Zero Device are stored.
     repo_path = "~/Dev/geomatics-master-thesis/src/main/agents/pi_zero_bodycam"
-    wifi_connect_cmd = f"sudo bash {repo_path}/connect_wifi.sh"
-    start_capture_cmd = f"sudo python3 {repo_path}/pizero_capture_client.py 192.168.1.156 8000 640 480"
-    stop_capture_cmd = "pkill -9 -f pizero_capture_client.py"
 
+    # Bash commands for connecting to a network, starting and stopping data capture.
+    wifi_connect_cmd = f"sudo bash {repo_path}/connect_wifi.sh"
+    start_capture_cmd = f"sudo python3 {repo_path}/pizero_capture_client.py 192.168.1.208 8000 640 480"
+    stop_capture_cmd = "pkill -9 -f pizero_capture_client.py"
+    calibrate_cmd = f"sudo python3 {repo_path}/camera_calibration.py"
+
+    # Colour used for printing remote device stdout and stderr.
     remote_std_color = fg.yellow
 
     def __init__(self, host: str, user: str, pwd: str, verbose: bool = False):
@@ -26,7 +30,7 @@ class RemotePiZeroConnection:
         # Print stdin, stdout and stderror for executed commands.
         self.verbose: bool = verbose
 
-        # SSH connection and how often it is validated.
+        # SSH connection and how often it is validated.m
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.connected = False
@@ -39,11 +43,11 @@ class RemotePiZeroConnection:
 
         print(f"Connecting to remote device | {str(self)}")
         if self.connected:
-            raise SSHConnectionException("Already connected to remote device.")
+            raise RemotePiZeroDeviceException("Already connected to remote device.")
 
         self.ssh.connect(self.hostname, username=self.username, password=self.password)
         if not self.ssh_is_active():
-            raise SSHConnectionException("Failed to connect to remote device.")
+            raise RemotePiZeroDeviceException("Failed to connect to remote device.")
 
         self.connected = True
 
@@ -52,7 +56,7 @@ class RemotePiZeroConnection:
 
         print(f"Disconnecting from remote device | {str(self)}")
         if not self.connected:
-            raise SSHConnectionException("Can't disconnect because device is not connected.")
+            raise RemotePiZeroDeviceException("Can't disconnect because device is not connected.")
 
         self.ssh.close()
         self.connected = False
@@ -66,7 +70,7 @@ class RemotePiZeroConnection:
         """Raise an exception is the SSH connection is not active."""
 
         if not self.ssh_is_active():
-            raise SSHConnectionException("SSH connection to device not active.")
+            raise RemotePiZeroDeviceException("SSH connection to device not active.")
 
     def exec(self, command: str):
         """Execute bash command on remote device."""
@@ -87,6 +91,9 @@ class RemotePiZeroConnection:
         print(f"Connecting to network | {str(self)}")
         self.exec(self.wifi_connect_cmd)
 
+    def calibrate(self):
+        pass
+
     def start_capture(self):
         print(f"Starting data capture | {str(self)}")
         self.exec(self.start_capture_cmd)
@@ -96,17 +103,13 @@ class RemotePiZeroConnection:
         self.exec(self.stop_capture_cmd)
 
 
-async def main():
-    remote_pi = RemotePiZeroConnection(hostname, username, password, verbose)
-    remote_pi.ssh_connect()
-    remote_pi.connect_network()
-    remote_pi.start_capture()
-
-
 if __name__ == "__main__":
     hostname = "raspberrypi.local"
     username = "pi"
     password = "maxvanschendel"
     verbose = True
 
-    asyncio.run(main())
+    remote_pi = RemotePiZeroDevice(hostname, username, password, verbose)
+    remote_pi.ssh_connect()
+    remote_pi.connect_network()
+    remote_pi.start_capture()
