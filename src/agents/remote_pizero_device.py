@@ -16,7 +16,7 @@ class RemotePiZeroDevice:
     wifi_connect_cmd = f"sudo bash {repo_path}/connect_wifi.sh"
     start_capture_cmd = f"sudo python3 {repo_path}/pizero_capture_client.py 192.168.1.208 8000 640 480"
     stop_capture_cmd = "pkill -9 -f pizero_capture_client.py"
-    calibrate_cmd = f"sudo python3 {repo_path}/camera_calibration.py"
+    calibrate_cmd = f"sudo python3 {repo_path}/camera_calibration.py 192.168.1.208 8000 640 480 20"
 
     # Colour used for printing remote device stdout and stderr.
     remote_std_color = fg.yellow
@@ -88,18 +88,19 @@ class RemotePiZeroDevice:
             print(self.remote_std_color + out + fg.rs) if len(out) > 1 else None
 
     def connect_network(self):
-        print(f"Connecting to network | {str(self)}")
+        print(f"Connecting to network")
         self.exec(self.wifi_connect_cmd)
 
     def calibrate(self):
-        pass
+        print(f"Calibrating")
+        self.exec(self.calibrate_cmd)
 
     def start_capture(self):
-        print(f"Starting data capture | {str(self)}")
+        print(f"Starting data capture")
         self.exec(self.start_capture_cmd)
 
     def stop_capture(self):
-        print(f"Stopping data capture | {str(self)}")
+        print(f"Stopping data capture")
         self.exec(self.stop_capture_cmd)
 
 
@@ -112,4 +113,13 @@ if __name__ == "__main__":
     remote_pi = RemotePiZeroDevice(hostname, username, password, verbose)
     remote_pi.ssh_connect()
     remote_pi.connect_network()
-    remote_pi.start_capture()
+
+    command_actions = {'1': remote_pi.start_capture, '2': remote_pi.calibrate}
+    command = input("Select action:\n1) Stream video\n2) Calibrate\n>")
+
+    if command in command_actions.keys():
+        command_actions[command]()
+    else:
+        print("Invalid action")
+
+    remote_pi.ssh_disconnect()

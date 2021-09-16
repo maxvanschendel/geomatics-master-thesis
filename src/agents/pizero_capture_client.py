@@ -32,7 +32,7 @@ class PiZeroCaptureClient:
         stream = io.BytesIO()
 
         for i in range(n):
-            print(f"Capturing image {i}/{n}")
+            print(f"Capturing image {i+1}/{n}")
             camera.capture(stream, format='jpeg')
 
             connection.write(struct.pack('<L', stream.tell()))
