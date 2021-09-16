@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from sockets import SocketListener
+from sockets import SensorListener
 
 
 class RemoteSensorCalibration:
@@ -9,7 +9,7 @@ class RemoteSensorCalibration:
     def __init__(self, ip: str, port: int, n_imgs: int):
         self.n_imgs = n_imgs
 
-        self.server_socket = SocketListener(ip, port)
+        self.server_socket = SensorListener(ip, port)
         self.server_socket.listen(callback=self.add_calibration_image)
 
     def add_calibration_image(self, stream):

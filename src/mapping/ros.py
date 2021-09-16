@@ -22,7 +22,6 @@ class RosOdometryPublisher(RosDataPublisher):
         self.publisher = self.init_node()
 
     def init_node(self):
-        init_node(self.node_name)
         return Publisher(self.publish_path, Imu)
 
     def publish(self, msg: Imu):
@@ -36,8 +35,7 @@ class RosImagePublisher(RosDataPublisher):
         self.publisher = self.init_node()
 
     def init_node(self):
-        init_node(self.node_name)
-        return Publisher(self.publish_path, SensorImage)
+        return Publisher(self.publish_path, SensorImage, queue_size=100)
 
     def publish(self, msg: SensorImage):
         self.publisher.publish(msg)
