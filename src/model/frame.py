@@ -17,13 +17,12 @@ class GenericSensorData(ABC):
     @abstractmethod
     def __str__(self):
         return f"agent: {self.agent}\n" \
-                "time: {self.time}\n" \
-                "data: {self.data}"
+               f"time: {self.time}\n" \
+               f"data: {self.data}"
 
     @abstractmethod
     def is_valid(self):
-        return  None not in (self.agent, self.time, self.data) and \
-                self.time > 0 and \
+        return  self.time > 0 and \
                 self.agent != ""
 
 
@@ -54,10 +53,10 @@ class FrameType(Enum):
     D = 6
     RGBDI = 7
 
-    dim = {RGB: 3, RGBIR: 4, RGBD: 4, IR: 1, IRD: 2, D: 1, RGBDI: 5}
 
+class Frame(GenericSensorData):
+    dim = {FrameType.RGB: 3, FrameType.RGBIR: 4, FrameType.RGBD: 4, FrameType.IR: 1, FrameType.IRD: 2, FrameType.D: 1, FrameType.RGBDI: 5}
 
-class Frame:
     def __init__(self, agent: str, time: int, data: np.array, type: FrameType):
         super().__init__(agent, time, data)
         self.type = type
@@ -67,11 +66,10 @@ class Frame:
 
     def __str__(self):
         return f"{super().__str__()}\n" \
-                "type: {self.type}"
+               f"type: {self.type}"
 
     def is_valid(self):
         return  super().is_valid() and \
-                self.data.shape[2] == FrameType.dim[type] and \
                 self.type is not None
 
 

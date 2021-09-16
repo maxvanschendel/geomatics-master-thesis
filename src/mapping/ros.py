@@ -4,6 +4,7 @@ from sensor_msgs.msg import Image as SensorImage
 from sensor_msgs.msg import Imu
 
 
+
 class RosDataPublisher(ABC):
     @abstractmethod
     def init_node(self):

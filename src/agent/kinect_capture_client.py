@@ -1,12 +1,13 @@
 import pickle
 import socket
+import struct
 import time
 
 import cv2
 import numpy as np
 import pyk4a
 from pyk4a import Config, PyK4A
-
+import frame
 
 
 class KinectCaptureClient:
@@ -57,12 +58,16 @@ class KinectCaptureClient:
                 ir = capture.ir
                 color = capture.color[:, :, :3]
 
-                cv2.imshow("", color)
-                cv2.waitKey(interval)
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
+                result, encimg1 = cv2.imencode('.jpg', color, encode_param)
+                
+                msg = pickle.dumps(frame.Frame(self.agent, get_unix_milli_time(), encimg1, frame.FrameType.RGB))
+                self.client_socket.sendall(struct.pack("L", len(msg))+msg)
 
-                msg = pickle.dumps(Frame.Frame(self.agent, get_unix_milli_time, color, FrameType.RGB))
 
-                self.client_socket.send(msg)
+            imu_msg = pickle.dumps(imu)
+            self.client_socket.sendall(struct.pack("L", len(imu_msg))+imu_msg)
+
 
         k4a.stop()
             
