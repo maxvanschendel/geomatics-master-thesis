@@ -11,6 +11,10 @@ from model.frame import *
 
 class SensorListener:
     '''Creates a websocket server and starts listening for pickled sensor data.'''
+
+    size_limit = 10000000
+    recv_size = 4096
+    msg_header = "<L"
     
     def __init__(self, ip: str, port: int):
         self.ip = ip
@@ -34,28 +38,27 @@ class SensorListener:
         conn, addr = self.server_socket.accept()
         
         data = b""
-        payload_size = struct.calcsize("<L")
+        payload_size = struct.calcsize(SensorListener.msg_header)
 
         self.listening = True
         while self.listening:
             try:
-                
-                
                 # Get size of message from header
                 while len(data) < payload_size:
-                    data += conn.recv(4096)
+                    data += conn.recv(SensorListener.recv_size)
                 packed_msg_size = data[:payload_size]
                 data = data[payload_size:]
                 
                 # Download the rest of the message
-                msg_size = struct.unpack("<L", packed_msg_size)[0]
+                msg_size = struct.unpack(SensorListener.msg_header, packed_msg_size)[0]
 
-                if msg_size > 1000000:
-                    print(msg_size)
+                # Sometimes message length is decoded wrongly, giving an extremely large number
+                # TODO: Fix message size decoding issue
+                if msg_size > SensorListener.size_limit:
                     continue
 
                 while len(data) < msg_size:
-                    data += conn.recv(4096)
+                    data += conn.recv(SensorListener.recv_size)
 
                 data, sensor_data = data[msg_size:], data[:msg_size]
                 sensor_object = pickle.loads(sensor_data)

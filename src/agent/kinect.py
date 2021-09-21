@@ -53,16 +53,15 @@ class KinectCaptureClient:
             elif self.frame_type == FrameType.RGBD:
                 rgb = capture.transformed_color[:, :, :3]
                 d = capture.depth
-                print(d)
                 img = np.dstack((rgb, d))
             elif self.frame_type == FrameType.RGBIR:  # TODO get color in IR sensor frame
                 rgb = capture.transformed_color[:, :, :3]
                 ir = capture.ir
                 img = np.dstack((rgb, ir))
+                
             elif self.frame_type == FrameType.IRD:  # TODO find way to compress 2-channel images
                 ir = capture.ir
                 d = capture.depth
-                print(d)
                 img = np.dstack((ir, d))
             elif self.frame_type == FrameType.RGBDI:  # TODO find way to compress 5-channel images
                 rgb = capture.transformed_color[:, :, :3]
@@ -70,9 +69,10 @@ class KinectCaptureClient:
                 ir = capture.ir
                 img = np.dstack((rgb, d, ir))
 
-            _, encimg1 = cv2.imencode('.jpg', img, self.encode_param)
-            
-        return Frame(self.agent, get_unix_milli_time(), encimg1, self.frame_type)
+            # _, img = cv2.imencode('.png', img)
+            print(img.dtype)
+
+        return Frame(self.agent, get_unix_milli_time(), img, self.frame_type)
             
     def send(self, data):
         data_msg = pickle.dumps(data)

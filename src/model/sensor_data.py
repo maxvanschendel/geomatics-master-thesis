@@ -5,8 +5,9 @@ import numpy as np
 class DataException(Exception):
     pass
 
+
 class GenericSensorData(ABC):
-    '''Data that is shared between all sensor captures. '''
+    '''Data that is shared between all sensor captures.'''
 
     @abstractmethod
     def __init__(self, agent: str, time: int, data: np.array):
@@ -27,9 +28,9 @@ class GenericSensorData(ABC):
 
 
 class IMU(GenericSensorData):
-    '''6DOF IMU sensor data'''
+    '''6DOF IMU sensor data.'''
 
-    shape = (2, 3)
+    shape = (2, 3)  # First row accelerometer, second row gyro.
 
     def __init__(self, agent: str, time: int, data: np.array):
         super().__init__(agent, time, data)
@@ -45,17 +46,20 @@ class IMU(GenericSensorData):
 
 
 class FrameType(Enum):
+    '''The different frame types that are supported by the application.'''
+
     RGB = 1
-    RGBIR = 2
     RGBD = 3
     IR = 4
-    IRD = 5
     D = 6
-    RGBDI = 7
 
 
 class Frame(GenericSensorData):
-    dim = {FrameType.RGB: 3, FrameType.RGBIR: 4, FrameType.RGBD: 4, FrameType.IR: 1, FrameType.IRD: 2, FrameType.D: 1, FrameType.RGBDI: 5}
+    '''Array of sensor data, can be one of different types defined in FrameType enum.'''
+
+    # TODO: add intrinsic parameters
+
+    dim = {FrameType.RGB: 3, FrameType.RGBD: 4, FrameType.IR: 1, FrameType.D: 1}
 
     def __init__(self, agent: str, time: int, data: np.array, type: FrameType):
         super().__init__(agent, time, data)
@@ -71,5 +75,3 @@ class Frame(GenericSensorData):
     def is_valid(self):
         return  super().is_valid() and \
                 self.type is not None
-
-

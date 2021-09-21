@@ -1,6 +1,15 @@
 import cv2
 import numpy as np
-from sockets import SensorListener
+from cv_bridge import CvBridge
+from rospy import init_node
+
+from comm.sensor_listener import SensorListener
+from comm.ros_nodes import RosImagePublisher
+from model.sensor_data import *
+
+
+class RemoteSensorException(Exception):
+    pass
 
 
 class RemoteSensorCalibration:
@@ -55,5 +64,55 @@ class RemoteSensorCalibration:
         return mtx, dist
 
 
+class RemoteSensorPublisher:
+    def __init__(self, ip: str, port: int, name: str, rgb_publish_path: str, depth_publish_path: str, imu_publish_path: str):
+        self.rgb_publisher = RosImagePublisher(name + "_RGB", rgb_publish_path)
+        self.depth_publisher = RosImagePublisher(name + "_D", depth_publish_path)
+
+        # Create websocket server and listen for sensor data.
+        self.sensor_listener = SensorListener(ip, port)
+        self.sensor_listener.listen(callback=self.publish_image)
+
+    @staticmethod
+    def img_to_msg(img):
+        return CvBridge().cv2_to_imgmsg(img)
+
+    def publish_rgb(self, frame):
+        image = cv2.imdecode(frame.data, 1)
+        image = image[:, :, ::-1]
+
+        sensor_img = CvBridge().cv2_to_imgmsg(image)
+        self.rgb_publisher.publish(sensor_img)
+
+    def publish_rgbd(self, frame):
+        img = cv2.imdecode(frame.data, 1)
+        rgb = img[:, :, :3]
+        d = img[:, :, -1:]
+
+        rgb_msg = CvBridge().cv2_to_imgmsg(rgb)
+        d_msg = CvBridge().cv2_to_imgmsg(d)
+
+        self.rgb_publisher.publish(rgb_msg)
+        self.depth_publisher.publish(d_msg)
+
+
+    def publish_image(self, frame):
+        print("Publishing image")
+        init_node("IMG_PUBLISHER")
+
+        if type(frame) == Frame:
+            if frame.type == FrameType.RGB:
+                self.publish_rgb(frame)
+            elif frame.type == FrameType.RGBD:
+                self.publish_rgbd(frame)
+            else:
+                raise RemoteSensorException("Frame type has no associated behaviour.")
+
+
+
 if __name__ == "__main__":
-    calibration = RemoteSensorCalibration('0.0.0.0', 8000, 20)
+    sensor_capture_server = RemoteSensorPublisher('0.0.0.0', 8000, 
+    "IMAGE_CAPTURE_NODE", 
+    "/camera/rgb/image_raw", 
+    "/camera/depth_registered/image_raw",
+    "/imu")

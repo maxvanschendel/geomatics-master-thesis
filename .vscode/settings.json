@@ -1,0 +1,12 @@
+{
+    "python.analysis.extraPaths": [
+        "./src/main/communication",
+        "./src/main/models",
+        "./src/models",
+        "./src/comm",
+        "./src/model"
+    ],
+    "terminal.integrated.env.windows": {
+        "PYTHONPATH": "${workspaceFolder}/src;${workspaceFolder}/tests"
+    },
+}

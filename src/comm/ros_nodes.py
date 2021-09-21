@@ -38,4 +38,5 @@ class RosImagePublisher(RosDataPublisher):
         return Publisher(self.publish_path, SensorImage, queue_size=100)
 
     def publish(self, msg: SensorImage):
+        print(f"Publishing to {self.publish_path}")
         self.publisher.publish(msg)
