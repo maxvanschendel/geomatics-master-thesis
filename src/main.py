@@ -8,6 +8,8 @@ import numpy as np
 from scipy import signal, ndimage
 from sklearn.cluster import DBSCAN
 import matplotlib.pyplot as plt
+import open3d as o3d
+import copy 
 
 # HELPER FUNCTIONS
 def get_files_with_extension(dir: str, ext: str):
@@ -27,6 +29,64 @@ def read_input_clouds(dir: str) -> List[PointCloud]:
     point_clouds = batch_read_ply(dir, ply_files)
 
     return point_clouds
+
+
+
+class o3dviz:
+    i = 0
+
+    def __init__(self, pcd):
+        self.pcd = pcd
+
+        self.cur = o3d.geometry.PointCloud()
+        self.cur.points = self.pcd[self.i].points
+        self.cur.colors = self.pcd[self.i].colors
+
+        self.custom_draw_geometry_with_key_callback()
+
+    def change_background_to_black(self, vis):
+        opt = vis.get_render_option()
+        opt.background_color = np.asarray([0, 0, 0])
+        return False
+
+    def load_render_option(self,vis):
+        self.i += 1
+        # self.cur = self.pcd[self.i%2]
+
+        self.cur.points = self.pcd[self.i%len(self.pcd)].points
+        self.cur.colors = self.pcd[self.i%len(self.pcd)].colors
+
+        vis.update_geometry(self.cur)
+        vis.poll_events()
+        vis.update_renderer()
+
+        return False
+
+    def custom_draw_geometry_with_key_callback(self):
+        key_to_callback = {}
+        key_to_callback[ord("K")] = self.change_background_to_black
+        key_to_callback[ord("R")] = self.load_render_option
+
+        o3d.visualization.draw_geometries_with_key_callbacks([self.cur], key_to_callback)
+
+def normal_floor_filter(cloud: PointCloud):
+    cloud.normals = cloud.estimate_normals(12)
+
+    vertical_cells = int((cloud.aabb[1][1] - cloud.aabb[1][0]) // voxel_size)
+    cloud_horizontal = cloud.filter(cloud.normals, lambda x: abs(np.dot(x, (0,1,0))) > .95)
+
+    histo, labels = DataAnalysis.dimensional_histogram(cloud_horizontal, 1, vertical_cells)
+    peaks = ndimage.filters.maximum_filter1d(histo, vertical_cells)
+    unique, counts = np.unique(peaks, return_counts=True)
+
+    two_max_peaks = unique[np.argpartition(counts, -2)[-2:]]
+    peak_heights = [float(labels[1:][histo == p]) for p in two_max_peaks]
+    floor, ceiling = min(peak_heights), max(peak_heights)
+
+    cloud_floor = cloud_horizontal.filter(cloud_horizontal.points, lambda x: abs(x[1] - ceiling) < voxel_size)
+    cloud_ceiling = cloud_horizontal.filter(cloud_horizontal.points, lambda x: abs(x[1] - floor) < voxel_size)
+
+    return cloud_floor, cloud_ceiling
 
 
 if __name__ == "__main__":
@@ -57,38 +117,16 @@ if __name__ == "__main__":
     '''
 
     # INPUT PARAMETERS #
-    input_dir = "C:/Users/max.van.schendel/Documents/Source/geomatics-master-thesis/data/flat/"
+    input_dir = "C:/Users/max.van.schendel/Documents/Source/geomatics-master-thesis/data/flat/low/"
     voxel_size = 0.05
-    window = signal.windows.boxcar(50, False)
 
     print("Reading input maps")
-    input_clouds = read_input_clouds(input_dir)
+    cloud = list(read_input_clouds(input_dir))[0]
     
     print("Preprocessing maps")
-    clouds_voxel_filter = list(map(lambda c: c.voxel_filter(voxel_size), input_clouds))
-    for cloud in clouds_voxel_filter:
-        cloud.normals = cloud.estimate_normals(12)
-        cloud.colors = abs(cloud.normals)
-
-        vertical_cells = int((cloud.aabb[1][1] - cloud.aabb[1][0]) // voxel_size)
-
-        cloud_horizontal = cloud.filter(cloud.normals, lambda x: abs(np.dot(x, (0,1,0))) > .95)
-        histo = DataAnalysis.dimensional_histogram(cloud_horizontal, 1, vertical_cells)
-        peaks = ndimage.filters.maximum_filter1d(histo[0], vertical_cells)
-        unique, counts = np.unique(peaks, return_counts=True)
-
-        two_max_peaks = unique[np.argpartition(counts, -2)[-2:]]
-        peak_heights = [float(histo[1][1:][histo[0] == p]) for p in two_max_peaks]
-        floor, ceiling = min(peak_heights), max(peak_heights)
-        cloud_floor = cloud_horizontal.filter(cloud_horizontal.points, lambda x: abs(x[1] - ceiling) < 4*voxel_size)
-
-        cloud_erode = cloud_floor.erode(1.5*voxel_size, 9, 4)
-
-        print(peak_heights)
-        print(histo)
-
-        DataViz.show()
-        DataViz.draw_point_clouds([cloud_erode])
+    # voxel_map = cloud.voxel_filter(voxel_size)
+    voxel_map = cloud.voxelize(voxel_size)
+    viz = o3dviz([voxel_map.to_pcd().to_o3d()])
 
     # Visualisation
     
