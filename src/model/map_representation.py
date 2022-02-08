@@ -400,6 +400,15 @@ class PointCloudRepresentation:
 
         return voxel_model
 
+    def random_reduce(self, keep_fraction: float) -> PointCloudRepresentation:
+        keep_points = []
+
+        for p in self.points:
+            if random() < keep_fraction:
+                keep_points.append(p)
+
+        return PointCloudRepresentation(np.array(keep_points), source=self)
+
     @ staticmethod
     def read_ply(fn: str) -> PointCloudRepresentation:
         '''Reads .ply file to point cloud. Discards all mesh data.'''
