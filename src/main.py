@@ -2,7 +2,7 @@ from itertools import repeat
 from multiprocessing import Pool
 from os import listdir
 from typing import List
-
+from time import perf_counter
 import numpy as np
 import open3d as o3d
 from scipy import ndimage
@@ -31,6 +31,9 @@ def read_input_clouds(dir: str) -> List[PointCloudRepresentation]:
     point_clouds = batch_read_ply(dir, ply_files)
 
     return point_clouds
+
+def read_input_cloud(path: str) -> PointCloudRepresentation:
+    return 
 
 
 class o3dviz:
@@ -69,7 +72,7 @@ class o3dviz:
         o3d.visualization.draw_geometries_with_key_callbacks([self.cur], key_to_callback)
 
 
-def normal_floor_filter(cloud: PointCloudRepresentation):
+def extract_storeys(cloud: PointCloudRepresentation):
     cloud.normals = cloud.estimate_normals(12)
 
     vertical_cells = int((cloud.aabb[1][1] - cloud.aabb[1][0]) // voxel_size)
@@ -91,6 +94,15 @@ def normal_floor_filter(cloud: PointCloudRepresentation):
         cloud_horizontal.points, lambda x: abs(x[1] - floor) < voxel_size)
 
     return cloud_floor, cloud_ceiling
+
+def pre_process():
+    pass
+
+def extract_map():
+    pass
+
+def merge_maps():
+    pass
 
 
 if __name__ == "__main__":
@@ -121,28 +133,38 @@ if __name__ == "__main__":
     '''
 
     # INPUT PARAMETERS #
-    input_dir = "C:/Users/max.van.schendel/Documents/Source/geomatics-master-thesis/data/house/low/"
-    voxel_size = 0.2
+    input_path = "./data/meshes/diningroom2kitchen - low.ply"
+    voxel_size = 0.05
+    
+    perf = {}
+    perf['start'] = perf_counter()
 
     print("Reading input map")
-    map_cloud = list(read_input_clouds(input_dir))[0]
+    map_cloud = PointCloudRepresentation.read_ply(input_path)
+    perf['read'] = perf_counter()
+
 
     # Mirror y-axis to flip map right side up and then voxelize it
-    print("Converting point cloud representation to voxel representation")
+    print("Preprocessing")
+    print("- Reducing point cloud")
+    map_cloud = map_cloud.random_reduce(0.2)
+
+    print("- Flipping point cloud")
     map_cloud = map_cloud.scale(np.array([1, -1, 1]))
-    map_cloud.colors = map_cloud.estimate_normals(8)
+
+    # print("- Filtering normals")
+    # map_cloud.normals = map_cloud.estimate_normals(4)
+    # map_cloud = map_cloud.filter(map_cloud.normals, lambda x: abs(np.dot(x, (0, 1, 0))) > .95)
+
+    print("- Voxelizing point cloud")
     map_voxel = map_cloud.voxelize(voxel_size)
+    perf['preprocess'] = perf_counter()
 
-    # map_voxel.set_attribute(map_voxel.estimate_normals(VoxelRepresentation.nb26()), 'color')
 
-    # map_voxel_normals = map_voxel.estimate_normals(kernel=VoxelRepresentation.nb26())
-    # map_voxel.set_attribute(map_voxel_normals, 'color')
-
-    # Walkable surface extraction
-    print("Applying convolution filter")
-
+    print("Extracting topological-metric map")
+    print("- Applying convolution filter")
     # Construct kernel
-    kernel_a = VoxelRepresentation.cylinder(7, 15).translate(np.array([0, 5, 0]))
+    kernel_a = VoxelRepresentation.cylinder(5, 15).translate(np.array([0, 5, 0]))
     kernel_b = VoxelRepresentation.cylinder(1, 5).translate(np.array([9//2, 0, 9//2]))
     kernel_c = kernel_a + kernel_b
     kernel_c.origin = np.array([4, 0, 4])
@@ -150,7 +172,7 @@ if __name__ == "__main__":
     
     # For all cells in input map, get neighbourhood as defined by kernel
     # Executed in parallel to reduce execution time
-    with Pool(12) as p:
+    with Pool(6) as p:
         kernel_points = p.starmap(
             map_voxel.kernel_contains_neighbours,
             zip(
@@ -168,29 +190,23 @@ if __name__ == "__main__":
         voxels={pt[0]: map_voxel[pt[0]] for pt in floor_points}
     )
 
-    print("Applying vertical dilation")
+    print("- Applying vertical dilation")
     dilated_voxel_map = floor_voxel_map.dilate(VoxelRepresentation.cylinder(1, 7))
-    # dilated_voxel_map = dilated_voxel_map.dilate(VoxelRepresentation.nb6())
 
-    print('Converting voxel representation to graph representation')
+    print('- Converting voxel representation to graph representation')
     dilated_graph_map = dilated_voxel_map.to_graph(nb26=False)
 
-    print('Finding connected components')
+    print('- Finding connected components')
     components = dilated_graph_map.connected_components()
     floor_graph = SpatialGraphRepresentation(dilated_graph_map.scale, dilated_graph_map.origin, dilated_graph_map.graph.subgraph(components[0]))
-
-    print('Finding shortest paths')
-    path = networkx.single_source_shortest_path_length(floor_graph.graph, list(floor_graph.graph.nodes)[0])
-    max_length = max(path.values())
-
-    for node in path: 
-        floor_graph.graph.nodes[node]['distance'] = path[node]
-        floor_graph.graph.nodes[node]['color'] = [path[node]/max_length, 0, path[node]/max_length]
     floor_voxel = floor_graph.to_voxel()
+
+    perf['map_extract'] = perf_counter()
+
+    print(perf)
 
     # Visualisation
     print("Visualising map")
-
     viz = o3dviz([
                     map_voxel.to_o3d(),
                     floor_voxel_map.to_o3d(),
