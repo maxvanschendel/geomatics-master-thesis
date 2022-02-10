@@ -10,43 +10,66 @@ import open3d as o3d
 from model.map_representation import (PointCloudRepresentation,
                                       SpatialGraphRepresentation,
                                       VoxelRepresentation)
-
+import threading
 
 class o3dviz:
-    def __init__(self, pcd):
+    
+    def __init__(self, geo):
         self.i = 0
 
-        self.pcd = pcd
-        self.cur = o3d.geometry.PointCloud()
-        self.cur.points = self.pcd[self.i].points
-        self.cur.colors = self.pcd[self.i].colors
+        self.geo = geo
+        self.cur = geo[self.i]
 
-        self.custom_draw_geometry_with_key_callback()
+        self.dark_mode = False
 
-    def change_background_to_black(self, vis):
-        opt = vis.get_render_option()
-        opt.background_color = np.asarray([0, 0, 0])
-        return False
+        app = o3d.visualization.gui.Application.instance
+        app.initialize()
 
-    def load_render_option(self, vis):
-        self.i += 1
+        gui = o3d.visualization.gui
+        mat = o3d.visualization.rendering.MaterialRecord()
 
-        self.cur.points = self.pcd[self.i % len(self.pcd)].points
-        self.cur.colors = self.pcd[self.i % len(self.pcd)].colors
+        w = gui.Application.instance.create_window("Two scenes", 1025, 512)
+        w.show_menu(True)
+        scene1 = gui.SceneWidget()
+        scene1.scene = o3d.visualization.rendering.Open3DScene(w.renderer)
+        scene1.scene.add_geometry("a", self.geo[0][0], mat)
+        scene1.setup_camera(60, scene1.scene.bounding_box, (0, 0, 0))
 
-        vis.update_geometry(self.cur)
-        vis.poll_events()
-        vis.update_renderer()
+        
+        
+        
+        scene2 = gui.SceneWidget()
+        scene2.scene = o3d.visualization.rendering.Open3DScene(w.renderer)
+        scene2.scene.add_geometry("b", self.geo[3][0], mat)
+        scene2.setup_camera(60, scene1.scene.bounding_box, (0, 0, 0))
 
-        return False
 
-    def custom_draw_geometry_with_key_callback(self):
-        key_to_callback = {}
-        key_to_callback[ord("K")] = self.change_background_to_black
-        key_to_callback[ord("R")] = self.load_render_option
+        w.add_child(scene1)
+        w.add_child(scene2)
 
-        o3d.visualization.draw_geometries_with_key_callbacks(
-            [self.cur], key_to_callback)
+        def on_layout(theme):
+            r = w.content_rect
+            scene1.frame = gui.Rect(r.x, r.y, r.width / 2, r.height)
+            scene2.frame = gui.Rect(r.x + r.width / 2 + 1, r.y, r.width / 2, r.height)
+
+        def on_mouse_a(m):
+            scene2.scene.camera.copy_from(scene1.scene.camera)
+            return scene1.EventCallbackResult.IGNORED
+
+        def on_mouse_b(m):
+            scene1.scene.camera.copy_from(scene2.scene.camera)
+            return scene1.EventCallbackResult.IGNORED
+
+        w.set_on_layout(on_layout)
+        scene1.set_on_mouse(on_mouse_a)
+        scene2.set_on_mouse(on_mouse_b)
+
+        app.run()
+
+    
+
+    def update_thread(self):
+        pass
 
 
 class PreProcessingParametersException(Exception):
@@ -141,8 +164,9 @@ if __name__ == "__main__":
     map_cloud = PointCloudRepresentation.read_ply(input_path)
     perf.read = perf_counter()
 
-    map_voxel = pre_process(map_cloud, PreProcessingParameters(
-        voxel_size=0.05, reduce=1, scale=[1, -1, 1]))
+    pp_params = PreProcessingParameters(voxel_size=0.05, reduce=1, scale=[1, -1, 1])
+
+    map_voxel = pre_process(map_cloud, pp_params)
     perf.pre_process = perf_counter()
 
     print("Extracting topological-metric map")
@@ -155,7 +179,7 @@ if __name__ == "__main__":
             map_voxel.kernel_contains_neighbours,
             zip(
                 map_voxel.voxels.keys(),
-                repeat(VoxelRepresentation.pen_kernel()),
+                repeat(VoxelRepresentation.pen_kernel(scale=pp_params.voxel_size/0.05)),
             ))
 
     # Create new voxel map with only cells that did not have any other cells in neighbourhood
@@ -170,8 +194,10 @@ if __name__ == "__main__":
     )
 
     print("- Applying vertical dilation")
+    floor_voxel_map = floor_voxel_map.dilate(
+        VoxelRepresentation.cylinder(1, 1))
     dilated_voxel_map = floor_voxel_map.dilate(
-        VoxelRepresentation.cylinder(1, 7))
+        VoxelRepresentation.cylinder(1, 1 + int(5 // (pp_params.voxel_size / 0.05))))
 
     print('- Converting voxel representation to graph representation')
     dilated_graph_map = dilated_voxel_map.to_graph()
@@ -179,7 +205,9 @@ if __name__ == "__main__":
     print('- Finding connected components')
     components = dilated_graph_map.connected_components()
     floor_graph = SpatialGraphRepresentation(
-        dilated_graph_map.scale, dilated_graph_map.origin, dilated_graph_map.graph.subgraph(components[0]))
+        dilated_graph_map.scale, 
+        dilated_graph_map.origin, 
+        dilated_graph_map.graph.subgraph(components[0]))
 
     print('- Computing MST')
     floor_graph = floor_graph.minimum_spanning_tree()
@@ -195,7 +223,7 @@ if __name__ == "__main__":
 
     floor_voxel = floor_graph.to_voxel()
     floor_filter = floor_voxel.subset(lambda voxel, **kwargs: floor_voxel[voxel]['betweenness'] > kwargs['threshold'],
-                                      threshold=0.005)
+                                      threshold=0.01)
 
     floor_filter.for_each(lambda voxel: floor_filter.set_attribute(voxel, 'color', [floor_filter[voxel]['betweenness']]*3))
 
@@ -208,8 +236,8 @@ if __name__ == "__main__":
     # Visualisation
     print("Visualising map")
     viz = o3dviz([
-        map_voxel.to_o3d(has_color=True),
-        floor_voxel_map.to_o3d(),
-        dilated_voxel_map.to_o3d(),
-        floor_filter.to_o3d(has_color=True),
+        [map_voxel.to_o3d(has_color=True)],
+        [floor_voxel_map.to_o3d()],
+        [dilated_voxel_map.to_o3d()],
+        [floor_filter.to_o3d(has_color=True)],
     ])

@@ -228,6 +228,9 @@ class VoxelRepresentation:
             for nb in nbs:
                 graph.add_edge(*(v, nb))
 
+            for attr in self.voxels[v]:
+                graph.nodes[v][attr] = self.voxels[v][attr]
+        
         return SpatialGraphRepresentation(self.cell_size, self.origin, graph)
 
     def dilate(self, kernel) -> VoxelRepresentation:
@@ -282,7 +285,7 @@ class VoxelRepresentation:
         for x, y, z in product(range(d), range(d), range(d)):
             dist = np.linalg.norm([x+0.5-r, y+0.5-r, z+0.5-r])
             if dist <= r:
-                voxel_model.add_voxel((x, y, z), 1)
+                voxel_model.add_voxel((x, y, z), {})
 
         return voxel_model
 
@@ -294,12 +297,21 @@ class VoxelRepresentation:
                                     (1, 0, 1): None, })
 
     @staticmethod
-    def pen_kernel():
-        kernel_a = VoxelRepresentation.cylinder(7, 10).translate(np.array([0, 5, 0]))
-        kernel_b = VoxelRepresentation.cylinder(1, 5).translate(np.array([9//2, 0, 9//2]))
+    def pen_kernel(scale):
+        a_height = int(15 // scale)
+        a_width = 1 + int(5 // scale)
+
+        b_height = int(5 // scale)
+        b_width = 1
+
+        print(a_height,a_width,b_height,b_width)
+
+        kernel_a = VoxelRepresentation.cylinder(a_width, a_height).translate(np.array([0, b_height, 0]))
+        kernel_b = VoxelRepresentation.cylinder(b_width, b_height).translate(np.array([a_width//2, 0, a_width//2]))
         kernel_c = kernel_a + kernel_b
-        kernel_c.origin = np.array([4, 0, 4])
-        kernel_c.remove_voxel((4, 0, 4))
+
+        kernel_c.origin = np.array([a_width//2, 0, a_width//2])
+        kernel_c.remove_voxel((a_width//2, 0, a_width//2))
 
         return kernel_c
 
