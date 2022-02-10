@@ -22,25 +22,33 @@ class o3dviz:
 
         self.dark_mode = False
 
+        vis = o3d.visualization
+        vis.point_size = 5
+
         app = o3d.visualization.gui.Application.instance
         app.initialize()
 
         gui = o3d.visualization.gui
-        mat = o3d.visualization.rendering.MaterialRecord()
+        mat_a = o3d.visualization.rendering.MaterialRecord()
+        mat_a.point_size = 3
+        mat_b = o3d.visualization.rendering.MaterialRecord()
+        mat_b.shader = "unlitLine"
+        mat_b.line_width = 5
+        mat_b.base_color = [0, 0, 0, 1.0]
 
         w = gui.Application.instance.create_window("Two scenes", 1025, 512)
-        w.show_menu(True)
+
         scene1 = gui.SceneWidget()
         scene1.scene = o3d.visualization.rendering.Open3DScene(w.renderer)
-        scene1.scene.add_geometry("a", self.geo[0][0], mat)
-        scene1.setup_camera(60, scene1.scene.bounding_box, (0, 0, 0))
-
+        scene1.scene.add_geometry("a", self.geo[0][0], mat_a)
         
+        scene1.setup_camera(60, scene1.scene.bounding_box, (0, 0, 0))
         
         
         scene2 = gui.SceneWidget()
         scene2.scene = o3d.visualization.rendering.Open3DScene(w.renderer)
-        scene2.scene.add_geometry("b", self.geo[3][0], mat)
+        scene2.scene.add_geometry("b", self.geo[1][0], mat_b)
+        scene2.scene.add_geometry("b2", self.geo[2][0], mat_a)
         scene2.setup_camera(60, scene1.scene.bounding_box, (0, 0, 0))
 
 
@@ -229,15 +237,16 @@ if __name__ == "__main__":
 
     for voxel in map_voxel.voxels:
         if floor_voxel.is_occupied(voxel):
-            map_voxel[voxel]['color'] = [1, 0, 0]
+            map_voxel[voxel]['floor'] = True
+            map_voxel[voxel]['color'] = [1,0,0]
         else:
-            map_voxel[voxel]['color'] = [0, 1, 0]
+            map_voxel[voxel]['floor'] = False
+            map_voxel[voxel]['color'] = [.5, .5, .5]
 
     # Visualisation
     print("Visualising map")
     viz = o3dviz([
         [map_voxel.to_o3d(has_color=True)],
-        [floor_voxel_map.to_o3d()],
-        [dilated_voxel_map.to_o3d()],
-        [floor_filter.to_o3d(has_color=True)],
+        [floor_filter.to_graph().to_o3d()],
+        [map_voxel.subset(lambda voxel, **kwargs: map_voxel[voxel]['floor'] == True).to_o3d()]
     ])

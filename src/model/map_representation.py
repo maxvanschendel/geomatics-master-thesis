@@ -44,7 +44,7 @@ class SpatialGraphRepresentation:
         color = [self.nodes[p]['color'] for p in self.nodes]
 
         line_set = o3d.geometry.LineSet()
-        line_set.points = o3d.utility.Vector3dVector(points)
+        line_set.points = o3d.utility.Vector3dVector((np.array(points)*self.scale) + self.origin)
         line_set.lines = o3d.utility.Vector2iVector(lines)
         line_set.colors = o3d.utility.Vector3dVector(color)
 
@@ -303,8 +303,6 @@ class VoxelRepresentation:
 
         b_height = int(5 // scale)
         b_width = 1
-
-        print(a_height,a_width,b_height,b_width)
 
         kernel_a = VoxelRepresentation.cylinder(a_width, a_height).translate(np.array([0, b_height, 0]))
         kernel_b = VoxelRepresentation.cylinder(b_width, b_height).translate(np.array([a_width//2, 0, a_width//2]))
