@@ -1,39 +1,15 @@
+from dataclasses import dataclass
 from itertools import repeat
 from multiprocessing import Pool
-from os import listdir
-from typing import List
 from time import perf_counter
+from typing import Tuple
+
 import numpy as np
 import open3d as o3d
-from scipy import ndimage
 
-from analysis.analysis import DataAnalysis
-from model.map_representation import PointCloudRepresentation, SpatialGraphRepresentation, VoxelRepresentation
-import networkx
-
-# HELPER FUNCTIONS
-def get_files_with_extension(dir: str, ext: str):
-    '''Get all files in directory that end with specified extension'''
-
-    return filter(lambda x: x[-len(ext):] == ext, listdir(dir))
-
-
-def batch_read_ply(dir: str, files: List[str]) -> List[PointCloudRepresentation]:
-    '''Read multiple .ply files at once to point clouds.'''
-
-    return map(lambda fn: PointCloudRepresentation.read_ply(dir + fn), files)
-
-
-def read_input_clouds(dir: str) -> List[PointCloudRepresentation]:
-    '''Get all .ply files in a directory and read their point clouds.'''
-
-    ply_files = get_files_with_extension(dir, '.ply')
-    point_clouds = batch_read_ply(dir, ply_files)
-
-    return point_clouds
-
-def read_input_cloud(path: str) -> PointCloudRepresentation:
-    return 
+from model.map_representation import (PointCloudRepresentation,
+                                      SpatialGraphRepresentation,
+                                      VoxelRepresentation)
 
 
 class o3dviz:
@@ -52,11 +28,11 @@ class o3dviz:
         opt.background_color = np.asarray([0, 0, 0])
         return False
 
-    def load_render_option(self,vis):
+    def load_render_option(self, vis):
         self.i += 1
-        
-        self.cur.points = self.pcd[self.i%len(self.pcd)].points
-        self.cur.colors = self.pcd[self.i%len(self.pcd)].colors
+
+        self.cur.points = self.pcd[self.i % len(self.pcd)].points
+        self.cur.colors = self.pcd[self.i % len(self.pcd)].colors
 
         vis.update_geometry(self.cur)
         vis.poll_events()
@@ -69,37 +45,64 @@ class o3dviz:
         key_to_callback[ord("K")] = self.change_background_to_black
         key_to_callback[ord("R")] = self.load_render_option
 
-        o3d.visualization.draw_geometries_with_key_callbacks([self.cur], key_to_callback)
+        o3d.visualization.draw_geometries_with_key_callbacks(
+            [self.cur], key_to_callback)
 
 
-def extract_storeys(cloud: PointCloudRepresentation):
-    cloud.normals = cloud.estimate_normals(12)
-
-    vertical_cells = int((cloud.aabb[1][1] - cloud.aabb[1][0]) // voxel_size)
-    cloud_horizontal = cloud.filter(
-        cloud.normals, lambda x: abs(np.dot(x, (0, 1, 0))) > .95)
-
-    histo, labels = DataAnalysis.dimensional_histogram(
-        cloud_horizontal, 1, vertical_cells)
-    peaks = ndimage.filters.maximum_filter1d(histo, vertical_cells)
-    unique, counts = np.unique(peaks, return_counts=True)
-
-    two_max_peaks = unique[np.argpartition(counts, -2)[-2:]]
-    peak_heights = [float(labels[1:][histo == p]) for p in two_max_peaks]
-    floor, ceiling = min(peak_heights), max(peak_heights)
-
-    cloud_floor = cloud_horizontal.filter(
-        cloud_horizontal.points, lambda x: abs(x[1] - ceiling) < voxel_size)
-    cloud_ceiling = cloud_horizontal.filter(
-        cloud_horizontal.points, lambda x: abs(x[1] - floor) < voxel_size)
-
-    return cloud_floor, cloud_ceiling
-
-def pre_process():
+class PreProcessingParametersException(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class PreProcessingParameters:
+    voxel_size: float
+    reduce: float
+    scale: Tuple[float]
+
+    # input validation
+    def __post_init__(self):
+        if not 0 <= self.reduce <= 1:
+            raise PreProcessingParametersException(
+                "Reduce must be a fraction between 0 and 1.")
+
+        if not len(self.scale) == 3:
+            raise PreProcessingParametersException(
+                "Scale must be a 3-dimensional vector.")
+
+    def serialize(self) -> str:
+        pass
+
+
+@dataclass(frozen=True)
+class MapExtractionParameters:
+    pass
+
+
+@dataclass
+class Performance:
+    start: float = None
+    read: float = None
+    pre_process: float = None
+    map_extract: float = None
+    map_merge: float = None
+
+    def __str__(self):
+        return str(vars(self))
+
+
+def pre_process(partial_map: PointCloudRepresentation, params: PreProcessingParameters):
+    print("Preprocessing")
+
+    partial_map_reduced = partial_map.random_reduce(params.reduce)
+    partial_map_scaled = partial_map_reduced.scale(np.array(params.scale))
+    partial_map_voxel = partial_map_scaled.voxelize(params.voxel_size)
+
+    return partial_map_voxel
+
 
 def extract_map():
     pass
+
 
 def merge_maps():
     pass
@@ -110,16 +113,13 @@ if __name__ == "__main__":
     1. read directory containing multiply .ply point clouds                                         ✔
 
     2. extract topometric maps from point clouds                                                    x
-    (He, Z., Sun, H., Hou, J., Ha, Y., & Schwertfeger, S. (2021). 
-    Hierarchical topometric representation of 3D robotic maps. 
-    Autonomous Robots, 45(5), 755–771. https://doi.org/10.1007/s10514-021-09991-8)
     2.1. Preprocess
-    2.1.1   Voxel filter
+    2.1.1   Voxel filter                                                                            ✔
     2.1.2   Denoising
-    2.2. Ceiling/floor extraction
-    2.3. Column generation
-    2.4. Region/passage generation
-    2.5. Area graph segmentation
+    2.2. Floor extraction                                                                           ✔
+    2.3. Room segmentation
+    2.4. Graph extraction
+
 
     3. merge local topometric maps into global topometric map                                       x
     3.1 find correspondences between nodes
@@ -131,58 +131,37 @@ if __name__ == "__main__":
 
     5. write output .ply point cloud and visualise                                                  x
     '''
-
     # INPUT PARAMETERS #
-    input_path = "./data/meshes/diningroom2kitchen - low.ply"
-    voxel_size = 0.05
-    
-    perf = {}
-    perf['start'] = perf_counter()
+    input_path = "./data/meshes/hall2frontbedroom - low.ply"
+
+    perf = Performance()
+    perf.start = perf_counter()
 
     print("Reading input map")
     map_cloud = PointCloudRepresentation.read_ply(input_path)
-    perf['read'] = perf_counter()
+    perf.read = perf_counter()
 
-
-    # Mirror y-axis to flip map right side up and then voxelize it
-    print("Preprocessing")
-    print("- Reducing point cloud")
-    map_cloud = map_cloud.random_reduce(0.2)
-
-    print("- Flipping point cloud")
-    map_cloud = map_cloud.scale(np.array([1, -1, 1]))
-
-    # print("- Filtering normals")
-    # map_cloud.normals = map_cloud.estimate_normals(4)
-    # map_cloud = map_cloud.filter(map_cloud.normals, lambda x: abs(np.dot(x, (0, 1, 0))) > .95)
-
-    print("- Voxelizing point cloud")
-    map_voxel = map_cloud.voxelize(voxel_size)
-    perf['preprocess'] = perf_counter()
-
+    map_voxel = pre_process(map_cloud, PreProcessingParameters(
+        voxel_size=0.05, reduce=1, scale=[1, -1, 1]))
+    perf.pre_process = perf_counter()
 
     print("Extracting topological-metric map")
     print("- Applying convolution filter")
-    # Construct kernel
-    kernel_a = VoxelRepresentation.cylinder(5, 15).translate(np.array([0, 5, 0]))
-    kernel_b = VoxelRepresentation.cylinder(1, 5).translate(np.array([9//2, 0, 9//2]))
-    kernel_c = kernel_a + kernel_b
-    kernel_c.origin = np.array([4, 0, 4])
-    kernel_c.remove_voxel((4,0,4))
-    
+
     # For all cells in input map, get neighbourhood as defined by kernel
     # Executed in parallel to reduce execution time
-    with Pool(6) as p:
+    with Pool(12) as p:
         kernel_points = p.starmap(
             map_voxel.kernel_contains_neighbours,
             zip(
                 map_voxel.voxels.keys(),
-                repeat(kernel_c),
-                )
-        )
+                repeat(VoxelRepresentation.pen_kernel()),
+            ))
 
     # Create new voxel map with only cells that did not have any other cells in neighbourhood
-    floor_points = filter(lambda pts: pts[1] == False, zip(map_voxel.voxels, kernel_points))
+    floor_points = filter(lambda pts: pts[1] == False, zip(
+        map_voxel.voxels, kernel_points))
+
     floor_voxel_map = VoxelRepresentation(
         shape=map_voxel.shape,
         cell_size=map_voxel.cell_size,
@@ -191,25 +170,46 @@ if __name__ == "__main__":
     )
 
     print("- Applying vertical dilation")
-    dilated_voxel_map = floor_voxel_map.dilate(VoxelRepresentation.cylinder(1, 7))
+    dilated_voxel_map = floor_voxel_map.dilate(
+        VoxelRepresentation.cylinder(1, 7))
 
     print('- Converting voxel representation to graph representation')
-    dilated_graph_map = dilated_voxel_map.to_graph(nb26=False)
+    dilated_graph_map = dilated_voxel_map.to_graph()
 
     print('- Finding connected components')
     components = dilated_graph_map.connected_components()
-    floor_graph = SpatialGraphRepresentation(dilated_graph_map.scale, dilated_graph_map.origin, dilated_graph_map.graph.subgraph(components[0]))
-    floor_voxel = floor_graph.to_voxel()
+    floor_graph = SpatialGraphRepresentation(
+        dilated_graph_map.scale, dilated_graph_map.origin, dilated_graph_map.graph.subgraph(components[0]))
 
-    perf['map_extract'] = perf_counter()
+    print('- Computing MST')
+    floor_graph = floor_graph.minimum_spanning_tree()
 
+    print('- Computing betweenness centrality')
+    betweenness = floor_graph.betweenness_centrality(n_target_points=50)
+    for node in betweenness:
+        floor_graph.graph.nodes[node]['betweenness'] = betweenness[node]
+
+    perf.map_extract = perf_counter()
+    perf.map_merge = None
     print(perf)
+
+    floor_voxel = floor_graph.to_voxel()
+    floor_filter = floor_voxel.subset(lambda voxel, **kwargs: floor_voxel[voxel]['betweenness'] > kwargs['threshold'],
+                                      threshold=0.005)
+
+    floor_filter.for_each(lambda voxel: floor_filter.set_attribute(voxel, 'color', [floor_filter[voxel]['betweenness']]*3))
+
+    for voxel in map_voxel.voxels:
+        if floor_voxel.is_occupied(voxel):
+            map_voxel[voxel]['color'] = [1, 0, 0]
+        else:
+            map_voxel[voxel]['color'] = [0, 1, 0]
 
     # Visualisation
     print("Visualising map")
     viz = o3dviz([
-                    map_voxel.to_o3d(),
-                    floor_voxel_map.to_o3d(),
-                    dilated_voxel_map.to_o3d(),
-                    floor_voxel.to_o3d(),
-                ])
+        map_voxel.to_o3d(has_color=True),
+        floor_voxel_map.to_o3d(),
+        dilated_voxel_map.to_o3d(),
+        floor_filter.to_o3d(has_color=True),
+    ])

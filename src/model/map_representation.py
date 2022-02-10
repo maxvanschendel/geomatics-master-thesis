@@ -1,17 +1,18 @@
 from __future__ import annotations
+from ast import Lambda
+
+import copy
 import enum
+from itertools import product
+from random import random
+from typing import Dict, Tuple
 
-from typing import Tuple, Dict
-
+import networkx
 import numpy as np
 import open3d as o3d
 from plyfile import PlyData
-from seaborn.distributions import kdeplot
-from sklearn.neighbors import KDTree
 from sklearn.decomposition import PCA
-from itertools import product
-import copy
-import networkx
+from sklearn.neighbors import KDTree
 
 
 class SpatialGraphRepresentation:
@@ -28,19 +29,19 @@ class SpatialGraphRepresentation:
         else:
             self.graph = graph
 
-        for i, node in enumerate(self.graph.nodes()):
-            self.graph.nodes[node]['index'] = i
+        self.nodes = self.graph.nodes
+        self.edges = self.graph.edges
+
+        for i, node in enumerate(self.nodes):
+            self.nodes[node]['index'] = i
 
     def node_index(self, node):
-        return self.graph.nodes[node]['index']
+        return self.nodes[node]['index']
 
     def to_o3d(self) -> o3d.geometry.LineSet:
-        '''Creates Open3D point cloud for visualisation purposes.'''
-
-        points = self.graph.nodes()
-        lines = [(self.node_index(n[0]), self.node_index(n[1]))
-                 for n in self.graph.edges()]
-        color = [self.graph.nodes[p]['color'] for p in self.graph.nodes]
+        points = self.nodes
+        lines = [(self.node_index(n[0]), self.node_index(n[1])) for n in self.edges]
+        color = [self.nodes[p]['color'] for p in self.nodes]
 
         line_set = o3d.geometry.LineSet()
         line_set.points = o3d.utility.Vector3dVector(points)
@@ -50,14 +51,23 @@ class SpatialGraphRepresentation:
         return line_set
 
     def to_voxel(self):
-        vox = VoxelRepresentation(np.array([0, 0, 0]), self.scale, self.origin, {
-                                  node: {'population': 1} for node in self.graph.nodes()})
+        vox = VoxelRepresentation(np.array([0, 0, 0]), self.scale, self.origin, {node: {'count': 1} for node in self.nodes})
         vox.shape = vox.extents()
 
-        for node in self.graph.nodes:
-            vox[node]['color'] = self.graph.nodes[node]['color']
+        # transfer voxel attributes to nodes
+        for node in self.nodes:
+            for attr in self.nodes[node].keys():
+                vox[node][attr] = self.nodes[node][attr]
 
         return vox
+
+    def minimum_spanning_tree(self) -> SpatialGraphRepresentation:
+        mst = networkx.minimum_spanning_tree(self.graph)
+
+        return SpatialGraphRepresentation(self.scale, self.origin, mst)
+
+    def betweenness_centrality(self, n_target_points: int):
+        return networkx.betweenness_centrality(self.graph, n_target_points)
 
     def connected_components(self):
         return sorted(networkx.connected_components(self.graph), key=len, reverse=True)
@@ -114,13 +124,28 @@ class VoxelRepresentation:
 
         return new_model
 
-    def set_attribute(self, vals, attr):
-        for i, val in enum(vals):
-            self.voxels.keys()[i][attr] = val
+    def set_attribute(self, voxel, attr, val):
+        self.voxels[voxel][attr] = val
 
-    def map(self, func, *args):
-        return map(lambda v: func(v, *args), self.voxels)
+    def for_each(self, func, **kwargs):
+        for voxel in self.voxels:
+            func(voxel, **kwargs)
 
+    def map(self, func, **kwargs):
+        return map(lambda v: func(v, **kwargs), self.voxels)
+
+    def filter(self, func, **kwargs):
+        return filter(lambda v: func(v, **kwargs), self.voxels)
+
+    def subset(self, func: Lambda, **kwargs):
+        filtered_voxels = self.filter(func, **kwargs)
+        voxel_dict = {voxel: self.voxels[voxel] for voxel in filtered_voxels}
+            
+        return VoxelRepresentation(self.shape, self.cell_size, self.origin, voxel_dict)
+
+    def mask(self, mask: VoxelRepresentation):
+        return self.filter(lambda voxel: mask.is_occupied(voxel))
+    
     @staticmethod
     def pca(vals):
         try:
@@ -172,8 +197,10 @@ class VoxelRepresentation:
         return kernel_cells
 
     def kernel_contains_neighbours(self, cell: Tuple[int, int, int], kernel: VoxelRepresentation) -> bool:
+        cell_origin = cell - kernel.origin
+
         for k in kernel.voxels:
-            nb = tuple(cell + (k - kernel.origin))
+            nb = tuple(cell_origin + k)
             if self.is_occupied(nb):
                 return True
 
@@ -183,22 +210,17 @@ class VoxelRepresentation:
         return self.to_pcd(has_color).to_o3d()
 
     def to_pcd(self, has_color=False) -> PointCloudRepresentation:
-        points = []
-        color = []
-        for voxel in self.voxels.keys():
+        points, colors = [], []
+
+        for voxel in self.voxels:
             points.append(self.origin + (self.cell_size * voxel))
-
             if has_color:
-                color.append(self.voxels[voxel]['color'])
+                colors.append(self.voxels[voxel]['color'])
 
-        return PointCloudRepresentation(np.array(points), colors=color, source=self)
+        return PointCloudRepresentation(np.array(points), colors=colors, source=self)
 
-    def to_graph(self, nb26=False) -> SpatialGraphRepresentation:
-        if nb26:
-            kernel = VoxelRepresentation.nb26()
-        else:
-            kernel = VoxelRepresentation.nb6()
-
+    def to_graph(self) -> SpatialGraphRepresentation:
+        kernel = VoxelRepresentation.nb6()
         graph = networkx.Graph()
 
         for v in self.voxels:
@@ -208,12 +230,6 @@ class VoxelRepresentation:
 
         return SpatialGraphRepresentation(self.cell_size, self.origin, graph)
 
-    ### Basic mathematical morphology operations ###
-    def erode(self, kernel) -> VoxelRepresentation:
-        '''Erode model with kernel.'''
-
-        pass
-
     def dilate(self, kernel) -> VoxelRepresentation:
         '''Dilate model with kernel'''
 
@@ -221,11 +237,11 @@ class VoxelRepresentation:
             self.shape, self.cell_size, self.origin, {})
 
         for v in self.voxels:
-            dilated_model.add_voxel(v, 1)
+            dilated_model.add_voxel(v, {})
 
             for k in kernel.voxels:
                 nb = tuple(v + (k - kernel.origin))
-                dilated_model.add_voxel(nb, 1)
+                dilated_model.add_voxel(nb, {})
 
         return dilated_model
 
@@ -244,6 +260,7 @@ class VoxelRepresentation:
             translated_cells[tuple(voxel_t)] = self.voxels[voxel]
 
         return VoxelRepresentation(new_shape, self.cell_size, self.origin, translated_cells)
+
 
     @ staticmethod
     def cylinder(d, h, origin=np.array([0, 0, 0]), cell_size=np.array([1, 1, 1])):
@@ -276,13 +293,15 @@ class VoxelRepresentation:
                                     (1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None,
                                     (1, 0, 1): None, })
 
-    def nb26():
-        return VoxelRepresentation((3, 3, 3), np.array([1, 1, 1]), np.array([1, 1, 1]),
-                                   {(x,y,z): None for x, y, z in product(range(3), range(3), range(3))}.pop((1, 1, 1)))
+    @staticmethod
+    def pen_kernel():
+        kernel_a = VoxelRepresentation.cylinder(7, 10).translate(np.array([0, 5, 0]))
+        kernel_b = VoxelRepresentation.cylinder(1, 5).translate(np.array([9//2, 0, 9//2]))
+        kernel_c = kernel_a + kernel_b
+        kernel_c.origin = np.array([4, 0, 4])
+        kernel_c.remove_voxel((4, 0, 4))
 
-    @ staticmethod
-    def box():
-        pass
+        return kernel_c
 
 
 class PointCloudRepresentation:
@@ -351,33 +370,14 @@ class PointCloudRepresentation:
         return np.array(normals)
 
     def filter(self, property, func):
-        '''Functional programming filter for point clouds'''
+        '''Functional filter for point cloud'''
 
         out_points = []
-
         for i, p in enumerate(self.points):
             if func(property[i]):
                 out_points.append(p)
 
         return PointCloudRepresentation(np.array(out_points), source=self)
-
-    def voxel_filter(self, cell_size) -> PointCloudRepresentation:
-        '''Divides point cloud into grid and returns new point cloud with only the centers of occupied cells.'''
-
-        edge_sizes = self.aabb[:, 1] - self.aabb[:, 0]
-        cell_sizes = edge_sizes / (edge_sizes // cell_size)
-
-        occupied_cells, points = set(), []
-        for p in self.points:
-            # Find voxel cell that the given point is in
-            cell = (p - self.aabb[:, 0]) // cell_sizes
-
-            # Check if cell already contains point, otherwise add one
-            if cell.tobytes() not in occupied_cells:
-                occupied_cells.add(cell.tobytes())
-                points.append(self.aabb[:, 0] + (cell + 0.5) * cell_sizes)
-
-        return PointCloudRepresentation(np.array(points), colors=None, source=self)
 
     def voxelize(self, cell_size) -> VoxelRepresentation:
         '''Convert point cloud to discretized voxel representation.'''
@@ -386,18 +386,15 @@ class PointCloudRepresentation:
         shape = edge_sizes // cell_size
         cell_sizes = edge_sizes / shape
 
-        voxel_model = VoxelRepresentation(shape, cell_sizes, self.aabb[:, 0])
+        voxel_model = VoxelRepresentation(shape, cell_sizes, self.aabb[:, 0], {})
 
         for p in self.points:
             # Find voxel cell that the given point is in
             cell = tuple(((p - self.aabb[:, 0]) // cell_sizes).astype(int))
 
-            if voxel_model.is_occupied(cell):
-                voxel_model[cell]['population'] += 1
-            else:
-                voxel_model.add_voxel(cell)
-                voxel_model[cell]['population'] = 1
-
+            if not voxel_model.is_occupied(cell):
+                voxel_model.add_voxel(cell, {})
+                
         return voxel_model
 
     def random_reduce(self, keep_fraction: float) -> PointCloudRepresentation:
@@ -432,3 +429,6 @@ class PointCloudRepresentation:
             colors = np.zeros(shape=[num_points, 3], dtype=np.float32)
 
         return PointCloudRepresentation(points, colors/255, source=fn)
+
+class TopoMetricRepresentation():
+    pass
