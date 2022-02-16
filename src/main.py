@@ -3,13 +3,14 @@ from itertools import repeat
 from multiprocessing import Pool
 from time import perf_counter
 from typing import Tuple
-
+from copy import deepcopy
 import numpy as np
 import open3d as o3d
-
+from random import random
 from model.map_representation import (PointCloudRepresentation,
                                       SpatialGraphRepresentation,
                                       VoxelRepresentation)
+
 
 class o3dviz:
     def __init__(self, geo):
@@ -35,17 +36,14 @@ class o3dviz:
         scene1.scene = o3d.visualization.rendering.Open3DScene(w.renderer)
         scene1.scene.add_geometry("a", self.geo[0][0], mat_a)
         scene1.scene.add_geometry("a2", self.geo[1][0], mat_b)
-        
+
         scene1.setup_camera(60, scene1.scene.bounding_box, (0, 0, 0))
-        
-        
-        
+
         scene2 = gui.SceneWidget()
         scene2.scene = o3d.visualization.rendering.Open3DScene(w.renderer)
         scene2.scene.add_geometry("b", self.geo[1][0], mat_b)
         scene2.scene.add_geometry("b2", self.geo[2][0], mat_a)
         scene2.setup_camera(60, scene1.scene.bounding_box, (0, 0, 0))
-
 
         w.add_child(scene1)
         w.add_child(scene2)
@@ -53,7 +51,8 @@ class o3dviz:
         def on_layout(theme):
             r = w.content_rect
             scene1.frame = gui.Rect(r.x, r.y, r.width / 2, r.height)
-            scene2.frame = gui.Rect(r.x + r.width / 2 + 1, r.y, r.width / 2, r.height)
+            scene2.frame = gui.Rect(
+                r.x + r.width / 2 + 1, r.y, r.width / 2, r.height)
 
         def on_mouse_a(m):
             scene2.scene.camera.copy_from(scene1.scene.camera)
@@ -72,6 +71,7 @@ class o3dviz:
 
 class PreProcessingParametersException(Exception):
     pass
+
 
 @dataclass(frozen=True)
 class PreProcessingParameters:
@@ -110,7 +110,7 @@ class Performance:
         return str(vars(self))
 
 
-def pre_process(partial_map: PointCloudRepresentation, params: PreProcessingParameters):
+def pre_process(partial_map: PointCloudRepresentation, params: PreProcessingParameters) -> VoxelRepresentation:
     print("Preprocessing")
 
     partial_map_reduced = partial_map.random_reduce(params.reduce)
@@ -162,10 +162,10 @@ if __name__ == "__main__":
     perf.read = perf_counter()
 
     preprocess_parameters = PreProcessingParameters(
-        voxel_size=0.1, 
-        reduce=1, 
+        voxel_size=0.1,
+        reduce=1,
         scale=[1, -1, 1]
-        )
+    )
 
     map_voxel = pre_process(map_cloud, preprocess_parameters)
     perf.pre_process = perf_counter()
@@ -180,75 +180,68 @@ if __name__ == "__main__":
             map_voxel.kernel_contains_neighbours,
             zip(
                 map_voxel.voxels.keys(),
-                repeat(VoxelRepresentation.stick_kernel(scale=preprocess_parameters.voxel_size/0.05)),
+                repeat(VoxelRepresentation.stick_kernel(
+                    scale=preprocess_parameters.voxel_size/0.05)),
             ))
-
-    # Create new voxel map with only cells that did not have any other cells in neighbourhood
-    floor_points = filter(lambda pts: pts[1] == False, zip(
-        map_voxel.voxels, kernel_points))
-
-    floor_voxel_map = VoxelRepresentation(
+                                                                                
+    floor_voxels = filter(lambda pts: pts[1] == False, zip(                      # Create new voxel map with only cells that 
+        map_voxel.voxels, kernel_points))                                        # does not have any other cells in neighbourhood
+    floor_voxel_map = VoxelRepresentation(                  
         shape=map_voxel.shape,
         cell_size=map_voxel.cell_size,
         origin=map_voxel.origin,
-        voxels={pt[0]: map_voxel[pt[0]] for pt in floor_points}
+        voxels={pt[0]: map_voxel[pt[0]] for pt in floor_voxels}
     )
 
     print("- Applying vertical dilation")
-    floor_voxel_map = floor_voxel_map.dilate(
-        VoxelRepresentation.cylinder(1, 1))
-    dilated_voxel_map = floor_voxel_map.dilate(
-        VoxelRepresentation.cylinder(1, 1 + int(5 // (preprocess_parameters.voxel_size / 0.05))))
-
-    print('- Converting voxel representation to graph representation')
-    dilated_graph_map = dilated_voxel_map.to_graph()
+    dilated_voxel_map = floor_voxel_map.dilate(VoxelRepresentation.cylinder(
+        1, 1 + int(5 // (preprocess_parameters.voxel_size / 0.05))))            # Dilate floor area to connect stairs
+    
+    dilated_graph_map = dilated_voxel_map.to_graph()                            # Convert voxel floor area to dense graph
 
     print('- Finding connected components')
     components = dilated_graph_map.connected_components()
     floor_graph = SpatialGraphRepresentation(
-        dilated_graph_map.scale, 
-        dilated_graph_map.origin, 
+        dilated_graph_map.scale,
+        dilated_graph_map.origin,
         dilated_graph_map.graph.subgraph(components[0]))
 
-    print('- Computing MST')
+    print('- Computing skeleton')
     floor_graph = floor_graph.minimum_spanning_tree()
-
-    print('- Computing betweenness centrality')
     betweenness = floor_graph.betweenness_centrality(n_target_points=50)
     for node in betweenness:
         floor_graph.graph.nodes[node]['betweenness'] = betweenness[node]
 
+    floor_voxel = floor_graph.to_voxel()
+    floor_filter = floor_voxel.subset(
+        lambda v, **kwargs: floor_voxel[v]['betweenness'] > kwargs['threshold'], threshold=0.25)
+    floor_filter.for_each(lambda voxel: floor_filter.set_attribute(
+        voxel, 'color', [floor_filter[voxel]['betweenness']]*3))
+
+    floor_filter.origin = deepcopy(floor_filter.origin)
+    floor_filter.origin += np.array([0, 1.5, 0.])
+
+    for voxel in map_voxel.voxels:
+        map_voxel[voxel]['color'] = [0.2, 0.2, 0.2]
+        map_voxel[voxel]['floor'] = floor_voxel.is_occupied(voxel)
+
+    print('- Computing isovists')
+    with Pool(12) as p:
+        isovists = p.map(map_voxel.isovist, [list(
+            floor_filter.voxel_coordinates(v)) for v in floor_filter.voxels])
+
+    for iso in isovists:
+        for v in iso:
+            map_voxel[v]['color'] = [1,0,0]
+
+    floor_voxel_flat = map_voxel.subset(
+        lambda voxel, **kwargs: map_voxel[voxel]['floor'] == True)
+
+
+
     perf.map_extract = perf_counter()
     perf.map_merge = None
     print(perf)
-
-    floor_voxel = floor_graph.to_voxel()
-    floor_filter = floor_voxel.subset(lambda voxel, **kwargs: floor_voxel[voxel]['betweenness'] > kwargs['threshold'], threshold=0.05)
-    floor_filter.for_each(lambda voxel: floor_filter.set_attribute(voxel, 'color', [floor_filter[voxel]['betweenness']]*3))
-
-    from copy import deepcopy
-    floor_filter.origin = deepcopy(floor_filter.origin)
-    floor_filter.origin += np.array([0, 1.8, 0.])
-
-    for voxel in map_voxel.voxels:
-        map_voxel[voxel]['color'] = [0.2,0.2,0.2]
-        
-        if floor_voxel.is_occupied(voxel):
-            map_voxel[voxel]['floor'] = True
-        else:
-            map_voxel[voxel]['floor'] = False
-            
-    from random import random
-
-    with Pool(12) as p:
-        isovists = p.map(map_voxel.isovist, [list(floor_voxel.voxel_coordinates(v)) for v in floor_filter.voxels])
-
-    for iso in isovists:
-        color = [random(), random(), random()]
-        for v in iso:
-            map_voxel[v]['color'] = color
-
-    floor_voxel_flat = map_voxel.subset(lambda voxel, **kwargs: map_voxel[voxel]['floor'] == True)
 
     # Visualisation
     print("Visualising map")
