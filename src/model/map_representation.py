@@ -13,7 +13,7 @@ import open3d as o3d
 from plyfile import PlyData
 from sklearn.decomposition import PCA
 from sklearn.neighbors import KDTree
-
+import math
 
 class SpatialGraphRepresentation:
     def __init__(self,
@@ -40,18 +40,21 @@ class SpatialGraphRepresentation:
 
     def to_o3d(self) -> o3d.geometry.LineSet:
         points = self.nodes
-        lines = [(self.node_index(n[0]), self.node_index(n[1])) for n in self.edges]
+        lines = [(self.node_index(n[0]), self.node_index(n[1]))
+                 for n in self.edges]
         color = [self.nodes[p]['color'] for p in self.nodes]
 
         line_set = o3d.geometry.LineSet()
-        line_set.points = o3d.utility.Vector3dVector((np.array(points)*self.scale) + self.origin)
+        line_set.points = o3d.utility.Vector3dVector(
+            (np.array(points)*self.scale) + self.origin)
         line_set.lines = o3d.utility.Vector2iVector(lines)
         line_set.colors = o3d.utility.Vector3dVector(color)
 
         return line_set
 
     def to_voxel(self):
-        vox = VoxelRepresentation(np.array([0, 0, 0]), self.scale, self.origin, {node: {'count': 1} for node in self.nodes})
+        vox = VoxelRepresentation(np.array([0, 0, 0]), self.scale, self.origin, {
+                                  node: {'count': 1} for node in self.nodes})
         vox.shape = vox.extents()
 
         # transfer voxel attributes to nodes
@@ -140,12 +143,12 @@ class VoxelRepresentation:
     def subset(self, func: Lambda, **kwargs):
         filtered_voxels = self.filter(func, **kwargs)
         voxel_dict = {voxel: self.voxels[voxel] for voxel in filtered_voxels}
-            
+
         return VoxelRepresentation(self.shape, self.cell_size, self.origin, voxel_dict)
 
     def mask(self, mask: VoxelRepresentation):
         return self.filter(lambda voxel: mask.is_occupied(voxel))
-    
+
     @staticmethod
     def pca(vals):
         try:
@@ -155,14 +158,15 @@ class VoxelRepresentation:
             print(e, vals)
 
         return pca
-        
+
     def estimate_normals(self, kernel: VoxelRepresentation):
         nbs = self.map(self.get_kernel, kernel)
-        pca_components = map(lambda nb: VoxelRepresentation.pca(nb).components_, nbs)
+        pca_components = map(
+            lambda nb: VoxelRepresentation.pca(nb).components_, nbs)
         normals = map(lambda c: c[2] / np.linalg.norm(c[2]), pca_components)
 
         return list(normals)
-            
+
     def extents(self):
         new_voxels = np.array(list(self.voxels.keys()))
         new_shape = list(self.shape)
@@ -230,7 +234,7 @@ class VoxelRepresentation:
 
             for attr in self.voxels[v]:
                 graph.nodes[v][attr] = self.voxels[v][attr]
-        
+
         return SpatialGraphRepresentation(self.cell_size, self.origin, graph)
 
     def dilate(self, kernel) -> VoxelRepresentation:
@@ -259,10 +263,111 @@ class VoxelRepresentation:
             if len(out_of_bounds_voxels) > 0:
                 for v in out_of_bounds_voxels:
                     new_shape[int(v)] = voxel_t[int(v)]
-
             translated_cells[tuple(voxel_t)] = self.voxels[voxel]
 
         return VoxelRepresentation(new_shape, self.cell_size, self.origin, translated_cells)
+
+    def distance_to_unoccupied(self):
+        hipf = []
+
+        for v in self.voxels:
+            kernel = VoxelRepresentation.nb4()
+            v_nbs = self.get_kernel(v, kernel)
+
+            i = 0
+            while len(v_nbs) == len(kernel.voxels):
+                kernel = kernel.dilate(VoxelRepresentation.nb4())
+                v_nbs = self.get_kernel(v, kernel)
+                i += 1
+
+            hipf.append(i)
+        return hipf
+
+    def isovist(self, origin):
+        isovist = set()
+
+        print(origin)
+
+        for v in self.voxels:
+            if v != self.get_voxel(origin):
+                intersect = self.dda(origin, self.voxel_coordinates(v) - origin)
+                if intersect is not None:
+                    isovist.add(intersect)
+
+        print(len(isovist))
+        
+        return isovist
+
+    # Get cartesian coordinates of voxel at index based on grid origin and voxel size
+    def voxel_coordinates(self, current_voxel):
+        return (self.origin + (current_voxel * self.cell_size)) + 0.5*self.cell_size
+
+    def get_voxel(self, p):
+        return tuple(((p - self.origin) // self.cell_size).astype(int))
+
+    # "Fast" voxel traversal, based on Amanitides & Woo, 1987
+    # Terminates when first voxel has been found
+    def dda(self, point, direction):
+        direction = direction / np.linalg.norm(direction)
+        # line equation
+        x1, y1, z1, l, m, n = point[0], point[1], point[2], direction[0], direction[1], direction[2]
+
+        if (l == 0.0):
+            l = 0.00000001
+        if (m == 0.0):
+            m = 0.00000001
+        if (n == 0.0):
+            n = 0.00000001
+
+
+        x_sign = int(l / abs(l))
+        y_sign = int(m / abs(m))
+        z_sign = int(n / abs(n))
+
+        axis_signs = np.array([x_sign, y_sign, z_sign])
+        border_distances = axis_signs * self.cell_size
+
+        current_position = point
+        current_voxel = list(self.get_voxel(current_position))
+
+        min_bbox, max_bbox = self.origin, self.origin + (self.cell_size * self.shape)
+        while ( min_bbox[0] <= current_position[0] <= max_bbox[0] and
+                min_bbox[1] <= current_position[1] <= max_bbox[1] and
+                min_bbox[2] <= current_position[2] <= max_bbox[2]):
+
+            current_voxel_center = self.voxel_coordinates(current_voxel) 
+            border_plane_coordinates = current_voxel_center + border_distances
+
+            # get coordinates of axis-aligned planes that border cell
+            x_edge = border_plane_coordinates[0]
+            y_edge = border_plane_coordinates[1]
+            z_edge = border_plane_coordinates[2]
+
+            # find intersection of line with cell borders and its distance
+            x_intersection = np.array((x_edge, (((x_edge - x1) / l) * m) + y1, (((x_edge - x1) / l) * n) + z1))
+            x_vector = x_intersection - current_position
+            x_magnitude = np.linalg.norm(x_vector)
+
+            y_intersection = np.array(((((y_edge - y1) / m) * l) + x1, y_edge, (((y_edge - y1) / m) * n) + z1))
+            y_vector = y_intersection - current_position
+            y_magnitude = np.linalg.norm(y_vector)
+
+            z_intersection = np.array(((((z_edge - z1) / n) * l) + x1, (((z_edge - z1) / n) * m) + y1, z_edge))
+            z_vector = z_intersection - current_position
+            z_magnitude = np.linalg.norm(z_vector)
+
+            if x_magnitude <= y_magnitude and x_magnitude <= z_magnitude:
+                current_voxel[0] += x_sign
+                current_position += x_vector
+            elif y_magnitude <= x_magnitude and y_magnitude <= z_magnitude:
+                current_voxel[1] += y_sign
+                current_position += y_vector
+            elif z_magnitude <= x_magnitude and z_magnitude <= y_magnitude:
+                current_voxel[2] += z_sign
+                current_position += z_vector
+
+            if tuple(current_voxel) in self.voxels and self.get_voxel(point) != tuple(current_voxel):
+                return tuple(current_voxel)
 
 
     @ staticmethod
@@ -297,15 +402,24 @@ class VoxelRepresentation:
                                     (1, 0, 1): None, })
 
     @staticmethod
-    def pen_kernel(scale):
+    def nb4():
+        '''Horizontal neighbours'''
+
+        return VoxelRepresentation((3, 3, 1), np.array([1, 1, 1]), np.array([1, 1, 1]),
+                                   {(1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None})
+
+    @staticmethod
+    def stick_kernel(scale):
         a_height = int(15 // scale)
         a_width = 1 + int(5 // scale)
 
         b_height = int(5 // scale)
         b_width = 1
 
-        kernel_a = VoxelRepresentation.cylinder(a_width, a_height).translate(np.array([0, b_height, 0]))
-        kernel_b = VoxelRepresentation.cylinder(b_width, b_height).translate(np.array([a_width//2, 0, a_width//2]))
+        kernel_a = VoxelRepresentation.cylinder(
+            a_width, a_height).translate(np.array([0, b_height, 0]))
+        kernel_b = VoxelRepresentation.cylinder(b_width, b_height).translate(
+            np.array([a_width//2, 0, a_width//2]))
         kernel_c = kernel_a + kernel_b
 
         kernel_c.origin = np.array([a_width//2, 0, a_width//2])
@@ -396,7 +510,8 @@ class PointCloudRepresentation:
         shape = edge_sizes // cell_size
         cell_sizes = edge_sizes / shape
 
-        voxel_model = VoxelRepresentation(shape, cell_sizes, self.aabb[:, 0], {})
+        voxel_model = VoxelRepresentation(
+            shape, cell_sizes, self.aabb[:, 0], {})
 
         for p in self.points:
             # Find voxel cell that the given point is in
@@ -404,7 +519,7 @@ class PointCloudRepresentation:
 
             if not voxel_model.is_occupied(cell):
                 voxel_model.add_voxel(cell, {})
-                
+
         return voxel_model
 
     def random_reduce(self, keep_fraction: float) -> PointCloudRepresentation:
@@ -439,6 +554,7 @@ class PointCloudRepresentation:
             colors = np.zeros(shape=[num_points, 3], dtype=np.float32)
 
         return PointCloudRepresentation(points, colors/255, source=fn)
+
 
 class TopoMetricRepresentation():
     pass

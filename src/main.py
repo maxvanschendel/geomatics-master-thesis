@@ -10,17 +10,10 @@ import open3d as o3d
 from model.map_representation import (PointCloudRepresentation,
                                       SpatialGraphRepresentation,
                                       VoxelRepresentation)
-import threading
 
 class o3dviz:
-    
     def __init__(self, geo):
-        self.i = 0
-
         self.geo = geo
-        self.cur = geo[self.i]
-
-        self.dark_mode = False
 
         vis = o3d.visualization
         vis.point_size = 5
@@ -30,7 +23,7 @@ class o3dviz:
 
         gui = o3d.visualization.gui
         mat_a = o3d.visualization.rendering.MaterialRecord()
-        mat_a.point_size = 3
+        mat_a.point_size = 7
         mat_b = o3d.visualization.rendering.MaterialRecord()
         mat_b.shader = "unlitLine"
         mat_b.line_width = 5
@@ -41,8 +34,10 @@ class o3dviz:
         scene1 = gui.SceneWidget()
         scene1.scene = o3d.visualization.rendering.Open3DScene(w.renderer)
         scene1.scene.add_geometry("a", self.geo[0][0], mat_a)
+        scene1.scene.add_geometry("a2", self.geo[1][0], mat_b)
         
         scene1.setup_camera(60, scene1.scene.bounding_box, (0, 0, 0))
+        
         
         
         scene2 = gui.SceneWidget()
@@ -74,15 +69,9 @@ class o3dviz:
 
         app.run()
 
-    
-
-    def update_thread(self):
-        pass
-
 
 class PreProcessingParametersException(Exception):
     pass
-
 
 @dataclass(frozen=True)
 class PreProcessingParameters:
@@ -163,7 +152,7 @@ if __name__ == "__main__":
     5. write output .ply point cloud and visualise                                                  x
     '''
     # INPUT PARAMETERS #
-    input_path = "./data/meshes/hall2frontbedroom - low.ply"
+    input_path = "./data/meshes/diningroom2kitchen - low.ply"
 
     perf = Performance()
     perf.start = perf_counter()
@@ -172,9 +161,13 @@ if __name__ == "__main__":
     map_cloud = PointCloudRepresentation.read_ply(input_path)
     perf.read = perf_counter()
 
-    pp_params = PreProcessingParameters(voxel_size=0.05, reduce=1, scale=[1, -1, 1])
+    preprocess_parameters = PreProcessingParameters(
+        voxel_size=0.1, 
+        reduce=1, 
+        scale=[1, -1, 1]
+        )
 
-    map_voxel = pre_process(map_cloud, pp_params)
+    map_voxel = pre_process(map_cloud, preprocess_parameters)
     perf.pre_process = perf_counter()
 
     print("Extracting topological-metric map")
@@ -187,7 +180,7 @@ if __name__ == "__main__":
             map_voxel.kernel_contains_neighbours,
             zip(
                 map_voxel.voxels.keys(),
-                repeat(VoxelRepresentation.pen_kernel(scale=pp_params.voxel_size/0.05)),
+                repeat(VoxelRepresentation.stick_kernel(scale=preprocess_parameters.voxel_size/0.05)),
             ))
 
     # Create new voxel map with only cells that did not have any other cells in neighbourhood
@@ -205,7 +198,7 @@ if __name__ == "__main__":
     floor_voxel_map = floor_voxel_map.dilate(
         VoxelRepresentation.cylinder(1, 1))
     dilated_voxel_map = floor_voxel_map.dilate(
-        VoxelRepresentation.cylinder(1, 1 + int(5 // (pp_params.voxel_size / 0.05))))
+        VoxelRepresentation.cylinder(1, 1 + int(5 // (preprocess_parameters.voxel_size / 0.05))))
 
     print('- Converting voxel representation to graph representation')
     dilated_graph_map = dilated_voxel_map.to_graph()
@@ -230,23 +223,37 @@ if __name__ == "__main__":
     print(perf)
 
     floor_voxel = floor_graph.to_voxel()
-    floor_filter = floor_voxel.subset(lambda voxel, **kwargs: floor_voxel[voxel]['betweenness'] > kwargs['threshold'],
-                                      threshold=0.01)
-
+    floor_filter = floor_voxel.subset(lambda voxel, **kwargs: floor_voxel[voxel]['betweenness'] > kwargs['threshold'], threshold=0.05)
     floor_filter.for_each(lambda voxel: floor_filter.set_attribute(voxel, 'color', [floor_filter[voxel]['betweenness']]*3))
 
+    from copy import deepcopy
+    floor_filter.origin = deepcopy(floor_filter.origin)
+    floor_filter.origin += np.array([0, 1.8, 0.])
+
     for voxel in map_voxel.voxels:
+        map_voxel[voxel]['color'] = [0.2,0.2,0.2]
+        
         if floor_voxel.is_occupied(voxel):
             map_voxel[voxel]['floor'] = True
-            map_voxel[voxel]['color'] = [1,0,0]
         else:
             map_voxel[voxel]['floor'] = False
-            map_voxel[voxel]['color'] = [.5, .5, .5]
+            
+    from random import random
+
+    with Pool(12) as p:
+        isovists = p.map(map_voxel.isovist, [list(floor_voxel.voxel_coordinates(v)) for v in floor_filter.voxels])
+
+    for iso in isovists:
+        color = [random(), random(), random()]
+        for v in iso:
+            map_voxel[v]['color'] = color
+
+    floor_voxel_flat = map_voxel.subset(lambda voxel, **kwargs: map_voxel[voxel]['floor'] == True)
 
     # Visualisation
     print("Visualising map")
     viz = o3dviz([
         [map_voxel.to_o3d(has_color=True)],
         [floor_filter.to_graph().to_o3d()],
-        [map_voxel.subset(lambda voxel, **kwargs: map_voxel[voxel]['floor'] == True).to_o3d()]
+        [floor_voxel_flat.to_o3d(has_color=True)]
     ])
