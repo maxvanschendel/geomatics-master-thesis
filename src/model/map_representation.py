@@ -18,27 +18,39 @@ from sklearn.neighbors import KDTree
 import math
 
 class SpatialGraphRepresentation:
+    leaf_size = 20
+
     def __init__(self,
                  scale: np.array = np.array([1, 1, 1]),
                  origin: np.array = np.array([0, 0, 0]),
-                 graph: networkx.Graph = None):
+                 graph: networkx.Graph = networkx.Graph()):
 
         self.scale = scale
         self.origin = origin
 
-        if graph is None:
-            self.graph = networkx.Graph()
-        else:
-            self.graph = graph
+        self.graph = graph
 
         self.nodes = self.graph.nodes
         self.edges = self.graph.edges
-
+        self.sindex: KDTree = KDTree(self.list_attr('pos'), SpatialGraphRepresentation.leaf_size)
+        
         for i, node in enumerate(self.nodes):
             self.nodes[node]['index'] = i
 
     def node_index(self, node):
         return self.nodes[node]['index']
+
+    def get_by_index(self, index):
+        for node in self.nodes:
+            if self.nodes[node]['index'] == index:
+                return node
+
+    def list_attr(self, attr):
+        return [self.nodes[n][attr] for n in self.nodes]
+
+    def nearest_neighbour(self, p):
+        nn_index = self.sindex.query(p, k=1)[1][0][0]
+        return self.get_by_index(nn_index)
 
     def to_o3d(self, has_color=False) -> o3d.geometry.LineSet:
         points = self.nodes
@@ -155,6 +167,12 @@ class VoxelRepresentation:
     def set_attribute(self, voxel, attr, val):
         self.voxels[voxel][attr] = val
 
+    def get_by_attribute(self, attr, val):
+        return self.filter(lambda vox: attr in self[vox] and self[vox][attr] == val)
+
+    def list_attribute(self, attr):
+        return self.map(lambda vox: self[vox][attr])
+
     def colorize(self, color):
         self.for_each(self.set_attribute, attr='color', val=color)
 
@@ -232,6 +250,7 @@ class VoxelRepresentation:
 
             for attr in self.voxels[v]:
                 graph.nodes[v][attr] = self.voxels[v][attr]
+            graph.nodes[v]['pos'] = self.voxel_coordinates(v)
 
         return SpatialGraphRepresentation(self.cell_size, self.origin, graph)
 
@@ -514,7 +533,7 @@ class PointCloudRepresentation:
             cell = tuple(((p - self.aabb[:, 0]) // cell_sizes).astype(int))
 
             if not voxel_model.is_occupied(cell):
-                voxel_model.add_voxel(cell, {})
+                voxel_model.add_voxel(cell, {'pos': p})
 
         return voxel_model
 

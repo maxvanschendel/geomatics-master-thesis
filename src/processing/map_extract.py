@@ -1,8 +1,8 @@
-from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
 from itertools import repeat
 from multiprocessing import Pool
+from typing import List
 
 import numpy as np
 from model.map_representation import *
@@ -76,43 +76,65 @@ def cast_isovists(map_voxel_low, floor_filter):
 
     return isovists
 
-def cluster_isovists(isovists):
-    distance_matrix = np.zeros((len(isovists), len(isovists)))
+def mutual_visibility_graph(isovists):
     n_isovist = len(isovists)
-    for i in range(len(isovists)):
-        for j in range(len(isovists)):
-            distance_matrix[i][j] = 1 - \
-                (len(isovists[i] & isovists[j]) / len(isovists[i]))
+    distance_matrix = np.zeros((n_isovist, n_isovist))
+    
+    for i in range(n_isovist):
+        for j in range(n_isovist):
+            if len(isovists[i]):
+                distance_matrix[i][j] = 1 - len(isovists[i] & isovists[j]) / len(isovists[i])
+            else:
+                distance_matrix[i][j] = 1
 
+    return distance_matrix
+
+def cluster_isovists(isovists, min_samples):
     from sklearn.cluster import OPTICS
-    clustering = OPTICS(
-        min_samples=8, metric='precomputed').fit(distance_matrix)
 
-    return clustering
+    mutual_visibility = mutual_visibility_graph(isovists)
+    clustering = OPTICS(min_samples=min_samples, metric='precomputed').fit(mutual_visibility)
 
-def room_segmentation(isovists, map_voxel_low: VoxelRepresentation, clustering):
-    map_voxel_low.for_each(map_voxel_low.set_attribute, attr='clusters', val=[])
+    return clustering.labels_
 
-    for iso_i, cluster in enumerate(clustering.labels_):
-            if cluster != -1:
-                for v in isovists[iso_i]:
-                    map_voxel_low[v]['clusters'].append(cluster)
+def room_segmentation(isovists, map_voxel: VoxelRepresentation, clustering: np.ndarray):
+    map_segmented = deepcopy(map_voxel)
+    map_segmented.for_each(map_segmented.set_attribute, attr='cluster', val=None)
 
-    for v in map_voxel_low.voxels:
-        if len('clusters') == 0:
-            kernel = VoxelRepresentation.nb6()
+    for iso_i, cluster in enumerate(clustering):
+        if cluster != -1:
+            for v in isovists[iso_i]:
+                map_segmented[v]['cluster'] = cluster
 
-            cluster_found = False
-            while not cluster_found:
-                v_nbs = map_voxel_low.get_kernel(v, kernel)
+    return map_segmented.subset(lambda v: map_segmented[v]['cluster'] is not None)
 
-                for v_nb in v_nbs:
-                    if 'clusters' in map_voxel_low[v_nb]:
-                        map_voxel_low[v]['clusters'] += map_voxel_low[v_nb]['clusters']
-                        cluster_found = True
-                kernel = kernel.dilate(VoxelRepresentation.nb6())
+def traversability_graph(map_segmented: VoxelRepresentation, navigation_graph: SpatialGraphRepresentation) -> SpatialGraphRepresentation:
+    from itertools import combinations
 
-        majority_cluster = Counter(map_voxel_low[v]['clusters'])[0]
-        map_voxel_low[v]['cluster'] = majority_cluster
 
-    return map_voxel_low
+    unique_clusters = np.unique(list(map_segmented.list_attribute('cluster')))
+    graph = networkx.Graph()
+
+    for cluster in unique_clusters:
+        cluster_voxels = list(map_segmented.get_by_attribute('cluster', cluster))
+
+        voxel_coordinates = [map_segmented.voxel_coordinates(v) for v in cluster_voxels]
+        if voxel_coordinates:
+            voxel_centroid = np.mean(voxel_coordinates, axis=0)
+            nearest_nav_node = navigation_graph.nearest_neighbour(voxel_centroid.reshape(1, -1))
+            
+            graph.add_node(cluster)
+            graph.nodes[cluster]['pos'] = voxel_centroid
+            graph.nodes[cluster]['nav_node'] = nearest_nav_node
+            
+
+    potential_edges = combinations(graph.nodes, r=2)
+    print(potential_edges)
+
+    for start_node, end_node in potential_edges:
+        start, end = graph.nodes[start_node]['nav_node'], graph.nodes[end_node]['nav_node']
+        path = networkx.shortest_path(navigation_graph.graph, source=start, target=end)
+        for n in path:
+            print(n, navigation_graph.nodes[n])
+
+
