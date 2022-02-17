@@ -50,7 +50,7 @@ class SpatialGraphRepresentation:
             (np.array(points)*self.scale) + self.origin)
         line_set.lines = o3d.utility.Vector2iVector(lines)
 
-        color = [self.nodes[p]['color'] for p in self.nodes]
+        color = [self.nodes[p]['color'] if has_color else [0,0,0] for p in self.nodes]
         line_set.colors = o3d.utility.Vector3dVector(color)
 
         return line_set
@@ -136,13 +136,13 @@ class VoxelRepresentation:
     def filter(self, func, **kwargs):
         return filter(lambda v: func(v, **kwargs), self.voxels)
 
-    def intersect(self, other):
+    def intersect(self, other: VoxelRepresentation) -> Set[Tuple[int, int, int]]:
         return self.voxels.keys() & other.voxels.keys()
 
-    def disjoint(self, other):
+    def disjoint(self, other: VoxelRepresentation) -> bool:
         return self.voxels.keys().isdisjoint(other.voxels.keys())
 
-    def subset(self, func: Lambda, **kwargs):
+    def subset(self, func: Lambda, **kwargs) -> VoxelRepresentation:
         filtered_voxels = self.filter(func, **kwargs)
         voxel_dict = {voxel: self.voxels[voxel] for voxel in filtered_voxels}
 
@@ -285,9 +285,10 @@ class VoxelRepresentation:
 
         for v in self.voxels:
             if v != self.get_voxel(origin):
-                intersect = self.dda(origin, self.voxel_coordinates(v) - origin)
-                if intersect is not None:
-                    isovist.add(intersect)
+                if v not in isovist:
+                    intersect = self.dda(origin, self.voxel_coordinates(v) - origin)
+                    if intersect is not None:
+                        isovist.add(intersect)
 
         print(len(isovist))
         
