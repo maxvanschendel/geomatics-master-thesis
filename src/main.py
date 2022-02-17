@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from itertools import repeat
 from multiprocessing import Pool
 from time import perf_counter
-from typing import Tuple
+from typing import Tuple, List
 from copy import deepcopy
 import numpy as np
 import open3d as o3d
@@ -12,69 +12,81 @@ from model.map_representation import (PointCloudRepresentation,
                                       VoxelRepresentation)
 
 
-class o3dviz:
-    def __init__(self, geo):
-        self.geo = geo
+@dataclass
+class MapViz:
+    geometry: o3d.geometry
+    material: o3d.visualization.rendering.MaterialRecord
 
-        vis = o3d.visualization
-        vis.point_size = 5
 
+class Visualizer:
+    def default_pcd_mat():
+        mat = o3d.visualization.rendering.MaterialRecord()
+        mat.point_size = 7
+
+        return mat
+
+    def default_graph_mat():
+        mat = o3d.visualization.rendering.MaterialRecord()
+        mat.shader = "unlitLine"
+        mat.line_width = 5
+        mat.base_color = [1.0, 0, 0, 1.0]
+
+        return mat
+
+    def __init__(self, maps: List[List[MapViz]]):
         app = o3d.visualization.gui.Application.instance
         app.initialize()
 
         gui = o3d.visualization.gui
-        mat_a = o3d.visualization.rendering.MaterialRecord()
-        mat_a.point_size = 7
-        mat_b = o3d.visualization.rendering.MaterialRecord()
-        mat_b.shader = "unlitLine"
-        mat_b.line_width = 5
-        mat_b.base_color = [0, 0, 0, 1.0]
+        window = gui.Application.instance.create_window(
+            "Two scenes", 1025, 512)
+        widgets = []
 
-        w = gui.Application.instance.create_window("Two scenes", 1025, 512)
+        def on_mouse(m):
+            if m.type == m.Type.DRAG:
+                w_index = int(m.x // (window.content_rect.width / len(widgets)))
+                if w_index < len(widgets):
+                    w_focus = widgets[w_index]
 
-        scene1 = gui.SceneWidget()
-        scene1.scene = o3d.visualization.rendering.Open3DScene(w.renderer)
-        scene1.scene.add_geometry("a", self.geo[0][0], mat_a)
-        scene1.scene.add_geometry("a2", self.geo[1][0], mat_b)
+                    for w_other in widgets:
+                        if w_other != w_focus:
+                            w_other.scene.camera.copy_from(w_focus.scene.camera)
 
-        scene1.setup_camera(60, scene1.scene.bounding_box, (0, 0, 0))
-
-        scene2 = gui.SceneWidget()
-        scene2.scene = o3d.visualization.rendering.Open3DScene(w.renderer)
-        scene2.scene.add_geometry("b", self.geo[1][0], mat_b)
-        scene2.scene.add_geometry("b2", self.geo[2][0], mat_a)
-        scene2.setup_camera(60, scene1.scene.bounding_box, (0, 0, 0))
-
-        w.add_child(scene1)
-        w.add_child(scene2)
+            return gui.SceneWidget.EventCallbackResult.IGNORED
 
         def on_layout(theme):
-            r = w.content_rect
-            scene1.frame = gui.Rect(r.x, r.y, r.width / 2, r.height)
-            scene2.frame = gui.Rect(
-                r.x + r.width / 2 + 1, r.y, r.width / 2, r.height)
+            r = window.content_rect
 
-        def on_mouse_a(m):
-            scene2.scene.camera.copy_from(scene1.scene.camera)
-            return scene1.EventCallbackResult.IGNORED
+            for i, widget in enumerate(widgets):
+                widget.frame = gui.Rect(
+                    r.x + ((r.width / len(widgets)) * i), r.y, r.width / len(widgets), r.height)
 
-        def on_mouse_b(m):
-            scene1.scene.camera.copy_from(scene2.scene.camera)
-            return scene1.EventCallbackResult.IGNORED
+        for submap_index, submap in enumerate(maps):
+            submap_widget = gui.SceneWidget()
+            submap_widget.scene = o3d.visualization.rendering.Open3DScene(
+                window.renderer)
 
-        w.set_on_layout(on_layout)
-        scene1.set_on_mouse(on_mouse_a)
-        scene2.set_on_mouse(on_mouse_b)
+            for object_i, submap_object in enumerate(submap):
+                submap_widget.scene.add_geometry(
+                    f"{submap_index}_{object_i}", submap_object.geometry, submap_object.material)
 
+            submap_widget.setup_camera(
+                60, submap_widget.scene.bounding_box, (0, 0, 0))
+            submap_widget.set_on_mouse(on_mouse)
+
+            window.add_child(submap_widget)
+            widgets.append(submap_widget)
+
+        window.set_on_layout(on_layout)
         app.run()
-
-
-class PreProcessingParametersException(Exception):
-    pass
 
 
 @dataclass(frozen=True)
 class PreProcessingParameters:
+
+    class PreProcessingParametersException(Exception):
+        pass
+
     voxel_size: float
     reduce: float
     scale: Tuple[float]
@@ -82,11 +94,11 @@ class PreProcessingParameters:
     # input validation
     def __post_init__(self):
         if not 0 <= self.reduce <= 1:
-            raise PreProcessingParametersException(
+            raise self.PreProcessingParametersException(
                 "Reduce must be a fraction between 0 and 1.")
 
         if not len(self.scale) == 3:
-            raise PreProcessingParametersException(
+            raise self.PreProcessingParametersException(
                 "Scale must be a 3-dimensional vector.")
 
     def serialize(self) -> str:
@@ -171,7 +183,7 @@ if __name__ == "__main__":
     perf.pre_process = perf_counter()
 
     print("Extracting topological-metric map")
-    print("- Applying convolution filter")
+    print("- Segmenting floor area")
 
     # For all cells in input map, get neighbourhood as defined by kernel
     # Executed in parallel to reduce execution time
@@ -183,28 +195,26 @@ if __name__ == "__main__":
                 repeat(VoxelRepresentation.stick_kernel(
                     scale=preprocess_parameters.voxel_size/0.05)),
             ))
-                                                                                
-    floor_voxels = filter(lambda pts: pts[1] == False, zip(                      # Create new voxel map with only cells that 
+
+    floor_voxels = filter(lambda pts: pts[1] == False, zip(                      # Create new voxel map with only cells that
         map_voxel.voxels, kernel_points))                                        # does not have any other cells in neighbourhood
-    floor_voxel_map = VoxelRepresentation(                  
+    floor_voxel_map = VoxelRepresentation(
         shape=map_voxel.shape,
         cell_size=map_voxel.cell_size,
         origin=map_voxel.origin,
         voxels={pt[0]: map_voxel[pt[0]] for pt in floor_voxels}
     )
 
-    print("- Applying vertical dilation")
     dilated_voxel_map = floor_voxel_map.dilate(VoxelRepresentation.cylinder(
         1, 1 + int(5 // (preprocess_parameters.voxel_size / 0.05))))            # Dilate floor area to connect stairs
-    
     dilated_graph_map = dilated_voxel_map.to_graph()                            # Convert voxel floor area to dense graph
-
-    print('- Finding connected components')
+      
     components = dilated_graph_map.connected_components()
     floor_graph = SpatialGraphRepresentation(
         dilated_graph_map.scale,
         dilated_graph_map.origin,
         dilated_graph_map.graph.subgraph(components[0]))
+
 
     print('- Computing skeleton')
     floor_graph = floor_graph.minimum_spanning_tree()
@@ -214,10 +224,9 @@ if __name__ == "__main__":
 
     floor_voxel = floor_graph.to_voxel()
     floor_filter = floor_voxel.subset(
-        lambda v, **kwargs: floor_voxel[v]['betweenness'] > kwargs['threshold'], threshold=0.25)
-    floor_filter.for_each(lambda voxel: floor_filter.set_attribute(
-        voxel, 'color', [floor_filter[voxel]['betweenness']]*3))
+        lambda v, **kwargs: floor_voxel[v]['betweenness'] > kwargs['threshold'], threshold=0.2)
 
+    floor_filter.colorize([1,0,0])
     floor_filter.origin = deepcopy(floor_filter.origin)
     floor_filter.origin += np.array([0, 1.5, 0.])
 
@@ -226,18 +235,42 @@ if __name__ == "__main__":
         map_voxel[voxel]['floor'] = floor_voxel.is_occupied(voxel)
 
     print('- Computing isovists')
+    map_voxel_low = map_cloud.scale([1,-1,1]).voxelize(0.2)
     with Pool(12) as p:
-        isovists = p.map(map_voxel.isovist, [list(
+        isovists = p.map(map_voxel_low.isovist, [list(
             floor_filter.voxel_coordinates(v)) for v in floor_filter.voxels])
 
-    for iso in isovists:
-        for v in iso:
-            map_voxel[v]['color'] = [1,0,0]
+    for voxel in map_voxel_low.voxels:
+        map_voxel_low[voxel]['color'] = [0.2, 0.2, 0.2]
 
-    floor_voxel_flat = map_voxel.subset(
-        lambda voxel, **kwargs: map_voxel[voxel]['floor'] == True)
+    print("- Clustering isovists")
+    distance_matrix = np.zeros((len(isovists), len(isovists)))
+    for i in range(len(isovists)):
+        for j in range(len(isovists)):
+            distance_matrix[i][j] = 1 - (len(isovists[i] & isovists[j]) / len(isovists[i]))
+    distance_matrix = distance_matrix / np.max(distance_matrix)
+
+    from sklearn.cluster import OPTICS
+    clustering = OPTICS(min_samples=10, metric='precomputed').fit(distance_matrix)
 
 
+
+    label_colors = {}
+    for label in np.unique(clustering.labels_):
+        label_colors[label] = [random(), random(), random()]
+
+
+
+    for iso_i, cluster in enumerate(clustering.labels_):
+        if cluster != -1:
+            iso = isovists[iso_i]
+            for v in iso:
+                map_voxel_low[v]['color'] = label_colors[cluster]
+
+    print(distance_matrix)
+    print(clustering.labels_)
+
+    floor_voxel_flat = map_voxel.subset( lambda voxel, **kwargs: map_voxel[voxel]['floor'] == True)
 
     perf.map_extract = perf_counter()
     perf.map_merge = None
@@ -245,8 +278,11 @@ if __name__ == "__main__":
 
     # Visualisation
     print("Visualising map")
-    viz = o3dviz([
-        [map_voxel.to_o3d(has_color=True)],
-        [floor_filter.to_graph().to_o3d()],
-        [floor_voxel_flat.to_o3d(has_color=True)]
+    viz = Visualizer([
+        [
+            MapViz(map_voxel_low.to_o3d(has_color=True), Visualizer.default_pcd_mat())],
+        [
+            MapViz(floor_voxel_flat.to_o3d(has_color=True), Visualizer.default_pcd_mat()),
+            MapViz(floor_filter.to_graph().to_o3d(has_color=True), Visualizer.default_graph_mat())
+        ],
     ])

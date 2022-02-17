@@ -1,5 +1,7 @@
 from __future__ import annotations
 from ast import Lambda
+from fnmatch import translate
+from numba import jit, cuda
 
 import copy
 import enum
@@ -38,16 +40,17 @@ class SpatialGraphRepresentation:
     def node_index(self, node):
         return self.nodes[node]['index']
 
-    def to_o3d(self) -> o3d.geometry.LineSet:
+    def to_o3d(self, has_color=False) -> o3d.geometry.LineSet:
         points = self.nodes
         lines = [(self.node_index(n[0]), self.node_index(n[1]))
                  for n in self.edges]
-        color = [self.nodes[p]['color'] for p in self.nodes]
-
+        
         line_set = o3d.geometry.LineSet()
         line_set.points = o3d.utility.Vector3dVector(
             (np.array(points)*self.scale) + self.origin)
         line_set.lines = o3d.utility.Vector2iVector(lines)
+
+        color = [self.nodes[p]['color'] for p in self.nodes]
         line_set.colors = o3d.utility.Vector3dVector(color)
 
         return line_set
@@ -127,18 +130,17 @@ class VoxelRepresentation:
 
         return new_model
 
-    def set_attribute(self, voxel, attr, val):
-        self.voxels[voxel][attr] = val
-
-    def for_each(self, func, **kwargs):
-        for voxel in self.voxels:
-            func(voxel, **kwargs)
-
     def map(self, func, **kwargs):
         return map(lambda v: func(v, **kwargs), self.voxels)
 
     def filter(self, func, **kwargs):
         return filter(lambda v: func(v, **kwargs), self.voxels)
+
+    def intersect(self, other):
+        return self.voxels.keys() & other.voxels.keys()
+
+    def disjoint(self, other):
+        return self.voxels.keys().isdisjoint(other.voxels.keys())
 
     def subset(self, func: Lambda, **kwargs):
         filtered_voxels = self.filter(func, **kwargs)
@@ -146,8 +148,15 @@ class VoxelRepresentation:
 
         return VoxelRepresentation(self.shape, self.cell_size, self.origin, voxel_dict)
 
-    def mask(self, mask: VoxelRepresentation):
-        return self.filter(lambda voxel: mask.is_occupied(voxel))
+    def for_each(self, func, **kwargs):
+        for voxel in self.voxels:
+            func(voxel, **kwargs)
+
+    def set_attribute(self, voxel, attr, val):
+        self.voxels[voxel][attr] = val
+
+    def colorize(self, color):
+        self.for_each(self.set_attribute, attr='color', val=color)
 
     @staticmethod
     def pca(vals):
@@ -192,23 +201,10 @@ class VoxelRepresentation:
         return cell in self.voxels
 
     def get_kernel(self, cell: Tuple[int, int, int], kernel: VoxelRepresentation):
-        kernel_cells = []
-        for k in kernel.voxels:
-            nb = tuple(cell + (k - kernel.origin))
-            if self.is_occupied(nb):
-                kernel_cells.append(nb)
-
-        return kernel_cells
+        return self.intersect(kernel.translate(np.array(cell)))
 
     def kernel_contains_neighbours(self, cell: Tuple[int, int, int], kernel: VoxelRepresentation) -> bool:
-        cell_origin = cell - kernel.origin
-
-        for k in kernel.voxels:
-            nb = tuple(cell_origin + k)
-            if self.is_occupied(nb):
-                return True
-
-        return False
+        return not self.disjoint(kernel.translate(np.array(cell - kernel.origin)))
 
     def to_o3d(self, has_color=False):
         return self.to_pcd(has_color).to_o3d()
@@ -229,6 +225,8 @@ class VoxelRepresentation:
 
         for v in self.voxels:
             nbs = self.get_kernel(v, kernel)
+            graph.add_node(v)
+
             for nb in nbs:
                 graph.add_edge(*(v, nb))
 
@@ -254,18 +252,15 @@ class VoxelRepresentation:
 
     def translate(self, translation: np.array):
         translated_cells = {}
-        new_shape = list(self.shape)
 
         for voxel in self.voxels:
             voxel_t = translation + voxel
-            out_of_bounds_voxels = np.where(voxel_t - new_shape > -1)[0]
-
-            if len(out_of_bounds_voxels) > 0:
-                for v in out_of_bounds_voxels:
-                    new_shape[int(v)] = voxel_t[int(v)]
             translated_cells[tuple(voxel_t)] = self.voxels[voxel]
 
-        return VoxelRepresentation(new_shape, self.cell_size, self.origin, translated_cells)
+        translated_map = VoxelRepresentation(self.shape, self.cell_size, self.origin, translated_cells)
+        translated_map.shape = translated_map.extents()
+
+        return translated_map
 
     def distance_to_unoccupied(self):
         hipf = []
