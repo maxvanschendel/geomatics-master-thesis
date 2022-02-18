@@ -7,9 +7,9 @@ from processing.map_merge import *
 from processing.pre_process import *
 
 # INPUT PARAMETERS #
-input_path = "./data/meshes/diningroom2kitchen - low.ply"
+input_path = "./data/meshes/hall2frontbedroom - low.ply"
 preprocess_parameters = PreProcessingParameters(
-    voxel_size=0.1,
+    voxel_size=0.05,
     reduce=1,
     scale=[1, -1, 1]
 )
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     floor_voxel = map_voxel_high.subset(lambda v: v in floor_voxels)
 
     print('- Computing skeleton')
-    floor_filter = skeletonize_floor_area(floor_graph)
+    floor_filter = skeletonize_floor_area(floor_graph, map_voxel_high)
 
     print('- Computing isovists')
     map_segmented = map_cloud.scale(preprocess_parameters.scale).voxelize(map_extract_parameters.voxel_size_low)

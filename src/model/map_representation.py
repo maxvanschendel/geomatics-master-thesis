@@ -229,6 +229,66 @@ class VoxelRepresentation:
     def get_kernel(self, cell: Tuple[int, int, int], kernel: VoxelRepresentation):
         return self.intersect(kernel.translate(np.array(cell)))
 
+    def get_kernel_b(self, cell: Tuple[int, int, int], kernel: VoxelRepresentation):
+        kernel_cells = []
+        for k in kernel.voxels:
+            nb = tuple(cell + (k - kernel.origin))
+            if self.is_occupied(nb):
+                kernel_cells.append(nb)
+
+        return kernel_cells
+
+    @cuda.jit
+    def gpu_convolve(voxels, occupied_voxels, kernel, conv_voxels):
+        pos = cuda.grid(1)
+
+        current_voxel = occupied_voxels[pos]
+        current_voxel_x = current_voxel[0]
+        current_voxel_y = current_voxel[1]
+        current_voxel_z = current_voxel[2]
+
+        for nb in kernel:
+            nb_x = nb[0]
+            nb_y = nb[1]
+            nb_z = nb[2]
+
+            current_voxel_nb_x = current_voxel_x + nb_x
+            current_voxel_nb_y = current_voxel_y + nb_y
+            current_voxel_nb_z = current_voxel_z + nb_z
+
+            if voxels[current_voxel_nb_x, current_voxel_nb_y, current_voxel_nb_z] == 1:
+                conv_voxels[pos] = 1
+                cuda.syncthreads()
+                break
+
+    def filter_gpu_kernel_nbs(self, kernel):
+        # Allocate memory on the device for the result
+        result_voxels = np.zeros(shape=(len(self.voxels), 1), dtype=np.int32)
+        voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
+        for v in self.voxels:
+            voxel_matrix[v] = 1
+        kernel_voxels = np.zeros(shape=(len(kernel.voxels), 3), dtype=np.int32)
+        for i, k in enumerate(kernel.voxels):
+            kernel_voxels[i][0] = k[0]
+            kernel_voxels[i][1] = k[1]
+            kernel_voxels[i][2] = k[2]
+
+        occupied_voxels = np.zeros(shape=(len(self.voxels), 3), dtype=np.int32)
+        for i, k in enumerate(self.voxels):
+            occupied_voxels[i][0] = k[0]
+            occupied_voxels[i][1] = k[1]
+            occupied_voxels[i][2] = k[2]
+
+        threadsperblock = 128
+        blockspergrid = (len(self.voxels) + (threadsperblock - 1)) // threadsperblock
+        VoxelRepresentation.gpu_convolve[blockspergrid, threadsperblock](voxel_matrix, occupied_voxels, kernel_voxels, result_voxels)
+
+        nb_voxels = []
+        for i,occ in enumerate(result_voxels):
+            if not occ[0]:
+                nb_voxels.append(tuple(occupied_voxels[i]))
+        return nb_voxels
+
     def kernel_contains_neighbours(self, cell: Tuple[int, int, int], kernel: VoxelRepresentation) -> bool:
         return not self.disjoint(kernel.translate(np.array(cell - kernel.origin)))
 
@@ -249,8 +309,8 @@ class VoxelRepresentation:
         kernel = VoxelRepresentation.nb6()
         graph = networkx.Graph()
 
-        for v in self.voxels:
-            nbs = self.get_kernel(v, kernel)
+        for i, v in enumerate(self.voxels):
+            nbs = self.get_kernel_b(v, kernel)
             graph.add_node(v)
 
             for nb in nbs:
@@ -344,7 +404,7 @@ class VoxelRepresentation:
         threadsperblock = 256
         blockspergrid = (len(directions) + (threadsperblock - 1)) // threadsperblock
         VoxelRepresentation.dda[blockspergrid, threadsperblock](
-            origin, directions, bbox, self.cell_size, voxel_matrix, intersections, 2)
+            origin, directions, bbox, self.cell_size, voxel_matrix, intersections, 1)
 
         from copy import deepcopy
 
@@ -501,6 +561,7 @@ class VoxelRepresentation:
         kernel_c.origin = np.array([a_width//2, 0, a_width//2])
         kernel_c.remove_voxel((a_width//2, 0, a_width//2))
 
+        kernel_c = kernel_c.translate(-kernel_c.origin)
         return kernel_c
 
 

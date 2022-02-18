@@ -22,34 +22,28 @@ def extract_map(partial_map_pcd: PointCloudRepresentation) -> TopoMetricRepresen
 
 def segment_floor_area(partial_map: VoxelRepresentation) -> SpatialGraphRepresentation:
 
+    print(' - Convolving')
     # For all cells in voxel map, check if any neighbours in stick kernel
     # Executed in parallel to reduce execution time
-    with Pool(8) as p:
-        kernel = VoxelRepresentation.stick_kernel(
-            partial_map.cell_size[0]/0.05)
-        voxel_kernel_pairs = zip(partial_map.voxels, repeat(kernel))
 
-        # Execute in parallel to speed things up
-        kernel_points = p.starmap(                                              #
-            partial_map.kernel_contains_neighbours,
-            voxel_kernel_pairs
-        )
-
+    floor_voxels = partial_map.filter_gpu_kernel_nbs(VoxelRepresentation.stick_kernel(partial_map.cell_size[0]/0.05))
+    print(len(floor_voxels))
     # Create new voxel map with only cells that did not have any neighbours in kernel
-    floor_voxels = filter(lambda pts: pts[1] == False, zip(
-        partial_map.voxels, kernel_points))
     floor_voxel_map = VoxelRepresentation(
         shape=partial_map.shape,
         cell_size=partial_map.cell_size,
         origin=partial_map.origin,
-        voxels={pt[0]: partial_map[pt[0]] for pt in floor_voxels}
+        voxels={pt: partial_map[pt] for pt in floor_voxels}
     )
 
+    print(' - Dilating')
     # Dilate floor area upwards to connect stairs and convert to nb6 connected 'dense' graph
-    dilated_voxel_map = floor_voxel_map.dilate(VoxelRepresentation.cylinder(
-        1, 1 + int(5 // (partial_map.cell_size[0] / 0.05))))
+    dilated_voxel_map = floor_voxel_map.dilate(VoxelRepresentation.cylinder(1, 1 + int(5 // (partial_map.cell_size[0] / 0.05))))
+    dilated_voxel_map = dilated_voxel_map.dilate(VoxelRepresentation.nb4())
     dilated_graph_map = dilated_voxel_map.to_graph()
 
+
+    print(' - Finding connected components')
     # Find largest connected
     components = dilated_graph_map.connected_components()
     floor_graph = SpatialGraphRepresentation(
@@ -60,7 +54,7 @@ def segment_floor_area(partial_map: VoxelRepresentation) -> SpatialGraphRepresen
     return floor_graph
 
 
-def skeletonize_floor_area(floor_graph):
+def skeletonize_floor_area(floor_graph, map_voxel):
     floor_graph = floor_graph.minimum_spanning_tree()
     betweenness = floor_graph.betweenness_centrality(n_target_points=50)
     for node in betweenness:
@@ -68,11 +62,10 @@ def skeletonize_floor_area(floor_graph):
 
     floor_voxel = floor_graph.to_voxel()
     floor_filter = floor_voxel.subset(
-        lambda v, **kwargs: floor_voxel[v]['betweenness'] > kwargs['threshold'], threshold=0.01)
+        lambda v, **kwargs: floor_voxel[v]['betweenness'] > kwargs['threshold'], threshold=0.1)
 
     floor_filter.origin = deepcopy(floor_filter.origin)
     floor_filter.origin += np.array([0, 1.5, 0.])
-
     return floor_filter
 
 
@@ -94,9 +87,9 @@ def mutual_visibility_graph(isovists):
             if i == j:
                 distance_matrix[i][j] = 0
             else:
-                if len(isovists[i]):
+                if len(isovists[i]) and (len(isovists[j])):
                     overlap = len(isovists[i] & isovists[j]) / min([len(isovists[j]), len(isovists[i])])
-                    distance_matrix[i][j] = 1 - overlap
+                    distance_matrix[i][j] = (1 - overlap)
                 else:
                     distance_matrix[i][j] = 1
 
