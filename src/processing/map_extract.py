@@ -65,14 +65,14 @@ def skeletonize_floor_area(floor_graph, map_voxel):
         lambda v, **kwargs: floor_voxel[v]['betweenness'] > kwargs['threshold'], threshold=0.1)
 
     floor_filter.origin = deepcopy(floor_filter.origin)
-    floor_filter.origin += np.array([0, 1.5, 0.])
+    floor_filter.origin += np.array([0, 1, 0.])
     return floor_filter
 
 
 def cast_isovists(map_voxel_low, floor_filter):
     isovists = []
     for v in floor_filter.voxels:
-        isovist = map_voxel_low.isovist(floor_filter.voxel_coordinates(v))
+        isovist = map_voxel_low.isovist(floor_filter.voxel_coordinates(v), .5)
         isovists.append(isovist)
     
     return isovists
@@ -103,7 +103,7 @@ def cluster_isovists(isovists, min_samples):
     mutual_visibility = mutual_visibility_graph(isovists)
     clustering = OPTICS(
                         min_samples=3,
-                        xi=.01,
+                        xi=.001,
                         metric='precomputed').fit(mutual_visibility)
 
     return clustering.labels_

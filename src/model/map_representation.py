@@ -227,9 +227,6 @@ class VoxelRepresentation:
         return cell in self.voxels
 
     def get_kernel(self, cell: Tuple[int, int, int], kernel: VoxelRepresentation):
-        return self.intersect(kernel.translate(np.array(cell)))
-
-    def get_kernel_b(self, cell: Tuple[int, int, int], kernel: VoxelRepresentation):
         kernel_cells = []
         for k in kernel.voxels:
             nb = tuple(cell + (k - kernel.origin))
@@ -310,7 +307,7 @@ class VoxelRepresentation:
         graph = networkx.Graph()
 
         for i, v in enumerate(self.voxels):
-            nbs = self.get_kernel_b(v, kernel)
+            nbs = self.get_kernel(v, kernel)
             graph.add_node(v)
 
             for nb in nbs:
@@ -389,7 +386,7 @@ class VoxelRepresentation:
 
         return tuple(current_voxel)
 
-    def isovist(self, origin):
+    def isovist(self, origin, max_dist):
         print(origin)
 
         directions = np.array([self.voxel_coordinates(v) - origin for v in self.voxels], dtype=np.float)
@@ -404,7 +401,7 @@ class VoxelRepresentation:
         threadsperblock = 256
         blockspergrid = (len(directions) + (threadsperblock - 1)) // threadsperblock
         VoxelRepresentation.dda[blockspergrid, threadsperblock](
-            origin, directions, bbox, self.cell_size, voxel_matrix, intersections, 1)
+            origin, directions, bbox, self.cell_size, voxel_matrix, intersections, max_dist)
 
         from copy import deepcopy
 
@@ -448,9 +445,11 @@ class VoxelRepresentation:
         current_voxel_y = int((current_position[1] - min_bbox[1]) // cell_size[1])
         current_voxel_z = int((current_position[2] - min_bbox[2]) // cell_size[2])
 
+        
         while ( min_bbox[0] <= current_position[0] <= max_bbox[0]   and
                 min_bbox[1] <= current_position[1] <= max_bbox[1]   and
-                min_bbox[2] <= current_position[2] <= max_bbox[2]):
+                min_bbox[2] <= current_position[2] <= max_bbox[2]   and
+                ((x1 - current_position[0])**2 + (y1 - current_position[1])**2 + (z1 - current_position[2])**2)**(1/2) < max_dist):
 
             if voxels[current_voxel_x, current_voxel_y, current_voxel_z] == 1:
                 intersections[pos][0] += current_voxel_x
@@ -458,9 +457,6 @@ class VoxelRepresentation:
                 intersections[pos][2] += current_voxel_z
 
                 cuda.syncthreads()
-                break
-
-            if ((x1 - current_position[0])**2 + (y1 - current_position[1])**2 + (z1 - current_position[2])**2)**(1/2) > max_dist:
                 break
 
             current_voxel_center_x = min_bbox[0] + (current_voxel_x * cell_size[0]) + (0.5 * cell_size[0])
