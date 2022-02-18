@@ -1,3 +1,4 @@
+from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
 from itertools import repeat
@@ -67,10 +68,10 @@ def skeletonize_floor_area(floor_graph):
 
     floor_voxel = floor_graph.to_voxel()
     floor_filter = floor_voxel.subset(
-        lambda v, **kwargs: floor_voxel[v]['betweenness'] > kwargs['threshold'], threshold=0.1)
+        lambda v, **kwargs: floor_voxel[v]['betweenness'] > kwargs['threshold'], threshold=0.01)
 
     floor_filter.origin = deepcopy(floor_filter.origin)
-    floor_filter.origin += np.array([0, 1.8, 0.])
+    floor_filter.origin += np.array([0, 1.5, 0.])
 
     return floor_filter
 
@@ -88,15 +89,13 @@ def mutual_visibility_graph(isovists):
     n_isovist = len(isovists)
     distance_matrix = np.zeros((n_isovist, n_isovist))
 
-    
-
     for i in range(n_isovist):
         for j in range(n_isovist):
             if i == j:
                 distance_matrix[i][j] = 0
             else:
                 if len(isovists[i]):
-                    overlap = len(isovists[i] & isovists[j]) / len(isovists[i])
+                    overlap = len(isovists[i] & isovists[j]) / min([len(isovists[j]), len(isovists[i])])
                     distance_matrix[i][j] = 1 - overlap
                 else:
                     distance_matrix[i][j] = 1
@@ -106,10 +105,12 @@ def mutual_visibility_graph(isovists):
 
 
 def cluster_isovists(isovists, min_samples):
-    from sklearn.cluster import OPTICS
+    from sklearn.cluster import DBSCAN, OPTICS
 
     mutual_visibility = mutual_visibility_graph(isovists)
-    clustering = OPTICS(min_samples=min_samples,
+    clustering = OPTICS(
+                        min_samples=3,
+                        xi=.01,
                         metric='precomputed').fit(mutual_visibility)
 
     return clustering.labels_
@@ -117,16 +118,22 @@ def cluster_isovists(isovists, min_samples):
 
 def room_segmentation(isovists, map_voxel: VoxelRepresentation, clustering: np.ndarray):
     map_segmented = deepcopy(map_voxel)
-    map_segmented.for_each(map_segmented.set_attribute,
-                           attr='cluster', val=None)
+    for v in map_segmented.voxels:
+        map_segmented[v]['clusters'] = Counter()
 
     print(clustering)
     for iso_i, cluster in enumerate(clustering):
         if cluster != -1:
             for v in isovists[iso_i]:
-                map_segmented[v]['cluster'] = cluster
+                map_segmented[v]['clusters'][cluster] += 1
+                
+                
+    for v in map_segmented.voxels:
+        if map_segmented[v]['clusters']:
+            most_common_cluster = map_segmented[v]['clusters'].most_common(1)[0][0]
+            map_segmented[v]['cluster'] = most_common_cluster
 
-    return map_segmented.subset(lambda v: map_segmented[v]['cluster'] is not None)
+    return map_segmented.subset(lambda v: map_segmented[v]['clusters'])
 
 
 def traversability_graph(map_segmented: VoxelRepresentation, nav_graph: SpatialGraphRepresentation) -> SpatialGraphRepresentation:
@@ -162,4 +169,4 @@ def traversability_graph(map_segmented: VoxelRepresentation, nav_graph: SpatialG
 
             if n_projected in map_segmented.voxels:
                 cluster = map_segmented[n_projected]['cluster']
-                print(cluster, n_projected, n, nav_graph.nodes[n])
+                # print(cluster, n_projected, n, nav_graph.nodes[n])

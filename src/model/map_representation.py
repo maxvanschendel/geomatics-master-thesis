@@ -334,18 +334,17 @@ class VoxelRepresentation:
 
         directions = np.array([self.voxel_coordinates(v) - origin for v in self.voxels], dtype=np.float)
         bbox = np.array([self.origin, self.origin + (self.cell_size * self.shape)], dtype=np.float)
-
         voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
         for v in self.voxels:
             voxel_matrix[v] = 1
 
         # Allocate memory on the device for the result
-        intersections = np.zeros(shape=(len(directions),3), dtype=np.int32)
+        intersections = np.zeros(shape=(len(directions), 3), dtype=np.int32)
 
         threadsperblock = 256
         blockspergrid = (len(directions) + (threadsperblock - 1)) // threadsperblock
         VoxelRepresentation.dda[blockspergrid, threadsperblock](
-            origin, directions, bbox, self.cell_size, voxel_matrix, intersections)
+            origin, directions, bbox, self.cell_size, voxel_matrix, intersections, 2)
 
         from copy import deepcopy
 
@@ -358,7 +357,7 @@ class VoxelRepresentation:
     # "Fast" voxel traversal, based on Amanitides & Woo, 1987
     # Terminates when first voxel has been found
     @cuda.jit
-    def dda(point, directions, bbox, cell_size, voxels, intersections):
+    def dda(point, directions, bbox, cell_size, voxels, intersections, max_dist):
         pos = cuda.grid(1)
 
         min_bbox, max_bbox = bbox[0], bbox[1]
@@ -392,6 +391,17 @@ class VoxelRepresentation:
         while ( min_bbox[0] <= current_position[0] <= max_bbox[0]   and
                 min_bbox[1] <= current_position[1] <= max_bbox[1]   and
                 min_bbox[2] <= current_position[2] <= max_bbox[2]):
+
+            if voxels[current_voxel_x, current_voxel_y, current_voxel_z] == 1:
+                intersections[pos][0] += current_voxel_x
+                intersections[pos][1] += current_voxel_y
+                intersections[pos][2] += current_voxel_z
+
+                cuda.syncthreads()
+                break
+
+            if ((x1 - current_position[0])**2 + (y1 - current_position[1])**2 + (z1 - current_position[2])**2)**(1/2) > max_dist:
+                break
 
             current_voxel_center_x = min_bbox[0] + (current_voxel_x * cell_size[0]) + (0.5 * cell_size[0])
             current_voxel_center_y = min_bbox[1] + (current_voxel_y * cell_size[1]) + (0.5 * cell_size[1])
@@ -434,13 +444,7 @@ class VoxelRepresentation:
                 current_position[1] += z_vec_y
                 current_position[2] += z_vec_z
 
-            if voxels[current_voxel_x, current_voxel_y, current_voxel_z] == 1:
-                intersections[pos][0] += current_voxel_x
-                intersections[pos][1] += current_voxel_y
-                intersections[pos][2] += current_voxel_z
 
-                cuda.syncthreads()
-                break
 
     @ staticmethod
     def cylinder(d, h, origin=np.array([0, 0, 0]), cell_size=np.array([1, 1, 1])):

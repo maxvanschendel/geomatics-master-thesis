@@ -16,7 +16,7 @@ preprocess_parameters = PreProcessingParameters(
 
 map_extract_parameters = MapExtractionParameters(
     voxel_size_high = preprocess_parameters.voxel_size,
-    voxel_size_low = 0.1,
+    voxel_size_low = 0.2,
     n_parallel = 8
 )
 
