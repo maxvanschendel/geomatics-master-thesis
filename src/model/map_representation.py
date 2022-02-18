@@ -2,6 +2,7 @@ from __future__ import annotations
 from ast import Lambda
 from fnmatch import translate
 from numba import jit, cuda
+import numba as nb
 
 import copy
 import enum
@@ -16,6 +17,7 @@ from plyfile import PlyData
 from sklearn.decomposition import PCA
 from sklearn.neighbors import KDTree
 import math
+
 
 class SpatialGraphRepresentation:
     leaf_size = 20
@@ -32,8 +34,9 @@ class SpatialGraphRepresentation:
 
         self.nodes = self.graph.nodes
         self.edges = self.graph.edges
-        self.sindex: KDTree = KDTree(self.list_attr('pos'), SpatialGraphRepresentation.leaf_size)
-        
+        self.sindex: KDTree = KDTree(self.list_attr(
+            'pos'), SpatialGraphRepresentation.leaf_size)
+
         for i, node in enumerate(self.nodes):
             self.nodes[node]['index'] = i
 
@@ -56,16 +59,21 @@ class SpatialGraphRepresentation:
         points = self.nodes
         lines = [(self.node_index(n[0]), self.node_index(n[1]))
                  for n in self.edges]
-        
+
         line_set = o3d.geometry.LineSet()
         line_set.points = o3d.utility.Vector3dVector(
             (np.array(points)*self.scale) + self.origin)
         line_set.lines = o3d.utility.Vector2iVector(lines)
 
-        color = [self.nodes[p]['color'] if has_color else [0,0,0] for p in self.nodes]
+        color = [self.nodes[p]['color'] if has_color else [0, 0, 0]
+                 for p in self.nodes]
         line_set.colors = o3d.utility.Vector3dVector(color)
 
         return line_set
+
+    # Get cartesian coordinates of voxel at index based on grid origin and voxel size
+    def local_to_world_coordinates(self, pos):
+        return (self.origin - pos) * self.scale
 
     def to_voxel(self):
         vox = VoxelRepresentation(np.array([0, 0, 0]), self.scale, self.origin, {
@@ -276,7 +284,8 @@ class VoxelRepresentation:
             voxel_t = translation + voxel
             translated_cells[tuple(voxel_t)] = self.voxels[voxel]
 
-        translated_map = VoxelRepresentation(self.shape, self.cell_size, self.origin, translated_cells)
+        translated_map = VoxelRepresentation(
+            self.shape, self.cell_size, self.origin, translated_cells)
         translated_map.shape = translated_map.extents()
 
         return translated_map
@@ -297,33 +306,65 @@ class VoxelRepresentation:
             hipf.append(i)
         return hipf
 
-    def isovist(self, origin):
-        isovist = set()
 
-        print(origin)
-
-        for v in self.voxels:
-            if v != self.get_voxel(origin):
-                if v not in isovist:
-                    intersect = self.dda(origin, self.voxel_coordinates(v) - origin)
-                    if intersect is not None:
-                        isovist.add(intersect)
-
-        print(len(isovist))
-        
-        return isovist
 
     # Get cartesian coordinates of voxel at index based on grid origin and voxel size
     def voxel_coordinates(self, current_voxel):
-        return (self.origin + (current_voxel * self.cell_size)) + 0.5*self.cell_size
+        return self.origin + (current_voxel * self.cell_size) + (0.5*self.cell_size)
 
     def get_voxel(self, p):
         return tuple(((p - self.origin) // self.cell_size).astype(int))
 
+    def project(self, voxel, axis, step):
+        current_voxel = list(voxel)
+
+        while tuple(current_voxel) not in self.voxels:
+            if 0 <= current_voxel[0] <= self.shape[0] and \
+                    0 <= current_voxel[1] <= self.shape[1] and \
+                    0 <= current_voxel[2] <= self.shape[2]:
+
+                current_voxel[axis] += step
+            else:
+                return None
+
+        return tuple(current_voxel)
+
+    def isovist(self, origin):
+        print(origin)
+
+        directions = np.array([self.voxel_coordinates(v) - origin for v in self.voxels], dtype=np.float)
+        bbox = np.array([self.origin, self.origin + (self.cell_size * self.shape)], dtype=np.float)
+
+        voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
+        for v in self.voxels:
+            voxel_matrix[v] = 1
+
+        # Allocate memory on the device for the result
+        intersections = np.zeros(shape=(len(directions),3), dtype=np.int32)
+
+        threadsperblock = 256
+        blockspergrid = (len(directions) + (threadsperblock - 1)) // threadsperblock
+        VoxelRepresentation.dda[blockspergrid, threadsperblock](
+            origin, directions, bbox, self.cell_size, voxel_matrix, intersections)
+
+        from copy import deepcopy
+
+        isovist = {tuple(i) for i in intersections}
+        if (0,0,0) in isovist:
+            isovist.remove((0,0,0))
+
+        return isovist
+
     # "Fast" voxel traversal, based on Amanitides & Woo, 1987
     # Terminates when first voxel has been found
-    def dda(self, point, direction):
-        direction = direction / np.linalg.norm(direction)
+    @cuda.jit
+    def dda(point, directions, bbox, cell_size, voxels, intersections):
+        pos = cuda.grid(1)
+
+        min_bbox, max_bbox = bbox[0], bbox[1]
+
+        direction = directions[pos]
+        # direction = direction / np.linalg.norm(direction)
         # line equation
         x1, y1, z1, l, m, n = point[0], point[1], point[2], direction[0], direction[1], direction[2]
 
@@ -334,56 +375,72 @@ class VoxelRepresentation:
         if (n == 0.0):
             n = 0.00000001
 
-
         x_sign = int(l / abs(l))
         y_sign = int(m / abs(m))
         z_sign = int(n / abs(n))
 
-        axis_signs = np.array([x_sign, y_sign, z_sign])
-        border_distances = axis_signs * self.cell_size
+        border_distances = cuda.local.array(shape=3, dtype=nb.float32) 
+        border_distances[0] = cell_size[0] * x_sign
+        border_distances[1] = cell_size[1] * y_sign
+        border_distances[2] = cell_size[2] * z_sign
 
         current_position = point
-        current_voxel = list(self.get_voxel(current_position))
+        current_voxel_x = int((current_position[0] - min_bbox[0]) // cell_size[0])
+        current_voxel_y = int((current_position[1] - min_bbox[1]) // cell_size[1])
+        current_voxel_z = int((current_position[2] - min_bbox[2]) // cell_size[2])
 
-        min_bbox, max_bbox = self.origin, self.origin + (self.cell_size * self.shape)
-        while ( min_bbox[0] <= current_position[0] <= max_bbox[0] and
-                min_bbox[1] <= current_position[1] <= max_bbox[1] and
+        while ( min_bbox[0] <= current_position[0] <= max_bbox[0]   and
+                min_bbox[1] <= current_position[1] <= max_bbox[1]   and
                 min_bbox[2] <= current_position[2] <= max_bbox[2]):
 
-            current_voxel_center = self.voxel_coordinates(current_voxel) 
-            border_plane_coordinates = current_voxel_center + border_distances
+            current_voxel_center_x = min_bbox[0] + (current_voxel_x * cell_size[0]) + (0.5 * cell_size[0])
+            current_voxel_center_y = min_bbox[1] + (current_voxel_y * cell_size[1]) + (0.5 * cell_size[1])
+            current_voxel_center_z = min_bbox[2] + (current_voxel_z * cell_size[2]) + (0.5 * cell_size[2])
 
             # get coordinates of axis-aligned planes that border cell
-            x_edge = border_plane_coordinates[0]
-            y_edge = border_plane_coordinates[1]
-            z_edge = border_plane_coordinates[2]
+            x_edge = current_voxel_center_x + border_distances[0]
+            y_edge = current_voxel_center_y + border_distances[1]
+            z_edge = current_voxel_center_z + border_distances[2]
 
             # find intersection of line with cell borders and its distance
-            x_intersection = np.array((x_edge, (((x_edge - x1) / l) * m) + y1, (((x_edge - x1) / l) * n) + z1))
-            x_vector = x_intersection - current_position
-            x_magnitude = np.linalg.norm(x_vector)
+            x_vec_x = x_edge                          - current_position[0]
+            x_vec_y = (((x_edge - x1) / l) * m) + y1  - current_position[1]
+            x_vec_z = (((x_edge - x1) / l) * n) + z1  - current_position[2]
+            x_magnitude = (x_vec_x**2 + x_vec_y**2 + x_vec_z**2)**(1/2)
 
-            y_intersection = np.array(((((y_edge - y1) / m) * l) + x1, y_edge, (((y_edge - y1) / m) * n) + z1))
-            y_vector = y_intersection - current_position
-            y_magnitude = np.linalg.norm(y_vector)
+            y_vec_x = (((y_edge - y1) / m) * l) + x1  - current_position[0]
+            y_vec_y = y_edge                          - current_position[1]
+            y_vec_z = (((y_edge - y1) / m) * n) + z1  - current_position[2]
+            y_magnitude = (y_vec_x**2 + y_vec_y**2 + y_vec_z**2)**(1/2)
 
-            z_intersection = np.array(((((z_edge - z1) / n) * l) + x1, (((z_edge - z1) / n) * m) + y1, z_edge))
-            z_vector = z_intersection - current_position
-            z_magnitude = np.linalg.norm(z_vector)
+            z_vec_x = (((z_edge - z1) / n) * l) + x1  - current_position[0]
+            z_vec_y = (((z_edge - z1) / n) * m) + y1  - current_position[1]
+            z_vec_z = z_edge                          - current_position[2]
+            z_magnitude = (z_vec_x**2 + z_vec_y**2 + z_vec_z**2)**(1/2)
 
             if x_magnitude <= y_magnitude and x_magnitude <= z_magnitude:
-                current_voxel[0] += x_sign
-                current_position += x_vector
+                current_voxel_x += x_sign
+                current_position[0] += x_vec_x
+                current_position[1] += x_vec_y
+                current_position[2] += x_vec_z
             elif y_magnitude <= x_magnitude and y_magnitude <= z_magnitude:
-                current_voxel[1] += y_sign
-                current_position += y_vector
+                current_voxel_y += y_sign
+                current_position[0] += y_vec_x
+                current_position[1] += y_vec_y
+                current_position[2] += y_vec_z
             elif z_magnitude <= x_magnitude and z_magnitude <= y_magnitude:
-                current_voxel[2] += z_sign
-                current_position += z_vector
+                current_voxel_z += z_sign
+                current_position[0] += z_vec_x
+                current_position[1] += z_vec_y
+                current_position[2] += z_vec_z
 
-            if tuple(current_voxel) in self.voxels and self.get_voxel(point) != tuple(current_voxel):
-                return tuple(current_voxel)
+            if voxels[current_voxel_x, current_voxel_y, current_voxel_z] == 1:
+                intersections[pos][0] += current_voxel_x
+                intersections[pos][1] += current_voxel_y
+                intersections[pos][2] += current_voxel_z
 
+                cuda.syncthreads()
+                break
 
     @ staticmethod
     def cylinder(d, h, origin=np.array([0, 0, 0]), cell_size=np.array([1, 1, 1])):

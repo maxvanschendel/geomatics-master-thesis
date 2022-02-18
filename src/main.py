@@ -9,14 +9,14 @@ from processing.pre_process import *
 # INPUT PARAMETERS #
 input_path = "./data/meshes/diningroom2kitchen - low.ply"
 preprocess_parameters = PreProcessingParameters(
-    voxel_size=0.2,
+    voxel_size=0.1,
     reduce=1,
     scale=[1, -1, 1]
 )
 
 map_extract_parameters = MapExtractionParameters(
     voxel_size_high = preprocess_parameters.voxel_size,
-    voxel_size_low = 0.4,
+    voxel_size_low = 0.1,
     n_parallel = 8
 )
 
