@@ -9,9 +9,9 @@ class MapVisualization:
 
 
 class Visualizer:
-    def default_pcd_mat():
+    def default_pcd_mat(pt_size=7):
         mat = o3d.visualization.rendering.MaterialRecord()
-        mat.point_size = 7
+        mat.point_size = pt_size
 
         return mat
 

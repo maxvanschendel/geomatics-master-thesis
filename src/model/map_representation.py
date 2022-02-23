@@ -117,6 +117,8 @@ class VoxelRepresentation:
         else:
             self.voxels = voxels
 
+        self.voxel_array = np.array(list(self.voxels.keys()))
+
     def __str__(self):
         return str(self.voxels)
 
@@ -193,6 +195,33 @@ class VoxelRepresentation:
             print(e, vals)
 
         return pca
+
+    @cuda.jit
+    def gpu_voxel_distance(n_b, voxels_a, voxels_b, distances):
+        pos = cuda.grid(1)
+
+        vox_a_i = pos // n_b
+        vox_b_i = pos % (n_b)
+        vox_a = voxels_a[vox_a_i]
+        vox_b = voxels_b[vox_b_i]
+
+        dist = ((vox_a[0] - vox_b[0])**2 + (vox_a[1] - vox_b[1])**2 + (vox_a[2] - vox_b[2])**2)**(1/2)
+        distances[pos] = dist
+
+    def distance(self, other):
+        threads_block = 32
+        blocks_grid = (len(self.voxels)*len(other.voxels)) // threads_block + 1
+
+        
+        self_voxels = self.voxel_array
+        other_voxels = other.voxel_array
+        distances = np.zeros((len(self.voxels) * len(other.voxels)), dtype=np.float)
+
+        VoxelRepresentation.gpu_voxel_distance[blocks_grid, threads_block](len(other.voxels), self_voxels, other_voxels, distances)
+        mean_distance = sum(distances) / (len(self.voxels) * len(other.voxels))
+
+        return mean_distance
+
 
     def estimate_normals(self, kernel: VoxelRepresentation):
         nbs = self.map(self.get_kernel, kernel)
@@ -277,11 +306,13 @@ class VoxelRepresentation:
             occupied_voxels[i][2] = k[2]
 
         threadsperblock = 128
-        blockspergrid = (len(self.voxels) + (threadsperblock - 1)) // threadsperblock
-        VoxelRepresentation.gpu_convolve[blockspergrid, threadsperblock](voxel_matrix, occupied_voxels, kernel_voxels, result_voxels)
+        blockspergrid = (len(self.voxels) +
+                         (threadsperblock - 1)) // threadsperblock
+        VoxelRepresentation.gpu_convolve[blockspergrid, threadsperblock](
+            voxel_matrix, occupied_voxels, kernel_voxels, result_voxels)
 
         nb_voxels = []
-        for i,occ in enumerate(result_voxels):
+        for i, occ in enumerate(result_voxels):
             if not occ[0]:
                 nb_voxels.append(tuple(occupied_voxels[i]))
         return nb_voxels
@@ -363,9 +394,8 @@ class VoxelRepresentation:
             hipf.append(i)
         return hipf
 
-
-
     # Get cartesian coordinates of voxel at index based on grid origin and voxel size
+
     def voxel_coordinates(self, current_voxel):
         return self.origin + (current_voxel * self.cell_size) + (0.5*self.cell_size)
 
@@ -387,10 +417,10 @@ class VoxelRepresentation:
         return tuple(current_voxel)
 
     def isovist(self, origin, max_dist):
-        print(origin)
-
-        directions = np.array([self.voxel_coordinates(v) - origin for v in self.voxels], dtype=np.float)
-        bbox = np.array([self.origin, self.origin + (self.cell_size * self.shape)], dtype=np.float)
+        directions = np.array([self.voxel_coordinates(
+            v) - origin for v in self.voxels], dtype=np.float)
+        bbox = np.array([self.origin, self.origin +
+                        (self.cell_size * self.shape)], dtype=np.float)
         voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
         for v in self.voxels:
             voxel_matrix[v] = 1
@@ -399,17 +429,16 @@ class VoxelRepresentation:
         intersections = np.zeros(shape=(len(directions), 3), dtype=np.int32)
 
         threadsperblock = 256
-        blockspergrid = (len(directions) + (threadsperblock - 1)) // threadsperblock
+        blockspergrid = (len(directions) +
+                         (threadsperblock - 1)) // threadsperblock
         VoxelRepresentation.dda[blockspergrid, threadsperblock](
             origin, directions, bbox, self.cell_size, voxel_matrix, intersections, max_dist)
 
-        from copy import deepcopy
-
         isovist = {tuple(i) for i in intersections}
-        if (0,0,0) in isovist:
-            isovist.remove((0,0,0))
+        if (0, 0, 0) in isovist:
+            isovist.remove((0, 0, 0))
 
-        return isovist
+        return VoxelRepresentation(shape=self.shape, cell_size=self.cell_size, origin=self.origin, voxels={v: self[v] for v in isovist})
 
     # "Fast" voxel traversal, based on Amanitides & Woo, 1987
     # Terminates when first voxel has been found
@@ -435,20 +464,22 @@ class VoxelRepresentation:
         y_sign = int(m / abs(m))
         z_sign = int(n / abs(n))
 
-        border_distances = cuda.local.array(shape=3, dtype=nb.float32) 
+        border_distances = cuda.local.array(shape=3, dtype=nb.float32)
         border_distances[0] = cell_size[0] * x_sign
         border_distances[1] = cell_size[1] * y_sign
         border_distances[2] = cell_size[2] * z_sign
 
         current_position = point
-        current_voxel_x = int((current_position[0] - min_bbox[0]) // cell_size[0])
-        current_voxel_y = int((current_position[1] - min_bbox[1]) // cell_size[1])
-        current_voxel_z = int((current_position[2] - min_bbox[2]) // cell_size[2])
+        current_voxel_x = int(
+            (current_position[0] - min_bbox[0]) // cell_size[0])
+        current_voxel_y = int(
+            (current_position[1] - min_bbox[1]) // cell_size[1])
+        current_voxel_z = int(
+            (current_position[2] - min_bbox[2]) // cell_size[2])
 
-        
-        while ( min_bbox[0] <= current_position[0] <= max_bbox[0]   and
-                min_bbox[1] <= current_position[1] <= max_bbox[1]   and
-                min_bbox[2] <= current_position[2] <= max_bbox[2]   and
+        while (min_bbox[0] <= current_position[0] <= max_bbox[0] and
+                min_bbox[1] <= current_position[1] <= max_bbox[1] and
+                min_bbox[2] <= current_position[2] <= max_bbox[2] and
                 ((x1 - current_position[0])**2 + (y1 - current_position[1])**2 + (z1 - current_position[2])**2)**(1/2) < max_dist):
 
             if voxels[current_voxel_x, current_voxel_y, current_voxel_z] == 1:
@@ -459,9 +490,12 @@ class VoxelRepresentation:
                 cuda.syncthreads()
                 break
 
-            current_voxel_center_x = min_bbox[0] + (current_voxel_x * cell_size[0]) + (0.5 * cell_size[0])
-            current_voxel_center_y = min_bbox[1] + (current_voxel_y * cell_size[1]) + (0.5 * cell_size[1])
-            current_voxel_center_z = min_bbox[2] + (current_voxel_z * cell_size[2]) + (0.5 * cell_size[2])
+            current_voxel_center_x = min_bbox[0] + \
+                (current_voxel_x * cell_size[0]) + (0.5 * cell_size[0])
+            current_voxel_center_y = min_bbox[1] + \
+                (current_voxel_y * cell_size[1]) + (0.5 * cell_size[1])
+            current_voxel_center_z = min_bbox[2] + \
+                (current_voxel_z * cell_size[2]) + (0.5 * cell_size[2])
 
             # get coordinates of axis-aligned planes that border cell
             x_edge = current_voxel_center_x + border_distances[0]
@@ -469,19 +503,19 @@ class VoxelRepresentation:
             z_edge = current_voxel_center_z + border_distances[2]
 
             # find intersection of line with cell borders and its distance
-            x_vec_x = x_edge                          - current_position[0]
-            x_vec_y = (((x_edge - x1) / l) * m) + y1  - current_position[1]
-            x_vec_z = (((x_edge - x1) / l) * n) + z1  - current_position[2]
+            x_vec_x = x_edge - current_position[0]
+            x_vec_y = (((x_edge - x1) / l) * m) + y1 - current_position[1]
+            x_vec_z = (((x_edge - x1) / l) * n) + z1 - current_position[2]
             x_magnitude = (x_vec_x**2 + x_vec_y**2 + x_vec_z**2)**(1/2)
 
-            y_vec_x = (((y_edge - y1) / m) * l) + x1  - current_position[0]
-            y_vec_y = y_edge                          - current_position[1]
-            y_vec_z = (((y_edge - y1) / m) * n) + z1  - current_position[2]
+            y_vec_x = (((y_edge - y1) / m) * l) + x1 - current_position[0]
+            y_vec_y = y_edge - current_position[1]
+            y_vec_z = (((y_edge - y1) / m) * n) + z1 - current_position[2]
             y_magnitude = (y_vec_x**2 + y_vec_y**2 + y_vec_z**2)**(1/2)
 
-            z_vec_x = (((z_edge - z1) / n) * l) + x1  - current_position[0]
-            z_vec_y = (((z_edge - z1) / n) * m) + y1  - current_position[1]
-            z_vec_z = z_edge                          - current_position[2]
+            z_vec_x = (((z_edge - z1) / n) * l) + x1 - current_position[0]
+            z_vec_y = (((z_edge - z1) / n) * m) + y1 - current_position[1]
+            z_vec_z = z_edge - current_position[2]
             z_magnitude = (z_vec_x**2 + z_vec_y**2 + z_vec_z**2)**(1/2)
 
             if x_magnitude <= y_magnitude and x_magnitude <= z_magnitude:
@@ -499,8 +533,6 @@ class VoxelRepresentation:
                 current_position[0] += z_vec_x
                 current_position[1] += z_vec_y
                 current_position[2] += z_vec_z
-
-
 
     @ staticmethod
     def cylinder(d, h, origin=np.array([0, 0, 0]), cell_size=np.array([1, 1, 1])):
@@ -636,19 +668,19 @@ class PointCloudRepresentation:
 
         return PointCloudRepresentation(np.array(out_points), source=self)
 
-    def voxelize(self, cell_size) -> VoxelRepresentation:
+    def voxelize(self, cell_size, aabb_min, aabb_max) -> VoxelRepresentation:
         '''Convert point cloud to discretized voxel representation.'''
 
-        edge_sizes = self.aabb[:, 1] - self.aabb[:, 0]
+        edge_sizes = aabb_max - aabb_min
         shape = edge_sizes // cell_size
         cell_sizes = edge_sizes / shape
 
         voxel_model = VoxelRepresentation(
-            shape, cell_sizes, self.aabb[:, 0], {})
+            shape, cell_sizes, aabb_min, {})
 
         for p in self.points:
             # Find voxel cell that the given point is in
-            cell = tuple(((p - self.aabb[:, 0]) // cell_sizes).astype(int))
+            cell = tuple(((p - aabb_min) // cell_sizes).astype(int))
 
             if not voxel_model.is_occupied(cell):
                 voxel_model.add_voxel(cell, {'pos': p})

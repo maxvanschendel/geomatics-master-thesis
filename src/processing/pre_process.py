@@ -1,15 +1,17 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from yaml import load, dump
 
 import numpy as np
 from model.map_representation import *
 
+
 class PreProcessingParametersException(Exception):
-        pass
+    pass
+
 
 @dataclass(frozen=True)
 class PreProcessingParameters:
-    voxel_size: float
     reduce: float
     scale: Tuple[float]
 
@@ -23,14 +25,27 @@ class PreProcessingParameters:
             raise PreProcessingParametersException(
                 "Scale must be a 3-dimensional vector.")
 
+    @staticmethod
+    def deserialize(data: str) -> PreProcessingParameters:
+        return load(data)
+
+    @staticmethod
+    def read(fn: str) -> PreProcessingParameters:
+        with open(fn, "r") as read_file:
+            file_contents = read_file.read()
+        return PreProcessingParameters.deserialize(file_contents)
+
     def serialize(self) -> str:
-        return 
+        return dump(self)
+
+    def write(self, fn: str) -> None:
+        with open(fn, "rw") as write_file:
+            write_file.write(self.serialize())
+        
+
 
 def pre_process(partial_map: PointCloudRepresentation, params: PreProcessingParameters) -> VoxelRepresentation:
-    print("Preprocessing")
-
     partial_map_reduced = partial_map.random_reduce(params.reduce)
     partial_map_scaled = partial_map_reduced.scale(np.array(params.scale))
-    partial_map_voxel = partial_map_scaled.voxelize(params.voxel_size)
 
-    return partial_map_voxel
+    return partial_map_scaled
