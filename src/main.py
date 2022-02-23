@@ -1,31 +1,28 @@
-import numpy as np
-
-
 from model.map_representation import PointCloudRepresentation
 from processing.map_extract import *
 from processing.map_merge import *
 from processing.pre_process import *
 
 # INPUT PARAMETERS #
-input_path = "./data/meshes/diningroom2kitchen - low.ply"
+input_path = "./data/meshes/mainbedroom2studio.ply"
 preprocess_parameters = PreProcessingParameters(
     reduce=1,
     scale=[1, -1, 1]
 )
 
 map_extract_parameters = MapExtractionParameters(
-    # Voxelization 
-    voxel_size_high = 0.1,
-    voxel_size_low = 0.2,
+    # Voxelization
+    voxel_size_high=0.05,
+    voxel_size_low=0.2,
 
     # Traversability
-    kernel_scale = 0.05,
-    n_target = 50,
-    betweenness_threshold = 0.15,
+    kernel_scale=0.05,
+    n_target=50,
+    betweenness_threshold=0.15,
 
     # Isovists
-    path_height = 1.5,
-    isovist_subsample = 0.5,
+    path_height=1.,
+    isovist_subsample=0.25,
     isovist_range=3,
 
     # Room segmentation

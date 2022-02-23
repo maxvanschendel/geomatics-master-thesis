@@ -228,7 +228,7 @@ class VoxelRepresentation:
         self.for_each(lambda v: self[v].pop(attr))
 
     def propagate_attribute(self, attr: str, iterations: int) -> VoxelRepresentation:
-        kernel = VoxelRepresentation.nb6().dilate(VoxelRepresentation.nb6())
+        kernel = VoxelRepresentation.nb6().dilate(VoxelRepresentation.nb6()).dilate(VoxelRepresentation.nb6())
         propagated_map = self.clone()
 
         for i in range(iterations):
@@ -263,6 +263,32 @@ class VoxelRepresentation:
                 border_voxels.remove_voxel(voxel)
 
         return border_voxels
+
+    def split_by_attribute(self, attr) -> List[VoxelRepresentation]:
+        attributes = list(self.list_attribute(attr))
+        unique_attributes = np.unique(attributes)
+
+        split = []
+        for unique_attr in unique_attributes:
+            attr_subset = self.subset(lambda v: self[v][attr] == unique_attr)
+            split.append(attr_subset)
+
+        return split
+
+    def connected_components(self) -> List[VoxelRepresentation]:
+        graph_representation = self.to_graph()
+        components = graph_representation.connected_components()
+
+        comps = []
+        for c in components:
+            component = SpatialGraphRepresentation(
+                graph_representation.scale,
+                graph_representation.origin,
+                graph_representation.graph.subgraph(c))
+            component_voxel = component.to_voxel()
+            comps.append(component_voxel)
+
+        return comps
 
     @cuda.jit
     def voxel_has_nbs_gpu(voxels, occupied_voxels, kernel, conv_voxels):
@@ -414,8 +440,7 @@ class VoxelRepresentation:
         return tuple(current_voxel)
 
     def isovist(self, origin, max_dist):
-        directions = np.array([self.voxel_coordinates(
-            v) - origin for v in self.voxels], dtype=np.float)
+        directions = np.array([self.voxel_coordinates(v) - origin for v in self.voxels], dtype=np.float)
         bbox = np.array([self.origin, self.origin +
                         (self.cell_size * self.shape)], dtype=np.float)
         voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
@@ -450,11 +475,11 @@ class VoxelRepresentation:
         x1, y1, z1, l, m, n = point[0], point[1], point[2], direction[0], direction[1], direction[2]
 
         if (l == 0.0):
-            l = 0.00000001
+            l = 1/math.inf
         if (m == 0.0):
-            m = 0.00000001
+            m = 1/math.inf
         if (n == 0.0):
-            n = 0.00000001
+            n = 1/math.inf
 
         x_sign = int(l / abs(l))
         y_sign = int(m / abs(m))

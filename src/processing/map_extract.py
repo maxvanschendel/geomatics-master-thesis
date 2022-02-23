@@ -98,8 +98,10 @@ def extract_map(partial_map_pcd: PointCloudRepresentation, params: MapExtraction
     map_rooms = room_segmentation(isovists, map_voxel_low, clustering)
 
     print("- Propagating labels")
-    map_rooms_prop = map_rooms.propagate_attribute(
-        'cluster', params.label_propagation_max_iterations)
+    map_rooms_prop = map_rooms.propagate_attribute('cluster', params.label_propagation_max_iterations)
+    map_rooms_split = map_rooms_prop.split_by_attribute('cluster')
+
+
 
     cluster_colors = {label: random_color() for label in np.unique(clustering)}
     map_rooms.for_each(lambda v: map_rooms.set_attribute(
@@ -133,10 +135,6 @@ def extract_map(partial_map_pcd: PointCloudRepresentation, params: MapExtraction
         ],
         [
             MapVisualization(map_rooms_prop.to_o3d(has_color=True),
-                             Visualizer.default_pcd_mat(pt_size=10))
-        ],
-        [
-            MapVisualization(border_voxels.to_o3d(has_color=True),
                              Visualizer.default_pcd_mat(pt_size=10))
         ],
     ])
@@ -268,7 +266,7 @@ def cluster_graph(distance_matrix, weight_threshold: float, min_inflation: float
     return labeling
 
 
-def room_segmentation(isovists: List[VoxelRepresentation], map_voxel: VoxelRepresentation, clustering: np.ndarray, min_observations: int = 1) -> VoxelRepresentation:
+def room_segmentation(isovists: List[VoxelRepresentation], map_voxel: VoxelRepresentation, clustering: np.ndarray, min_observations: int = 0) -> VoxelRepresentation:
     map_segmented = map_voxel.clone()
     for v in map_segmented.voxels:
         map_segmented[v]['clusters'] = Counter()
