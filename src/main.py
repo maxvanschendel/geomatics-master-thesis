@@ -12,7 +12,7 @@ preprocess_parameters = PreProcessingParameters(
 
 map_extract_parameters = MapExtractionParameters(
     # Voxelization
-    voxel_size_high=0.05,
+    voxel_size_high=0.1,
     voxel_size_low=0.2,
 
     # Traversability
@@ -21,14 +21,14 @@ map_extract_parameters = MapExtractionParameters(
     betweenness_threshold=0.15,
 
     # Isovists
-    path_height=1.,
-    isovist_subsample=0.25,
+    path_height=1.5,
+    isovist_subsample=.2,
     isovist_range=3,
 
     # Room segmentation
     min_inflation=1.1,
     max_inflation=2,
-    weight_threshold=0.35,
+    weight_threshold=0.4,
     label_propagation_max_iterations=100,
 )
 

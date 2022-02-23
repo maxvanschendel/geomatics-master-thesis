@@ -121,7 +121,7 @@ class VoxelRepresentation:
 
         self.voxel_array = np.array(list(self.voxels.keys()))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.voxels)
 
     def __getitem__(self, key: Tuple[int, int, int]) -> Dict[str, object]:
@@ -130,7 +130,7 @@ class VoxelRepresentation:
     def __setitem__(self, key: Tuple[int, int, int], value: Dict[str, object]) -> None:
         self.voxels[key] = value
 
-    def __add__(self, other: VoxelRepresentation):
+    def __add__(self, other: VoxelRepresentation) -> VoxelRepresentation:
         new_model = self.clone()
         for v in other.voxels:
             if (new_model.is_occupied(v)):
@@ -142,7 +142,7 @@ class VoxelRepresentation:
         new_model.shape = new_model.extents()
         return new_model
 
-    def __sub__(self, other):
+    def __sub__(self, other: VoxelRepresentation) -> VoxelRepresentation:
         new_model = self.clone()
 
         for v in other.voxels:
@@ -221,10 +221,10 @@ class VoxelRepresentation:
 
         return kernel_cells
 
-    def add_attribute(self, attr, default_value):
+    def add_attribute(self, attr: str, default_value: object) -> None:
         self.for_each(self.set_attribute, attr=attr, val=default_value)
 
-    def remove_attribute(self, attr):
+    def remove_attribute(self, attr: str) -> None:
         self.for_each(lambda v: self[v].pop(attr))
 
     def propagate_attribute(self, attr: str, iterations: int) -> VoxelRepresentation:
@@ -362,7 +362,7 @@ class VoxelRepresentation:
         kernel = VoxelRepresentation.nb6()
         graph = networkx.Graph()
 
-        for i, v in enumerate(self.voxels):
+        for v in self.voxels:
             nbs = self.get_kernel(v, kernel)
             graph.add_node(v)
 
@@ -401,24 +401,7 @@ class VoxelRepresentation:
 
         return translated_map
 
-    def distance_to_unoccupied(self):
-        hipf = []
-
-        for v in self.voxels:
-            kernel = VoxelRepresentation.nb4()
-            v_nbs = self.get_kernel(v, kernel)
-
-            i = 0
-            while len(v_nbs) == len(kernel.voxels):
-                kernel = kernel.dilate(VoxelRepresentation.nb4())
-                v_nbs = self.get_kernel(v, kernel)
-                i += 1
-
-            hipf.append(i)
-        return hipf
-
     # Get cartesian coordinates of voxel at index based on grid origin and voxel size
-
     def voxel_coordinates(self, current_voxel):
         return self.origin + (current_voxel * self.cell_size) + (0.5*self.cell_size)
 
