@@ -1,22 +1,26 @@
 from __future__ import annotations
-from ast import Lambda
-from fnmatch import translate
-from numba import jit, cuda
-import numba as nb
 
 import copy
 import enum
+import logging
+import math
+from ast import Lambda
+from collections import Counter
+from fnmatch import translate
 from itertools import product
 from random import random
 from typing import Dict, Tuple
 
 import networkx
+import numba as nb
 import numpy as np
 import open3d as o3d
+from numba import cuda, jit
 from plyfile import PlyData
 from sklearn.decomposition import PCA
 from sklearn.neighbors import KDTree
-import math
+
+logging.disable(logging.WARNING)
 
 
 class SpatialGraphRepresentation:
@@ -100,8 +104,6 @@ class SpatialGraphRepresentation:
 
 
 class VoxelRepresentation:
-    leaf_size = 20
-
     def __init__(self,
                  shape: np.array = None,
                  cell_size: np.array = np.array([1, 1, 1]),
@@ -186,51 +188,6 @@ class VoxelRepresentation:
     def colorize(self, color):
         self.for_each(self.set_attribute, attr='color', val=color)
 
-    @staticmethod
-    def pca(vals):
-        try:
-            pca = PCA()
-            pca.fit(vals)
-        except Exception as e:
-            print(e, vals)
-
-        return pca
-
-    @cuda.jit
-    def gpu_voxel_distance(n_b, voxels_a, voxels_b, distances):
-        pos = cuda.grid(1)
-
-        vox_a_i = pos // n_b
-        vox_b_i = pos % (n_b)
-        vox_a = voxels_a[vox_a_i]
-        vox_b = voxels_b[vox_b_i]
-
-        dist = ((vox_a[0] - vox_b[0])**2 + (vox_a[1] - vox_b[1])**2 + (vox_a[2] - vox_b[2])**2)**(1/2)
-        distances[pos] = dist
-
-    def distance(self, other):
-        threads_block = 32
-        blocks_grid = (len(self.voxels)*len(other.voxels)) // threads_block + 1
-
-        
-        self_voxels = self.voxel_array
-        other_voxels = other.voxel_array
-        distances = np.zeros((len(self.voxels) * len(other.voxels)), dtype=np.float)
-
-        VoxelRepresentation.gpu_voxel_distance[blocks_grid, threads_block](len(other.voxels), self_voxels, other_voxels, distances)
-        mean_distance = sum(distances) / (len(self.voxels) * len(other.voxels))
-
-        return mean_distance
-
-
-    def estimate_normals(self, kernel: VoxelRepresentation):
-        nbs = self.map(self.get_kernel, kernel)
-        pca_components = map(
-            lambda nb: VoxelRepresentation.pca(nb).components_, nbs)
-        normals = map(lambda c: c[2] / np.linalg.norm(c[2]), pca_components)
-
-        return list(normals)
-
     def extents(self):
         new_voxels = np.array(list(self.voxels.keys()))
         new_shape = list(self.shape)
@@ -240,7 +197,7 @@ class VoxelRepresentation:
                 new_shape[i] = max([v[i].max(), c])
         return new_shape
 
-    def clone(self):
+    def clone(self) -> VoxelRepresentation:
         return VoxelRepresentation(copy.deepcopy(self.shape),
                                    copy.deepcopy(self.cell_size),
                                    copy.deepcopy(self.origin),
@@ -255,17 +212,60 @@ class VoxelRepresentation:
     def is_occupied(self, cell: Tuple[int, int, int]) -> bool:
         return cell in self.voxels
 
-    def get_kernel(self, cell: Tuple[int, int, int], kernel: VoxelRepresentation):
+    def get_kernel(self, voxel: Tuple[int, int, int], kernel: VoxelRepresentation):
         kernel_cells = []
         for k in kernel.voxels:
-            nb = tuple(cell + (k - kernel.origin))
+            nb = tuple(voxel + (k - kernel.origin))
             if self.is_occupied(nb):
                 kernel_cells.append(nb)
 
         return kernel_cells
 
+    def add_attribute(self, attr, default_value):
+        self.for_each(self.set_attribute, attr=attr, val=default_value)
+
+    def remove_attribute(self, attr):
+        self.for_each(lambda v: self[v].pop(attr))
+
+    def propagate_attribute(self, attr: str, iterations: int) -> VoxelRepresentation:
+        kernel = VoxelRepresentation.nb6().dilate(VoxelRepresentation.nb6())
+        propagated_map = self.clone()
+
+        for i in range(iterations):
+            print(f"{i}/{iterations}")
+            previous_map = propagated_map.clone()
+
+            for voxel in propagated_map.voxels:
+                # Get most common label of 6-neighbourhood of voxel
+                voxel_nbs = propagated_map.get_kernel(voxel, kernel)
+                voxel_nbs_labels = [previous_map[v][attr] for v in voxel_nbs]
+                most_common_label = Counter(
+                    voxel_nbs_labels).most_common(1)[0][0]
+
+                # Assign most common neighbourhood label to voxel
+                propagated_map[voxel][attr] = most_common_label
+
+            # Stop propagation once it fails to make a change
+            if previous_map.voxels == propagated_map.voxels:
+                break
+
+        return propagated_map
+
+    def attribute_borders(self, attr) -> VoxelRepresentation:
+        kernel = VoxelRepresentation.nb6()
+        border_voxels = self.clone()
+
+        for voxel in self.voxels:
+            voxel_nbs = self.get_kernel(voxel, kernel)
+            voxel_nbs_labels = [self[v][attr] for v in voxel_nbs]
+
+            if voxel_nbs_labels == [self[voxel][attr]]*len(voxel_nbs_labels):
+                border_voxels.remove_voxel(voxel)
+
+        return border_voxels
+
     @cuda.jit
-    def gpu_convolve(voxels, occupied_voxels, kernel, conv_voxels):
+    def voxel_has_nbs_gpu(voxels, occupied_voxels, kernel, conv_voxels):
         pos = cuda.grid(1)
 
         current_voxel = occupied_voxels[pos]
@@ -284,7 +284,6 @@ class VoxelRepresentation:
 
             if voxels[current_voxel_nb_x, current_voxel_nb_y, current_voxel_nb_z] == 1:
                 conv_voxels[pos] = 1
-                cuda.syncthreads()
                 break
 
     def filter_gpu_kernel_nbs(self, kernel):
@@ -308,7 +307,7 @@ class VoxelRepresentation:
         threadsperblock = 128
         blockspergrid = (len(self.voxels) +
                          (threadsperblock - 1)) // threadsperblock
-        VoxelRepresentation.gpu_convolve[blockspergrid, threadsperblock](
+        VoxelRepresentation.voxel_has_nbs_gpu[blockspergrid, threadsperblock](
             voxel_matrix, occupied_voxels, kernel_voxels, result_voxels)
 
         nb_voxels = []
@@ -351,8 +350,6 @@ class VoxelRepresentation:
         return SpatialGraphRepresentation(self.cell_size, self.origin, graph)
 
     def dilate(self, kernel) -> VoxelRepresentation:
-        '''Dilate model with kernel'''
-
         dilated_model = VoxelRepresentation(
             self.shape, self.cell_size, self.origin, {})
 
@@ -440,16 +437,15 @@ class VoxelRepresentation:
 
         return VoxelRepresentation(shape=self.shape, cell_size=self.cell_size, origin=self.origin, voxels={v: self[v] for v in isovist})
 
-    # "Fast" voxel traversal, based on Amanitides & Woo, 1987
+    # "Fast" voxel traversal, based on Amanitides & Woo (1987)
     # Terminates when first voxel has been found
     @cuda.jit
     def dda(point, directions, bbox, cell_size, voxels, intersections, max_dist):
         pos = cuda.grid(1)
 
         min_bbox, max_bbox = bbox[0], bbox[1]
-
         direction = directions[pos]
-        # direction = direction / np.linalg.norm(direction)
+
         # line equation
         x1, y1, z1, l, m, n = point[0], point[1], point[2], direction[0], direction[1], direction[2]
 
@@ -486,8 +482,6 @@ class VoxelRepresentation:
                 intersections[pos][0] += current_voxel_x
                 intersections[pos][1] += current_voxel_y
                 intersections[pos][2] += current_voxel_z
-
-                cuda.syncthreads()
                 break
 
             current_voxel_center_x = min_bbox[0] + \
@@ -683,7 +677,7 @@ class PointCloudRepresentation:
             cell = tuple(((p - aabb_min) // cell_sizes).astype(int))
 
             if not voxel_model.is_occupied(cell):
-                voxel_model.add_voxel(cell, {'pos': p})
+                voxel_model.add_voxel(cell, {})
 
         return voxel_model
 

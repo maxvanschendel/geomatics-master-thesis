@@ -11,9 +11,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from model.map_representation import *
 from yaml import load, dump
+import skopt
+
 
 class MapExtractionParametersException(Exception):
     pass
+
 
 @dataclass(frozen=True)
 class MapExtractionParameters:
@@ -23,9 +26,15 @@ class MapExtractionParameters:
     n_target: int
     path_height: float
     betweenness_threshold: float
+
     isovist_subsample: float
-    xi: float
-    min_sample: int
+    isovist_range: float
+
+    weight_threshold: float
+    min_inflation: float
+    max_inflation: float
+
+    label_propagation_max_iterations: int
 
     def __post_init__(self):
         pass
@@ -46,15 +55,17 @@ class MapExtractionParameters:
     def write(self, fn: str) -> None:
         with open(fn, "rw") as write_file:
             write_file.write(self.serialize())
-        
+
 
 def extract_map(partial_map_pcd: PointCloudRepresentation, params: MapExtractionParameters) -> TopoMetricRepresentation:
     print("Extracting topological-metric map")
 
     print('- Voxelizing point cloud')
     aabb_min, aabb_max = partial_map_pcd.aabb[:, 0], partial_map_pcd.aabb[:, 1]
-    map_voxel_high = partial_map_pcd.voxelize(params.voxel_size_high, aabb_min, aabb_max)
-    map_voxel_low = partial_map_pcd.voxelize(params.voxel_size_low, aabb_min, aabb_max)
+    map_voxel_high = partial_map_pcd.voxelize(
+        params.voxel_size_high, aabb_min, aabb_max)
+    map_voxel_low = partial_map_pcd.voxelize(
+        params.voxel_size_low, aabb_min, aabb_max)
 
     print("- Finding traversable volume")
     floor_graph = segment_floor_area(map_voxel_high)
@@ -62,26 +73,43 @@ def extract_map(partial_map_pcd: PointCloudRepresentation, params: MapExtraction
     floor_voxel = map_voxel_high.subset(lambda v: v in floor_voxels)
 
     print('- Computing traversable volume skeleton')
-    floor_filter = skeletonize_floor_area(floor_graph, params.n_target, params.betweenness_threshold, params.path_height)
+    floor_filter = skeletonize_floor_area(
+        floor_graph, params.n_target, params.betweenness_threshold, params.path_height)
 
     print('- Casting isovists')
-    origins = list(map(lambda x: floor_filter.voxel_coordinates(x), floor_filter.voxels))
-    isovists = cast_isovists(origins, map_voxel_low, params.isovist_subsample)
+    origins = list(
+        map(lambda x: floor_filter.voxel_coordinates(x), floor_filter.voxels))
+    isovists = cast_isovists(origins, map_voxel_low,
+                             params.isovist_subsample, params.isovist_range)
 
     print(f"- Clustering {len(isovists)} isovists")
     mutual_visibility = mutual_visibility_graph(isovists)
     plt.matshow(mutual_visibility)
     plt.savefig("mutual_visibility.png")
 
-    clustering = cluster_graph(mutual_visibility, min_samples=params.min_sample, xi=params.xi)
+    clustering = cluster_graph(
+        distance_matrix=mutual_visibility,
+        weight_threshold=params.weight_threshold,
+        min_inflation=params.min_inflation,
+        max_inflation=params.max_inflation
+    )
 
     print("- Segmenting rooms")
     map_rooms = room_segmentation(isovists, map_voxel_low, clustering)
-    cluster_colors = {label: random_color() for label in np.unique(clustering)}
-    map_rooms.for_each(lambda v: map_rooms.set_attribute(v, 'color', cluster_colors[map_rooms[v]['cluster']]))
 
-    print(" - Extracting topological map")
-    topo_map = traversability_graph(map_rooms, floor_graph)
+    print("- Propagating labels")
+    map_rooms_prop = map_rooms.propagate_attribute(
+        'cluster', params.label_propagation_max_iterations)
+
+    cluster_colors = {label: random_color() for label in np.unique(clustering)}
+    map_rooms.for_each(lambda v: map_rooms.set_attribute(
+        v, 'color', cluster_colors[map_rooms[v]['cluster']]))
+    map_rooms_prop.for_each(lambda v: map_rooms_prop.set_attribute(
+        v, 'color', cluster_colors[map_rooms_prop[v]['cluster']]))
+
+    border_voxels = map_rooms_prop.attribute_borders('cluster')
+    # print(" - Extracting topological map")
+    # topo_map = traversability_graph(map_rooms, floor_graph)
 
     print(" - Extracting topometric map")
     topometric_map = None
@@ -101,6 +129,14 @@ def extract_map(partial_map_pcd: PointCloudRepresentation, params: MapExtraction
         ],
         [
             MapVisualization(map_rooms.to_o3d(has_color=True),
+                             Visualizer.default_pcd_mat(pt_size=10))
+        ],
+        [
+            MapVisualization(map_rooms_prop.to_o3d(has_color=True),
+                             Visualizer.default_pcd_mat(pt_size=10))
+        ],
+        [
+            MapVisualization(border_voxels.to_o3d(has_color=True),
                              Visualizer.default_pcd_mat(pt_size=10))
         ],
     ])
@@ -169,12 +205,12 @@ def skeletonize_floor_area(traversable_volume: SpatialGraphRepresentation, n_tar
     return floor_filter
 
 
-def cast_isovists(origins: List[Tuple], map_voxel: VoxelRepresentation, subsample: float):
+def cast_isovists(origins: List[Tuple], map_voxel: VoxelRepresentation, subsample: float, max_dist: float):
     isovists = []
 
     for v in origins:
         if random() < subsample:
-            isovist = map_voxel.isovist(v, 3)
+            isovist = map_voxel.isovist(v, max_dist)
             isovists.append(isovist)
 
     return isovists
@@ -188,11 +224,9 @@ def mutual_visibility_graph(isovists) -> np.array:
 
     pairs = combinations(range(n_isovist), r=2)
     for i, j in pairs:
-        print(i,j)
         if len(isovists[i].voxels) and len(isovists[j].voxels):
-            overlap = len(isovists[i].intersect(isovists[j])) / min([len(isovists[j].voxels), len(isovists[i].voxels)])
-
-            # dist = isovists[i].distance(isovists[j])
+            overlap = len(isovists[i].intersect(
+                isovists[j])) / min([len(isovists[j].voxels), len(isovists[i].voxels)])
 
             distance_matrix[i][j] = 1 - overlap
             distance_matrix[j][i] = 1 - overlap
@@ -200,18 +234,42 @@ def mutual_visibility_graph(isovists) -> np.array:
     return distance_matrix
 
 
-def cluster_graph(distance_matrix, min_samples: int, xi: float) -> List[int]:
-    from sklearn.cluster import OPTICS, SpectralClustering
+def cluster_graph(distance_matrix, weight_threshold: float, min_inflation: float, max_inflation: float) -> List[int]:
+    import markov_clustering as mc
 
-    clustering = OPTICS(
-        min_samples=min_samples,
-        metric='precomputed').fit(distance_matrix)
+    G = networkx.convert.to_networkx_graph(distance_matrix)
+    edge_weights = networkx.get_edge_attributes(G, 'weight')
+    G.remove_edges_from(
+        (e for e, w in edge_weights.items() if w > weight_threshold))
+    matrix = networkx.to_scipy_sparse_matrix(G)
 
-    return clustering.labels_
+    SPACE = [skopt.space.Real(
+        min_inflation, max_inflation, name='inflation', prior='log-uniform'), ]
+
+    @skopt.utils.use_named_args(SPACE)
+    def markov_cluster(**params):
+        result = mc.run_mcl(matrix, inflation=params['inflation'])
+        clusters = mc.get_clusters(result)
+        Q = mc.modularity(matrix=result, clusters=clusters)
+
+        return 1-Q
+
+    optimized_parameters = skopt.forest_minimize(
+        markov_cluster, SPACE, n_calls=15, n_random_starts=10, n_jobs=-1).x
+    result = mc.run_mcl(matrix, inflation=optimized_parameters[0])
+    clusters = mc.get_clusters(result)
+
+    # print(clusters)
+    labeling = np.ones((len(distance_matrix)))*-1
+    for i, c in enumerate(clusters):
+        for iso in c:
+            labeling[iso] = i
+
+    return labeling
 
 
 def room_segmentation(isovists: List[VoxelRepresentation], map_voxel: VoxelRepresentation, clustering: np.ndarray, min_observations: int = 1) -> VoxelRepresentation:
-    map_segmented = deepcopy(map_voxel)
+    map_segmented = map_voxel.clone()
     for v in map_segmented.voxels:
         map_segmented[v]['clusters'] = Counter()
 
@@ -224,11 +282,15 @@ def room_segmentation(isovists: List[VoxelRepresentation], map_voxel: VoxelRepre
 
     for v in map_segmented.voxels:
         if map_segmented[v]['clusters']:
-            most_common_cluster =  map_segmented[v]['clusters'].most_common(1)[0]
+            most_common_cluster = map_segmented[v]['clusters'].most_common(1)[
+                0]
             if most_common_cluster[1] > min_observations:
                 map_segmented[v]['cluster'] = most_common_cluster[0]
 
-    clustered_map = map_segmented.subset(lambda v: 'cluster' in map_segmented[v])
+    clustered_map = map_segmented.subset(
+        lambda v: 'cluster' in map_segmented[v])
+    clustered_map.remove_attribute('clusters')
+
     return clustered_map
 
 
