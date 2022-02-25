@@ -12,7 +12,8 @@ class Visualizer:
     def default_pcd_mat(pt_size=7):
         mat = o3d.visualization.rendering.MaterialRecord()
         mat.point_size = pt_size
-        mat.has_alpha = True
+        mat.base_color = [1, 1, 1, 1]
+        mat.shader = 'defaultLit'
 
         return mat
 

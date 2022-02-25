@@ -30,7 +30,7 @@ class MapExtractionParameters:
     kernel_scale: float
     n_target: int
     path_height: float
-    betweenness_threshold: float
+    btw_thresh: float
 
     isovist_subsample: float
     isovist_range: float
@@ -66,26 +66,23 @@ def extract_map(partial_map_pcd: PointCloudRepresentation, p: MapExtractionParam
     print("Extracting topological-metric map")
 
     print('- Voxelizing point cloud')
-    aabb_min, aabb_max = partial_map_pcd.aabb[:, 0], partial_map_pcd.aabb[:, 1]
-    map_voxel_high = partial_map_pcd.voxelize(
-        p.voxel_size_high, aabb_min, aabb_max)
-    map_voxel_low = partial_map_pcd.voxelize(
-        p.voxel_size_low, aabb_min, aabb_max)
+    map_voxel_high = partial_map_pcd.voxelize(p.voxel_size_high)
+    map_voxel_low = partial_map_pcd.voxelize(p.voxel_size_low)
 
     print("- Finding traversable volume")
     floor_graph = segment_floor_area(map_voxel_high)
     floor_graph_voxel = floor_graph.to_voxel()
     floor_voxel = map_voxel_high.subset(lambda v: v in floor_graph_voxel)
+    
+    floor_voxel.detect_peaks(axis=1)
 
     print('- Computing traversable volume skeleton')
     floor_filter = skeletonize_floor_area(
-        floor_graph, p.n_target, p.betweenness_threshold, p.path_height)
+        floor_graph, p.n_target, p.btw_thresh, p.path_height)
 
     print('- Casting isovists')
-    origins = list(
-        map(lambda x: floor_filter.voxel_coordinates(x), floor_filter.voxels))
-    isovists = cast_isovists(origins, map_voxel_low,
-                             p.isovist_subsample, p.isovist_range)
+    origins = floor_filter.map(floor_filter.voxel_coordinates)
+    isovists = cast_isovists(origins, map_voxel_low, p.isovist_subsample, p.isovist_range)
 
     print(f"- Clustering {len(isovists)} isovists")
     mutual_visibility = mutual_visibility_graph(isovists)
@@ -101,32 +98,35 @@ def extract_map(partial_map_pcd: PointCloudRepresentation, p: MapExtractionParam
 
     print("- Segmenting rooms")
     map_rooms = room_segmentation(isovists, map_voxel_low, clustering)
-    
 
     print("- Propagating labels")
     map_rooms_prop = map_rooms.propagate_attribute(
         'cluster', p.label_propagation_max_iterations)
-    
+
+    cluster_colors = {label: random_color() for label in np.unique(clustering)}
+    map_rooms_prop.for_each(lambda v: map_rooms_prop.set_attribute(
+        v, 'color', cluster_colors[map_rooms_prop[v]['cluster']]))
+
     map_rooms_split = map_rooms_prop.split_by_attribute('cluster')
-    connected_clusters = VoxelRepresentation(map_rooms_prop.shape, map_rooms_prop.cell_size, map_rooms_prop.origin)
-    
+    connected_clusters = VoxelRepresentation(
+        map_rooms_prop.shape, map_rooms_prop.cell_size, map_rooms_prop.origin)
+
+    n_cluster = 0
     for split in map_rooms_split:
         kernel = VoxelRepresentation.nb6().dilate(VoxelRepresentation.nb6())
         split_components = split.connected_components(kernel)
 
         for c in split_components:
             c.colorize(random_color())
+            c.for_each(c.set_attribute, attr='cluster', val=n_cluster)
+            n_cluster += 1
             connected_clusters += c
-   
-    cluster_colors = {label: random_color() for label in np.unique(clustering)}
-    map_rooms_prop.for_each(lambda v: map_rooms_prop.set_attribute(
-        v, 'color', cluster_colors[map_rooms_prop[v]['cluster']]))
 
-    # # print(" - Extracting topological map")
+    print(" - Extracting topometric map")
     topo_map = traversability_graph(
         connected_clusters, floor_graph, floor_graph_voxel)
 
-    print(" - Extracting topometric map")
+    
     topometric_map = None
 
     # Visualisation
@@ -143,7 +143,7 @@ def extract_map(partial_map_pcd: PointCloudRepresentation, p: MapExtractionParam
                 has_color=False), Visualizer.default_graph_mat())
         ],
         [
-            MapVisualization(map_rooms_prop.to_o3d(has_color=True),
+            MapVisualization(connected_clusters.to_o3d(has_color=True),
                              Visualizer.default_pcd_mat(pt_size=10))
         ],
         [
@@ -156,7 +156,7 @@ def extract_map(partial_map_pcd: PointCloudRepresentation, p: MapExtractionParam
         ],
         [
             MapVisualization(connected_clusters.to_o3d(has_color=True),
-                             Visualizer.default_pcd_mat(pt_size=10))
+                             Visualizer.default_pcd_mat(pt_size=3))
         ] +
         [
             MapVisualization(topo_map.to_o3d(),
@@ -187,8 +187,9 @@ def segment_floor_area(voxel_map: VoxelRepresentation, kernel_scale: float = 0.0
 
     # Dilate floor area upwards to connect stairs and convert to nb6 connected 'dense' graph
     dilation_kernel = VoxelRepresentation.cylinder(
-        1, 1 + int(5 // (voxel_size / kernel_scale)))
+        1, 1 + int(6 // (voxel_size / kernel_scale)))
     traversable_volume_voxel = floor_voxel_map.dilate(dilation_kernel)
+    # traversable_volume_voxel = traversable_volume_voxel.dilate(VoxelRepresentation.nb4())
     traversable_volume_graph = traversable_volume_voxel.to_graph()
 
     # Find largest connected component of traversable volume
@@ -305,7 +306,8 @@ def room_segmentation(isovists: List[VoxelRepresentation], map_voxel: VoxelRepre
 
     for v in map_segmented.voxels:
         if map_segmented[v]['clusters']:
-            most_common_cluster = map_segmented[v]['clusters'].most_common(1)[0]
+            most_common_cluster = map_segmented[v]['clusters'].most_common(1)[
+                0]
             if most_common_cluster[1] > min_observations:
                 map_segmented[v]['cluster'] = most_common_cluster[0]
 
@@ -338,7 +340,8 @@ def traversability_graph(map_segmented: VoxelRepresentation, nav_graph: SpatialG
     for v in cluster_borders.voxels:
         if floor_voxels.contains_point(cluster_borders.voxel_coordinates(v)):
             v_cluster = cluster_borders[v]['cluster']
-            v_node = [x for x, y in G.nodes(data=True) if y['cluster'] == v_cluster][0]
+            v_node = [x for x, y in G.nodes(
+                data=True) if y['cluster'] == v_cluster][0]
             v_nbs = cluster_borders.get_kernel(v, VoxelRepresentation.nb6())
 
             for v_nb in v_nbs:
@@ -348,5 +351,5 @@ def traversability_graph(map_segmented: VoxelRepresentation, nav_graph: SpatialG
                         data=True) if y['cluster'] == v_nb_cluster][0]
 
                     G.add_edge(v_node, v_nb_node)
-                           
+
     return SpatialGraphRepresentation(np.array([1, 1, 1]), np.array([0, 0, 0]), G)

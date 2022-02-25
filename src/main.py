@@ -4,7 +4,7 @@ from processing.map_merge import *
 from processing.pre_process import *
 
 # INPUT PARAMETERS #
-input_path = "./data/meshes/diningroom2kitchen - low.ply"
+input_path = "./data/meshes/frontroom2study.ply"
 preprocess_parameters = PreProcessingParameters(
     reduce=1,
     scale=[1, -1, 1]
@@ -17,18 +17,18 @@ map_extract_parameters = MapExtractionParameters(
 
     # Traversability
     kernel_scale=0.05,
-    n_target=50,
-    betweenness_threshold=0.15,
+    n_target=100,
+    btw_thresh=0.1,
 
     # Isovists
     path_height=1.5,
-    isovist_subsample=.2,
+    isovist_subsample=.1,
     isovist_range=3,
 
     # Room segmentation
     min_inflation=1.1,
     max_inflation=2,
-    weight_threshold=0.5,
+    weight_threshold=0.35,
     label_propagation_max_iterations=100,
 )
 
