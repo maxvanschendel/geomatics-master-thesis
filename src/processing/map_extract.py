@@ -62,7 +62,7 @@ class MapExtractionParameters:
             write_file.write(self.serialize())
 
 
-def extract_map(partial_map_pcd: PointCloudRepresentation, p: MapExtractionParameters) -> TopoMetricRepresentation:
+def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> TopometricMap:
     print("Extracting topological-metric map")
 
     print('- Voxelizing point cloud')
@@ -108,12 +108,12 @@ def extract_map(partial_map_pcd: PointCloudRepresentation, p: MapExtractionParam
         v, 'color', cluster_colors[map_rooms_prop[v]['cluster']]))
 
     map_rooms_split = map_rooms_prop.split_by_attribute('cluster')
-    connected_clusters = VoxelRepresentation(
+    connected_clusters = VoxelGrid(
         map_rooms_prop.shape, map_rooms_prop.cell_size, map_rooms_prop.origin)
 
     n_cluster = 0
     for split in map_rooms_split:
-        kernel = VoxelRepresentation.nb6().dilate(VoxelRepresentation.nb6())
+        kernel = VoxelGrid.nb6().dilate(VoxelGrid.nb6())
         split_components = split.connected_components(kernel)
 
         for c in split_components:
@@ -167,7 +167,7 @@ def extract_map(partial_map_pcd: PointCloudRepresentation, p: MapExtractionParam
     return topometric_map
 
 
-def segment_floor_area(voxel_map: VoxelRepresentation, kernel_scale: float = 0.05, voxel_size: float = 0.1) -> SpatialGraphRepresentation:
+def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_size: float = 0.1) -> SpatialGraph:
     """Uses stick-shaped structuring element to extract 3D traversable volume from voxel map. 
     Based on Gorte et al (2019).
 
@@ -179,14 +179,14 @@ def segment_floor_area(voxel_map: VoxelRepresentation, kernel_scale: float = 0.0
     """
 
     # For all cells in voxel map, check if any neighbours in stick kernel
-    kernel = VoxelRepresentation.stick_kernel(voxel_size / kernel_scale)
+    kernel = VoxelGrid.stick_kernel(voxel_size / kernel_scale)
     floor_voxels = voxel_map.filter_gpu_kernel_nbs(kernel)
 
     # Create new voxel map with only cells that did not have any neighbours in kernel
     floor_voxel_map = voxel_map.subset(lambda vox: vox in floor_voxels)
 
     # Dilate floor area upwards to connect stairs and convert to nb6 connected 'dense' graph
-    dilation_kernel = VoxelRepresentation.cylinder(
+    dilation_kernel = VoxelGrid.cylinder(
         1, 1 + int(6 // (voxel_size / kernel_scale)))
     traversable_volume_voxel = floor_voxel_map.dilate(dilation_kernel)
     # traversable_volume_voxel = traversable_volume_voxel.dilate(VoxelRepresentation.nb4())
@@ -195,7 +195,7 @@ def segment_floor_area(voxel_map: VoxelRepresentation, kernel_scale: float = 0.0
     # Find largest connected component of traversable volume
     components = traversable_volume_graph.connected_components()
     largest_component = traversable_volume_graph.graph.subgraph(components[0])
-    floor_graph = SpatialGraphRepresentation(
+    floor_graph = SpatialGraph(
         traversable_volume_graph.scale,
         traversable_volume_graph.origin,
         largest_component)
@@ -203,7 +203,7 @@ def segment_floor_area(voxel_map: VoxelRepresentation, kernel_scale: float = 0.0
     return floor_graph
 
 
-def skeletonize_floor_area(traversable_volume: SpatialGraphRepresentation, n_target: int, betweenness_threshold: float, path_height: float) -> VoxelRepresentation:
+def skeletonize_floor_area(traversable_volume: SpatialGraph, n_target: int, betweenness_threshold: float, path_height: float) -> VoxelGrid:
     """_summary_
 
     Args:
@@ -229,7 +229,7 @@ def skeletonize_floor_area(traversable_volume: SpatialGraphRepresentation, n_tar
     return floor_filter
 
 
-def cast_isovists(origins: List[Tuple], map_voxel: VoxelRepresentation, subsample: float, max_dist: float):
+def cast_isovists(origins: List[Tuple], map_voxel: VoxelGrid, subsample: float, max_dist: float):
     isovists = []
 
     for v in origins:
@@ -292,7 +292,7 @@ def cluster_graph(distance_matrix, weight_threshold: float, min_inflation: float
     return labeling
 
 
-def room_segmentation(isovists: List[VoxelRepresentation], map_voxel: VoxelRepresentation, clustering: np.ndarray, min_observations: int = 0) -> VoxelRepresentation:
+def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clustering: np.ndarray, min_observations: int = 0) -> VoxelGrid:
     map_segmented = map_voxel.clone()
     for v in map_segmented.voxels:
         map_segmented[v]['clusters'] = Counter()
@@ -318,7 +318,7 @@ def room_segmentation(isovists: List[VoxelRepresentation], map_voxel: VoxelRepre
     return clustered_map
 
 
-def traversability_graph(map_segmented: VoxelRepresentation, nav_graph: SpatialGraphRepresentation, floor_voxels) -> SpatialGraphRepresentation:
+def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floor_voxels) -> SpatialGraph:
     unique_clusters = np.unique(list(map_segmented.list_attribute('cluster')))
     G = networkx.Graph()
 
@@ -342,7 +342,7 @@ def traversability_graph(map_segmented: VoxelRepresentation, nav_graph: SpatialG
             v_cluster = cluster_borders[v]['cluster']
             v_node = [x for x, y in G.nodes(
                 data=True) if y['cluster'] == v_cluster][0]
-            v_nbs = cluster_borders.get_kernel(v, VoxelRepresentation.nb6())
+            v_nbs = cluster_borders.get_kernel(v, VoxelGrid.nb6())
 
             for v_nb in v_nbs:
                 if floor_voxels.contains_point(cluster_borders.voxel_coordinates(v_nb)):
@@ -352,4 +352,4 @@ def traversability_graph(map_segmented: VoxelRepresentation, nav_graph: SpatialG
 
                     G.add_edge(v_node, v_nb_node)
 
-    return SpatialGraphRepresentation(np.array([1, 1, 1]), np.array([0, 0, 0]), G)
+    return SpatialGraph(np.array([1, 1, 1]), np.array([0, 0, 0]), G)

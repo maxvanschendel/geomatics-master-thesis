@@ -24,7 +24,7 @@ from sklearn.neighbors import KDTree
 logging.disable(logging.WARNING)
 
 
-class SpatialGraphRepresentation:
+class SpatialGraph:
     leaf_size = 20
 
     def __init__(self,
@@ -40,7 +40,7 @@ class SpatialGraphRepresentation:
         self.nodes = self.graph.nodes
         self.edges = self.graph.edges
         self.sindex: KDTree = KDTree(self.list_attr(
-            'pos'), SpatialGraphRepresentation.leaf_size)
+            'pos'), SpatialGraph.leaf_size)
 
         for i, node in enumerate(self.nodes):
             self.nodes[node]['index'] = i
@@ -81,7 +81,7 @@ class SpatialGraphRepresentation:
         return (self.origin - pos) * self.scale
 
     def to_voxel(self):
-        vox = VoxelRepresentation(np.array([0, 0, 0]), self.scale, self.origin, {
+        vox = VoxelGrid(np.array([0, 0, 0]), self.scale, self.origin, {
                                   node: {'count': 1} for node in self.nodes})
         vox.shape = vox.extents()
 
@@ -92,10 +92,10 @@ class SpatialGraphRepresentation:
 
         return vox
 
-    def minimum_spanning_tree(self) -> SpatialGraphRepresentation:
+    def minimum_spanning_tree(self) -> SpatialGraph:
         mst = networkx.minimum_spanning_tree(self.graph)
 
-        return SpatialGraphRepresentation(self.scale, self.origin, mst)
+        return SpatialGraph(self.scale, self.origin, mst)
 
     def betweenness_centrality(self, n_target_points: int):
         return networkx.betweenness_centrality(self.graph, n_target_points)
@@ -104,7 +104,7 @@ class SpatialGraphRepresentation:
         return sorted(networkx.connected_components(self.graph), key=len, reverse=True)
 
 
-class VoxelRepresentation:
+class VoxelGrid:
     def __init__(self,
                  shape: np.array = None,
                  cell_size: np.array = np.array([1, 1, 1]),
@@ -114,6 +114,7 @@ class VoxelRepresentation:
         self.shape = shape
         self.cell_size = cell_size
         self.origin = origin
+        self.bbox = np.array([self.origin, self.origin + (self.cell_size * self.shape)], dtype=np.float)
 
         if voxels is None:
             voxels = {}
@@ -129,7 +130,7 @@ class VoxelRepresentation:
     def __setitem__(self, key: Tuple[int, int, int], value: Dict[str, object]) -> None:
         self.voxels[key] = value
 
-    def __add__(self, other: VoxelRepresentation) -> VoxelRepresentation:
+    def __add__(self, other: VoxelGrid) -> VoxelGrid:
         new_model = self.clone()
         for v in other.voxels:
             new_model.voxels[v] = other.voxels[v]
@@ -138,7 +139,7 @@ class VoxelRepresentation:
         new_model.shape = new_model.extents()
         return new_model
 
-    def __sub__(self, other: VoxelRepresentation) -> VoxelRepresentation:
+    def __sub__(self, other: VoxelGrid) -> VoxelGrid:
         new_model = self.clone()
 
         for v in other.voxels:
@@ -174,17 +175,17 @@ class VoxelRepresentation:
     def contains_point(self, point: np.array) -> bool:
         return self.get_voxel(point) in self
 
-    def intersect(self, other: VoxelRepresentation) -> Set[Tuple[int, int, int]]:
+    def intersect(self, other: VoxelGrid) -> Set[Tuple[int, int, int]]:
         return self.voxels.keys() & other.voxels.keys()
 
-    def isdisjoint(self, other: VoxelRepresentation) -> bool:
+    def isdisjoint(self, other: VoxelGrid) -> bool:
         return self.voxels.keys().isdisjoint(other.voxels.keys())
 
-    def subset(self, func: Lambda, **kwargs) -> VoxelRepresentation:
+    def subset(self, func: Lambda, **kwargs) -> VoxelGrid:
         filtered_voxels = self.filter(func, **kwargs)
         voxel_dict = {voxel: self.voxels[voxel] for voxel in filtered_voxels}
 
-        return VoxelRepresentation(self.shape, self.cell_size, self.origin, voxel_dict)
+        return VoxelGrid(self.shape, self.cell_size, self.origin, voxel_dict)
 
     def for_each(self, func, **kwargs):
         for voxel in self.voxels:
@@ -211,8 +212,8 @@ class VoxelRepresentation:
                 new_shape[i] = max([v[i].max(), c])
         return new_shape
 
-    def clone(self) -> VoxelRepresentation:
-        return VoxelRepresentation(copy.deepcopy(self.shape),
+    def clone(self) -> VoxelGrid:
+        return VoxelGrid(copy.deepcopy(self.shape),
                                    copy.deepcopy(self.cell_size),
                                    copy.deepcopy(self.origin),
                                    copy.deepcopy(self.voxels))
@@ -226,7 +227,7 @@ class VoxelRepresentation:
     def get_voxel(self, p: np.array) -> Tuple[int, int, int]:
         return tuple(((p-self.origin) // self.cell_size).astype(int))
 
-    def get_kernel(self, voxel: Tuple[int, int, int], kernel: VoxelRepresentation):
+    def get_kernel(self, voxel: Tuple[int, int, int], kernel: VoxelGrid):
         kernel_cells = []
         for k in kernel.voxels:
             nb = tuple(voxel + (k - kernel.origin))
@@ -241,9 +242,9 @@ class VoxelRepresentation:
     def remove_attribute(self, attr: str) -> None:
         self.for_each(lambda v: self[v].pop(attr))
 
-    def propagate_attribute(self, attr: str, iterations: int) -> VoxelRepresentation:
-        kernel = VoxelRepresentation.nb6().dilate(VoxelRepresentation.nb6()
-                                                  ).dilate(VoxelRepresentation.nb6())
+    def propagate_attribute(self, attr: str, iterations: int) -> VoxelGrid:
+        kernel = VoxelGrid.nb6().dilate(VoxelGrid.nb6()
+                                                  ).dilate(VoxelGrid.nb6())
         propagated_map = self.clone()
 
         for i in range(iterations):
@@ -265,8 +266,8 @@ class VoxelRepresentation:
 
         return propagated_map
 
-    def attribute_borders(self, attr) -> VoxelRepresentation:
-        kernel = VoxelRepresentation.nb6()
+    def attribute_borders(self, attr) -> VoxelGrid:
+        kernel = VoxelGrid.nb6()
         border_voxels = self.clone()
 
         for voxel in self.voxels:
@@ -278,7 +279,7 @@ class VoxelRepresentation:
 
         return border_voxels
 
-    def split_by_attribute(self, attr) -> List[VoxelRepresentation]:
+    def split_by_attribute(self, attr) -> List[VoxelGrid]:
         attributes = list(self.list_attribute(attr))
         unique_attributes = np.unique(attributes)
 
@@ -289,13 +290,13 @@ class VoxelRepresentation:
 
         return split
 
-    def connected_components(self, kernel) -> List[VoxelRepresentation]:
+    def connected_components(self, kernel) -> List[VoxelGrid]:
         graph_representation = self.to_graph(kernel)
         components = graph_representation.connected_components()
 
         comps = []
         for c in components:
-            component = SpatialGraphRepresentation(
+            component = SpatialGraph(
                 graph_representation.scale,
                 graph_representation.origin,
                 graph_representation.graph.subgraph(c))
@@ -351,7 +352,7 @@ class VoxelRepresentation:
         threadsperblock = 128
         blockspergrid = (len(self.voxels) +
                          (threadsperblock - 1)) // threadsperblock
-        VoxelRepresentation.voxel_has_nbs_gpu[blockspergrid, threadsperblock](
+        VoxelGrid.voxel_has_nbs_gpu[blockspergrid, threadsperblock](
             voxel_matrix, occupied_voxels, kernel_voxels, result_voxels)
 
         nb_voxels = []
@@ -360,11 +361,11 @@ class VoxelRepresentation:
                 nb_voxels.append(tuple(occupied_voxels[i]))
         return nb_voxels
 
-    def kernel_contains_neighbours(self, cell: Tuple[int, int, int], kernel: VoxelRepresentation) -> bool:
+    def kernel_contains_neighbours(self, cell: Tuple[int, int, int], kernel: VoxelGrid) -> bool:
         return not self.isdisjoint(kernel.translate(np.array(cell - kernel.origin)))
 
-    def dilate(self, kernel) -> VoxelRepresentation:
-        dilated_model = VoxelRepresentation(
+    def dilate(self, kernel) -> VoxelGrid:
+        dilated_model = VoxelGrid(
             self.shape, self.cell_size, self.origin, {})
 
         for v in self.voxels:
@@ -383,7 +384,7 @@ class VoxelRepresentation:
             voxel_t = translation + voxel
             translated_cells[tuple(voxel_t)] = self.voxels[voxel]
 
-        translated_map = VoxelRepresentation(
+        translated_map = VoxelGrid(
             self.shape, self.cell_size, self.origin, translated_cells)
         translated_map.shape = translated_map.extents()
 
@@ -400,14 +401,16 @@ class VoxelRepresentation:
                 current_voxel[axis] += step
             else:
                 return None
-
         return tuple(current_voxel)
 
     def isovist(self, origin, max_dist):
-        directions = np.array([self.voxel_coordinates(
-            v) - origin for v in self.voxels], dtype=np.float)
-        bbox = np.array([self.origin, self.origin +
-                        (self.cell_size * self.shape)], dtype=np.float)
+        candidate_voxels = np.array([self.voxel_coordinates(v) for v in self.voxels])
+        candidate_directions = candidate_voxels - origin
+        
+        range_filter = np.linalg.norm(candidate_directions, axis=1) <= max_dist
+        directions = candidate_directions[range_filter]
+
+
         voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
         for v in self.voxels:
             voxel_matrix[v] = 1
@@ -415,17 +418,16 @@ class VoxelRepresentation:
         # Allocate memory on the device for the result
         intersections = np.zeros(shape=(len(directions), 3), dtype=np.int32)
 
-        threadsperblock = 256
-        blockspergrid = (len(directions) +
-                         (threadsperblock - 1)) // threadsperblock
-        VoxelRepresentation.dda[blockspergrid, threadsperblock](
-            origin, directions, bbox, self.cell_size, voxel_matrix, intersections, max_dist)
+        threadsperblock = 64
+        blockspergrid = (len(directions) + (threadsperblock - 1)) // threadsperblock
+        VoxelGrid.dda[blockspergrid, threadsperblock](
+            origin, directions, self.bbox, self.cell_size, voxel_matrix, intersections, max_dist)
 
         isovist = {tuple(i) for i in intersections}
         if (0, 0, 0) in isovist:
             isovist.remove((0, 0, 0))
 
-        return VoxelRepresentation(shape=self.shape, cell_size=self.cell_size, origin=self.origin, voxels={v: self[v] for v in isovist})
+        return VoxelGrid(shape=self.shape, cell_size=self.cell_size, origin=self.origin, voxels={v: self[v] for v in isovist})
 
     # "Fast" voxel traversal, based on Amanitides & Woo (1987)
     # Terminates when first voxel has been found
@@ -532,7 +534,7 @@ class VoxelRepresentation:
             x[k] = axis_occurences[k]
         
         x = np.array(x)
-        peaks, _ = find_peaks(x, height=20)
+        peaks, _ = find_peaks(x, height=100, width=20)
         print(axis_occurences, x, peaks)
         
         plt.title('Peaks in voxel height')
@@ -547,7 +549,7 @@ class VoxelRepresentation:
     def to_o3d(self, has_color=False):
         return self.to_pcd(has_color).to_o3d()
 
-    def to_pcd(self, has_color=False) -> PointCloudRepresentation:
+    def to_pcd(self, has_color=False) -> PointCloud:
         points, colors = [], []
 
         for voxel in self.voxels:
@@ -555,11 +557,11 @@ class VoxelRepresentation:
             if has_color:
                 colors.append(self.voxels[voxel]['color'])
 
-        return PointCloudRepresentation(np.array(points), colors=colors, source=self)
+        return PointCloud(np.array(points), colors=colors, source=self)
 
-    def to_graph(self, kernel=None) -> SpatialGraphRepresentation:
+    def to_graph(self, kernel=None) -> SpatialGraph:
         if not kernel:
-            kernel = VoxelRepresentation.nb6()
+            kernel = VoxelGrid.nb6()
 
         graph = networkx.Graph()
 
@@ -574,12 +576,12 @@ class VoxelRepresentation:
                 graph.nodes[v][attr] = self.voxels[v][attr]
             graph.nodes[v]['pos'] = self.voxel_coordinates(v)
 
-        return SpatialGraphRepresentation(self.cell_size, self.origin, graph)
+        return SpatialGraph(self.cell_size, self.origin, graph)
 
     @ staticmethod
     def cylinder(d, h, origin=np.array([0, 0, 0]), cell_size=np.array([1, 1, 1])):
         r = d/2
-        voxel_model = VoxelRepresentation((d, h, d), cell_size, origin)
+        voxel_model = VoxelGrid((d, h, d), cell_size, origin)
 
         for x, y, z in product(range(d), range(h), range(d)):
             dist = np.linalg.norm([x+0.5-r, z+0.5-r])
@@ -591,7 +593,7 @@ class VoxelRepresentation:
     @ staticmethod
     def sphere(d, origin, cell_size):
         r = d/2
-        voxel_model = VoxelRepresentation((d, d, d), cell_size, origin)
+        voxel_model = VoxelGrid((d, d, d), cell_size, origin)
 
         for x, y, z in product(range(d), range(d), range(d)):
             dist = np.linalg.norm([x+0.5-r, y+0.5-r, z+0.5-r])
@@ -602,14 +604,14 @@ class VoxelRepresentation:
 
     @staticmethod
     def nb6():
-        return VoxelRepresentation((3, 3, 3), np.array([1, 1, 1]), np.array([1, 1, 1]),
+        return VoxelGrid((3, 3, 3), np.array([1, 1, 1]), np.array([1, 1, 1]),
                                    {(1, 2, 1): None,
                                     (1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None,
                                     (1, 0, 1): None, })
 
     @staticmethod
     def nb4():
-        return VoxelRepresentation((3, 3, 1), np.array([1, 1, 1]), np.array([1, 1, 1]), {(1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None})
+        return VoxelGrid((3, 3, 1), np.array([1, 1, 1]), np.array([1, 1, 1]), {(1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None})
 
     @staticmethod
     def stick_kernel(scale):
@@ -619,9 +621,9 @@ class VoxelRepresentation:
         b_height = int(5 // scale)
         b_width = 1
 
-        kernel_a = VoxelRepresentation.cylinder(
+        kernel_a = VoxelGrid.cylinder(
             a_width, a_height).translate(np.array([0, b_height, 0]))
-        kernel_b = VoxelRepresentation.cylinder(b_width, b_height).translate(
+        kernel_b = VoxelGrid.cylinder(b_width, b_height).translate(
             np.array([a_width//2, 0, a_width//2]))
         kernel_c = kernel_a + kernel_b
 
@@ -632,7 +634,7 @@ class VoxelRepresentation:
         return kernel_c
 
 
-class PointCloudRepresentation:
+class PointCloud:
     leaf_size = 20  # Number of leaf nodes in KD-Tree spatial index
 
     def __init__(self, points: np.array, colors: np.array = None, source: object = None):
@@ -649,7 +651,7 @@ class PointCloudRepresentation:
         ])
 
         # Used for fast nearest neighbour operations
-        self.kdt = KDTree(self.points, PointCloudRepresentation.leaf_size)
+        self.kdt = KDTree(self.points, PointCloud.leaf_size)
 
     def __str__(self) -> str:
         '''Get point cloud in human-readable format.'''
@@ -668,7 +670,7 @@ class PointCloudRepresentation:
         return pcd
 
     def scale(self, scale: np.array):
-        return PointCloudRepresentation(np.array(self.points*scale), source=self)
+        return PointCloud(np.array(self.points*scale), source=self)
 
     def k_nearest_neighbour(self, p: np.array, k: int) -> Tuple[np.array, np.array]:
         '''Get the first k neighbours that are closest to a given point.'''
@@ -705,16 +707,16 @@ class PointCloudRepresentation:
             if func(property[i]):
                 out_points.append(p)
 
-        return PointCloudRepresentation(np.array(out_points), source=self)
+        return PointCloud(np.array(out_points), source=self)
 
-    def voxelize(self, cell_size) -> VoxelRepresentation:
+    def voxelize(self, cell_size) -> VoxelGrid:
         '''Convert point cloud to discretized voxel representation.'''
 
         aabb_min, aabb_max = self.aabb[:, 0], self.aabb[:, 1]
         edge_sizes = aabb_max - aabb_min
         shape = edge_sizes // cell_size
 
-        voxel_model = VoxelRepresentation(
+        voxel_model = VoxelGrid(
             shape, np.array([cell_size, cell_size, cell_size]), aabb_min, {})
 
         for p in self.points:
@@ -726,17 +728,17 @@ class PointCloudRepresentation:
 
         return voxel_model
 
-    def random_reduce(self, keep_fraction: float) -> PointCloudRepresentation:
+    def random_reduce(self, keep_fraction: float) -> PointCloud:
         keep_points = []
 
         for p in self.points:
             if random() < keep_fraction:
                 keep_points.append(p)
 
-        return PointCloudRepresentation(np.array(keep_points), source=self)
+        return PointCloud(np.array(keep_points), source=self)
 
     @ staticmethod
-    def read_ply(fn: str) -> PointCloudRepresentation:
+    def read_ply(fn: str) -> PointCloud:
         '''Reads .ply file to point cloud. Discards all mesh data.'''
 
         with open(fn, 'rb') as f:
@@ -757,8 +759,9 @@ class PointCloudRepresentation:
         except ValueError:
             colors = np.zeros(shape=[num_points, 3], dtype=np.float32)
 
-        return PointCloudRepresentation(points, colors/255, source=fn)
+        return PointCloud(points, colors/255, source=fn)
 
 
-class TopoMetricRepresentation():
-    pass
+class TopometricMap():
+    def __init__(self, ):
+        pass

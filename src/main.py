@@ -1,10 +1,10 @@
-from model.map_representation import PointCloudRepresentation
+from model.map_representation import PointCloud
 from processing.map_extract import *
 from processing.map_merge import *
 from processing.pre_process import *
 
 # INPUT PARAMETERS #
-input_path = "./data/meshes/frontroom2study.ply"
+input_path = "./data/meshes/diningroom2kitchen - low.ply"
 preprocess_parameters = PreProcessingParameters(
     reduce=1,
     scale=[1, -1, 1]
@@ -34,7 +34,7 @@ map_extract_parameters = MapExtractionParameters(
 
 if __name__ == "__main__":
     print("Reading input map")
-    map_cloud = PointCloudRepresentation.read_ply(input_path)
+    map_cloud = PointCloud.read_ply(input_path)
 
     print('Pre-processing')
     map_cloud_pp = pre_process(map_cloud, preprocess_parameters)
