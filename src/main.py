@@ -4,7 +4,7 @@ from processing.map_merge import *
 from processing.pre_process import *
 
 # INPUT PARAMETERS #
-input_path = "./data/meshes/diningroom2kitchen - low.ply"
+input_path = "./data/meshes/hall2frontbedroom - low.ply"
 preprocess_parameters = PreProcessingParameters(
     reduce=1,
     scale=[1, -1, 1]
@@ -12,12 +12,12 @@ preprocess_parameters = PreProcessingParameters(
 
 map_extract_parameters = MapExtractionParameters(
     # Voxelization
-    voxel_size_high=0.1,
+    voxel_size_high=0.05,
     voxel_size_low=0.2,
 
     # Traversability
     kernel_scale=0.05,
-    n_target=100,
+    n_target=50,
     btw_thresh=0.1,
 
     # Isovists
@@ -28,11 +28,14 @@ map_extract_parameters = MapExtractionParameters(
     # Room segmentation
     min_inflation=1.1,
     max_inflation=2,
-    weight_threshold=0.35,
+    weight_threshold=0.25,
     label_propagation_max_iterations=100,
 )
 
 if __name__ == "__main__":
+    import logging
+    logging.disable(logging.WARNING)
+
     print("Reading input map")
     map_cloud = PointCloud.read_ply(input_path)
 

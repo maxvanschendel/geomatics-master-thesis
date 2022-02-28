@@ -1,7 +1,6 @@
 from __future__ import annotations
-
+from dataclasses import dataclass
 import copy
-import enum
 import logging
 import math
 from ast import Lambda
@@ -21,7 +20,8 @@ from plyfile import PlyData
 from sklearn.decomposition import PCA
 from sklearn.neighbors import KDTree
 
-logging.disable(logging.WARNING)
+numba_logger = logging.getLogger('numba')
+numba_logger.setLevel(logging.WARNING)
 
 
 class SpatialGraph:
@@ -118,7 +118,6 @@ class VoxelGrid:
 
         if voxels is None:
             voxels = {}
-
         self.voxels = voxels
 
     def __str__(self) -> str:
@@ -241,30 +240,36 @@ class VoxelGrid:
 
     def remove_attribute(self, attr: str) -> None:
         self.for_each(lambda v: self[v].pop(attr))
+        
+    def kernel_attributes(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str):
+        voxel_nbs = self.get_kernel(voxel, kernel)
+        voxel_nbs_labels = [self[v][attr] for v in voxel_nbs]
+        
+        return voxel_nbs_labels
+    
+    def most_common_kernel_attributes(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str):
+        kernel_attrs = self.kernel_attributes(voxel, kernel, attr)
+        most_common_attr =  Counter(kernel_attrs).most_common(1)[0][0]
+        
+        return most_common_attr
 
-    def propagate_attribute(self, attr: str, iterations: int) -> VoxelGrid:
-        kernel = VoxelGrid.nb6().dilate(VoxelGrid.nb6()
-                                                  ).dilate(VoxelGrid.nb6())
-        propagated_map = self.clone()
+    def propagate_attribute(self, attr: str, max_iterations: int, prop_kernel: VoxelGrid) -> VoxelGrid:
+        prop_map = self.clone()
 
-        for i in range(iterations):
-            previous_map = propagated_map.clone()
-
-            for voxel in propagated_map.voxels:
-                # Get most common label of 6-neighbourhood of voxel
-                voxel_nbs = propagated_map.get_kernel(voxel, kernel)
-                voxel_nbs_labels = [previous_map[v][attr] for v in voxel_nbs]
-                most_common_label = Counter(
-                    voxel_nbs_labels).most_common(1)[0][0]
-
-                # Assign most common neighbourhood label to voxel
-                propagated_map[voxel][attr] = most_common_label
+        for i in range(max_iterations):
+            prev_map = prop_map.clone()
+      
+            # Get most common label of 6-neighbourhood of voxel
+            # Assign most common label to voxel in propagated map
+            for voxel in prop_map.voxels:
+                most_common_label = prev_map.most_common_kernel_attributes(voxel, prop_kernel, attr)
+                prop_map[voxel][attr] = most_common_label
 
             # Stop propagation once it fails to make a change
-            if previous_map.voxels == propagated_map.voxels:
+            if prev_map.voxels == prop_map.voxels:
                 break
 
-        return propagated_map
+        return prop_map
 
     def attribute_borders(self, attr) -> VoxelGrid:
         kernel = VoxelGrid.nb6()
@@ -526,25 +531,20 @@ class VoxelGrid:
         axis_values = [v[axis] for v in self.voxels]
         axis_occurences = Counter(axis_values)
         
-        print(axis_values)
         x = [0]*(max(axis_values)+1)
-        
         for k in axis_occurences.keys():
-            print(k)
             x[k] = axis_occurences[k]
         
         x = np.array(x)
-        peaks, _ = find_peaks(x, height=100, width=20)
-        print(axis_occurences, x, peaks)
-        
+        peaks, _ = find_peaks(x, height=100)
+    
         plt.title('Peaks in voxel height')
-        plt.plot(x)
+        plt.bar(range(len(x)), x)
         plt.plot(peaks, x[peaks], "x")
         plt.legend()
-
         plt.savefig('histo.png')
                 
-        return axis_occurences
+        return peaks
 
     def to_o3d(self, has_color=False):
         return self.to_pcd(has_color).to_o3d()
@@ -553,7 +553,7 @@ class VoxelGrid:
         points, colors = [], []
 
         for voxel in self.voxels:
-            points.append(self.origin + (self.cell_size * voxel))
+            points.append(self.voxel_coordinates(voxel))
             if has_color:
                 colors.append(self.voxels[voxel]['color'])
 
@@ -713,18 +713,14 @@ class PointCloud:
         '''Convert point cloud to discretized voxel representation.'''
 
         aabb_min, aabb_max = self.aabb[:, 0], self.aabb[:, 1]
-        edge_sizes = aabb_max - aabb_min
-        shape = edge_sizes // cell_size
+        shape = (aabb_max - aabb_min) // cell_size
 
-        voxel_model = VoxelGrid(
-            shape, np.array([cell_size, cell_size, cell_size]), aabb_min, {})
-
-        for p in self.points:
-            # Find voxel cell that the given point is in
-            cell = tuple(((p - aabb_min) // cell_size).astype(int))
-
-            if not voxel_model.occupied(cell):
-                voxel_model.add(cell, {})
+        voxel_model = VoxelGrid(shape, np.array([cell_size]*3), aabb_min, {})
+        
+        # Find voxel cell that each point is in
+        cell_points = ((self.points - aabb_min) // cell_size).astype(int)
+        for cell in cell_points:
+            voxel_model.add(tuple(cell), {})
 
         return voxel_model
 
@@ -762,6 +758,35 @@ class PointCloud:
         return PointCloud(points, colors/255, source=fn)
 
 
-class TopometricMap():
-    def __init__(self, ):
-        pass
+from enum import Enum
+    
+    
+class TopometricHierarchy(Enum):
+    BUILDING = 0
+    STOREY = 1
+    ROOM = 2
+            
+@dataclass(eq=True, frozen=True)
+class TopometricNode:
+    level: TopometricHierarchy
+    geometry: VoxelGrid
+    
+class TopometricEdgeType(Enum):
+        TRAVERSABILITY = 0
+        HIERARCHY = 1
+        
+@dataclass(eq=True, frozen=True)
+class TopometricEdge:
+    node_a: TopometricNode
+    node_b: TopometricNode
+    edge_type: TopometricEdgeType
+                
+class HierarchicalTopometricMap():
+    def __init__(self):
+        self.graph = networkx.Graph()
+        
+    def add_node(self, node: TopometricNode):
+        self.graph.add_node(node)
+    
+    def add_edge(self, edge: TopometricEdge):
+        self.graph.add_edge(edge.node_a, edge.node_b, edge=edge, edge_type=edge.edge_type)

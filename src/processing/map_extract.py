@@ -12,7 +12,9 @@ import numpy as np
 from model.map_representation import *
 from yaml import load, dump
 import skopt
+import logging
 
+logging.disable(logging.WARNING)
 
 @dataclass(frozen=True)
 class MapExtractionParameters:
@@ -62,107 +64,141 @@ class MapExtractionParameters:
             write_file.write(self.serialize())
 
 
-def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> TopometricMap:
+def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
+    topometric_map = HierarchicalTopometricMap()
+    
     print("Extracting topological-metric map")
 
     print('- Voxelizing point cloud')
-    map_voxel_high = partial_map_pcd.voxelize(p.voxel_size_high)
-    map_voxel_low = partial_map_pcd.voxelize(p.voxel_size_low)
+    building_voxel_high = partial_map_pcd.voxelize(p.voxel_size_high)
+    
+    building_node = TopometricNode(level=TopometricHierarchy.BUILDING, geometry=building_voxel_high)
+    topometric_map.add_node(building_node)
 
     print("- Finding traversable volume")
-    floor_graph = segment_floor_area(map_voxel_high)
+    floor_graph = segment_floor_area(building_voxel_high)
     floor_graph_voxel = floor_graph.to_voxel()
-    floor_voxel = map_voxel_high.subset(lambda v: v in floor_graph_voxel)
+    floor_voxel = building_voxel_high.subset(lambda v: v in floor_graph_voxel)
     
-    floor_voxel.detect_peaks(axis=1)
-
-    print('- Computing traversable volume skeleton')
-    floor_filter = skeletonize_floor_area(
-        floor_graph, p.n_target, p.btw_thresh, p.path_height)
-
-    print('- Casting isovists')
-    origins = floor_filter.map(floor_filter.voxel_coordinates)
-    isovists = cast_isovists(origins, map_voxel_low, p.isovist_subsample, p.isovist_range)
-
-    print(f"- Clustering {len(isovists)} isovists")
-    mutual_visibility = mutual_visibility_graph(isovists)
-    plt.matshow(mutual_visibility)
-    plt.savefig("mutual_visibility.png")
-
-    clustering = cluster_graph(
-        distance_matrix=mutual_visibility,
-        weight_threshold=p.weight_threshold,
-        min_inflation=p.min_inflation,
-        max_inflation=p.max_inflation
-    )
-
-    print("- Segmenting rooms")
-    map_rooms = room_segmentation(isovists, map_voxel_low, clustering)
-
-    print("- Propagating labels")
-    map_rooms_prop = map_rooms.propagate_attribute(
-        'cluster', p.label_propagation_max_iterations)
-
-    cluster_colors = {label: random_color() for label in np.unique(clustering)}
-    map_rooms_prop.for_each(lambda v: map_rooms_prop.set_attribute(
-        v, 'color', cluster_colors[map_rooms_prop[v]['cluster']]))
-
-    map_rooms_split = map_rooms_prop.split_by_attribute('cluster')
-    connected_clusters = VoxelGrid(
-        map_rooms_prop.shape, map_rooms_prop.cell_size, map_rooms_prop.origin)
-
-    n_cluster = 0
-    for split in map_rooms_split:
-        kernel = VoxelGrid.nb6().dilate(VoxelGrid.nb6())
-        split_components = split.connected_components(kernel)
-
-        for c in split_components:
-            c.colorize(random_color())
-            c.for_each(c.set_attribute, attr='cluster', val=n_cluster)
-            n_cluster += 1
-            connected_clusters += c
-
-    print(" - Extracting topometric map")
-    topo_map = traversability_graph(
-        connected_clusters, floor_graph, floor_graph_voxel)
-
+    print("- Detecting storeys")
+    # Split building into multiple floors connected by stairs
+    storeys, connections = detect_storeys(floor_voxel, building_voxel_high, buffer=3)
     
-    topometric_map = None
+    storey_nodes = list(map(lambda s: TopometricNode(level=TopometricHierarchy.STOREY, geometry=s), storeys))
+    
+    for s in storey_nodes:
+        topometric_map.add_node(s)
+        
+        hierarchy_edge = TopometricEdge(building_node, s, TopometricEdgeType.HIERARCHY)
+        topometric_map.add_edge(hierarchy_edge)
+        
+    for a, b in connections:
+        edge = TopometricEdge(storey_nodes[a], storey_nodes[b], TopometricEdgeType.TRAVERSABILITY)
+        topometric_map.add_edge(edge)
+    
+    print("- Segmenting storeys")
+    topo_maps = []
+    for storey in storey_nodes:
+        storey_geometry = storey.geometry
+        storey_geometry_low = storey_geometry.to_pcd().voxelize(p.voxel_size_low)
+        
+        storey_geometry_intersect = storey_geometry.intersect(floor_voxel)
+        storey_floor = storey_geometry.subset(lambda x: x in storey_geometry_intersect)
+       
+        floor_graph = storey_floor.to_graph()
+        
+        print('- Computing traversable volume skeleton')
+        floor_filter = skeletonize_floor_area(
+            floor_graph, p.n_target, p.btw_thresh, p.path_height)
 
+        print('- Casting isovists')
+        origins = floor_filter.map(floor_filter.voxel_coordinates)
+        isovists = cast_isovists(origins, storey_geometry_low, p.isovist_subsample, p.isovist_range)
+
+        print(f"- Clustering {len(isovists)} isovists")
+        mutual_visibility = mutual_visibility_graph(isovists)
+        plt.matshow(mutual_visibility)
+        plt.savefig("mutual_visibility.png")
+
+        clustering = cluster_graph(
+            distance_matrix=mutual_visibility,
+            weight_threshold=p.weight_threshold,
+            min_inflation=p.min_inflation,
+            max_inflation=p.max_inflation
+        )
+
+        print("- Segmenting rooms")
+        map_rooms = room_segmentation(isovists, storey_geometry_low, clustering)
+
+        print("- Propagating labels")
+        prop_kernel = VoxelGrid.nb6().dilate(VoxelGrid.nb6()).dilate(VoxelGrid.nb6())
+        map_rooms_prop = map_rooms.propagate_attribute(
+            'cluster', p.label_propagation_max_iterations, prop_kernel)
+
+        cluster_colors = {label: random_color() for label in np.unique(clustering)}
+        map_rooms_prop.for_each(lambda v: map_rooms_prop.set_attribute(
+            v, 'color', cluster_colors[map_rooms_prop[v]['cluster']]))
+
+        map_rooms_split = map_rooms_prop.split_by_attribute('cluster')
+        connected_clusters = VoxelGrid(
+            map_rooms_prop.shape, map_rooms_prop.cell_size, map_rooms_prop.origin)
+
+        n_cluster = 0
+        for split in map_rooms_split:
+            kernel = VoxelGrid.nb6().dilate(VoxelGrid.nb6())
+            split_components = split.connected_components(kernel)
+
+            for c in split_components:
+                c.colorize(random_color())
+                c.for_each(c.set_attribute, attr='cluster', val=n_cluster)
+                n_cluster += 1
+                connected_clusters += c
+
+        print(" - Extracting topometric map")
+        topo_map = traversability_graph(connected_clusters, floor_graph, storey_floor)
+        topo_maps.append(topo_map)
+
+        node_dict = {n: TopometricNode(TopometricHierarchy.ROOM, geometry=topo_map.graph.nodes[n]['geometry']) for n in topo_map.graph.nodes}
+        
+        for node in node_dict:
+            topometric_map.add_node(node_dict[node])
+            topometric_map.add_edge(TopometricEdge(storey, node_dict[node], TopometricEdgeType.HIERARCHY))
+            
+        for node in node_dict:
+            node_edges = topo_map.graph.edges(node)
+            for a, b in node_edges:
+                if a != b:
+                    topometric_map.add_edge(TopometricEdge(node_dict[a], node_dict[b], TopometricEdgeType.TRAVERSABILITY))
+            
     # Visualisation
     print("Visualising map")
     viz = Visualizer([
         [
             MapVisualization(partial_map_pcd.to_o3d(),
-                             Visualizer.default_pcd_mat())
+                            Visualizer.default_pcd_mat())
         ],
         [
-            MapVisualization(floor_voxel.to_o3d(),
-                             Visualizer.default_pcd_mat()),
+            MapVisualization(floor_voxel.to_o3d(has_color=True),
+                            Visualizer.default_pcd_mat()),
             MapVisualization(floor_filter.to_graph().to_o3d(
                 has_color=False), Visualizer.default_graph_mat())
         ],
         [
             MapVisualization(connected_clusters.to_o3d(has_color=True),
-                             Visualizer.default_pcd_mat(pt_size=10))
-        ],
-        [
-            MapVisualization(connected_clusters.attribute_borders('cluster').to_o3d(has_color=True),
-                             Visualizer.default_pcd_mat(pt_size=10))
-        ] +
-        [
-            MapVisualization(floor_graph_voxel.to_o3d(has_color=False),
-                             Visualizer.default_pcd_mat(pt_size=3))
-        ],
-        [
-            MapVisualization(connected_clusters.to_o3d(has_color=True),
-                             Visualizer.default_pcd_mat(pt_size=3))
+                            Visualizer.default_pcd_mat(pt_size=3))
         ] +
         [
             MapVisualization(topo_map.to_o3d(),
-                             Visualizer.default_graph_mat())
+                            Visualizer.default_graph_mat()) for topo_map in topo_maps
         ],
     ])
+        
+    colors = ['r' if e['edge_type'] == TopometricEdgeType.HIERARCHY else 'b' for u,v,e in topometric_map.graph.edges(data=True)]
+    
+    plt.clf()
+    networkx.draw(topometric_map.graph, edge_color=colors)
+    # networkx.draw(topometric_map.graph, edgelist=trav_edges, edge_color=[0,0,1])
+    plt.savefig('graph.png')
 
     return topometric_map
 
@@ -189,7 +225,7 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
     dilation_kernel = VoxelGrid.cylinder(
         1, 1 + int(6 // (voxel_size / kernel_scale)))
     traversable_volume_voxel = floor_voxel_map.dilate(dilation_kernel)
-    # traversable_volume_voxel = traversable_volume_voxel.dilate(VoxelRepresentation.nb4())
+    traversable_volume_voxel = traversable_volume_voxel.dilate(VoxelGrid.nb4())
     traversable_volume_graph = traversable_volume_voxel.to_graph()
 
     # Find largest connected component of traversable volume
@@ -202,6 +238,51 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
 
     return floor_graph
 
+def detect_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: int):
+    y_peaks = floor_voxel_grid.detect_peaks(axis=1)
+    
+    voxel_grid.colorize([0,0,0])
+    voxel_grid.for_each(voxel_grid.set_attribute, attr='storey', val=-1)
+    
+    for i, peak in enumerate(y_peaks):
+        next_i = i + 1
+        if next_i == len(y_peaks):
+            next_peak = math.inf
+        else:
+            next_peak = y_peaks[next_i]
+            
+        color = random_color()
+        color_floor = random_color()
+        color_stairs = random_color()
+        
+        for v in voxel_grid.filter(lambda v: peak - buffer <= v[1] < next_peak + buffer):
+            voxel_grid[v]['color'] = color
+            voxel_grid[v]['storey'] = i
+            
+        for v in floor_voxel_grid.filter(lambda v: peak - buffer <= v[1] < next_peak + buffer):
+            voxel_grid[v]['color'] = color_floor
+            
+            voxel_grid[v]['stairs'] = abs(v[1] - (peak - buffer)) > 5       
+            if voxel_grid[v]['stairs']:
+                voxel_grid[v]['color'] = color_stairs 
+                
+    storeys = voxel_grid.split_by_attribute('storey')
+    stairs = [storey.get_by_attribute('stairs', True) for storey in storeys]
+    
+    connections = set()
+    nb_kernel = VoxelGrid.nb6()
+    
+    for stair in stairs:
+        for v in stair:
+            nbs = voxel_grid.get_kernel(v, nb_kernel)
+            for nb in nbs:
+                if voxel_grid[nb]['storey'] != voxel_grid[v]['storey']:
+                    connections.add((voxel_grid[nb]['storey'], voxel_grid[v]['storey']))
+                    connections.add((voxel_grid[v]['storey'], voxel_grid[nb]['storey']))
+    
+    return storeys, connections
+                    
+                    
 
 def skeletonize_floor_area(traversable_volume: SpatialGraph, n_target: int, betweenness_threshold: float, path_height: float) -> VoxelGrid:
     """_summary_
@@ -334,6 +415,7 @@ def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floo
             G.add_node(tuple(voxel_centroid))
             G.nodes[tuple(voxel_centroid)]['pos'] = voxel_centroid
             G.nodes[tuple(voxel_centroid)]['cluster'] = cluster
+            G.nodes[tuple(voxel_centroid)]['geometry'] = map_segmented.subset(lambda v: v in cluster_voxels)
 
     cluster_borders = map_segmented.attribute_borders('cluster')
 
