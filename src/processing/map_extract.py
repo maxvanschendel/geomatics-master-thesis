@@ -82,29 +82,27 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
     
     print("- Detecting storeys")
     # Split building into multiple floors connected by stairs
-    storeys, connections = detect_storeys(floor_voxel, building_voxel_high, buffer=3)
+    storeys, connections = detect_storeys(floor_voxel, building_voxel_high, buffer=10)
     
     storey_nodes = list(map(lambda s: TopometricNode(level=TopometricHierarchy.STOREY, geometry=s), storeys))
     
     for s in storey_nodes:
         topometric_map.add_node(s)
-        
-        hierarchy_edge = TopometricEdge(building_node, s, TopometricEdgeType.HIERARCHY)
-        topometric_map.add_edge(hierarchy_edge)
+        topometric_map.add_edge(building_node, s, TopometricEdgeType.HIERARCHY)
         
     for a, b in connections:
-        edge = TopometricEdge(storey_nodes[a], storey_nodes[b], TopometricEdgeType.TRAVERSABILITY)
-        topometric_map.add_edge(edge)
+        topometric_map.add_edge(storey_nodes[a], storey_nodes[b], TopometricEdgeType.TRAVERSABILITY)
     
     print("- Segmenting storeys")
     topo_maps = []
+    ccc = []
+    
+    print(len(storey_nodes))
     for storey in storey_nodes:
-        storey_geometry = storey.geometry
-        storey_geometry_low = storey_geometry.to_pcd().voxelize(p.voxel_size_low)
-        
-        storey_geometry_intersect = storey_geometry.intersect(floor_voxel)
-        storey_floor = storey_geometry.subset(lambda x: x in storey_geometry_intersect)
-       
+        storey_geometry_low = storey.geometry.to_pcd().voxelize(p.voxel_size_low)
+        storey_geometry_intersect = storey.geometry.intersect(floor_voxel)
+        storey_floor = storey.geometry.subset(lambda x: x in storey_geometry_intersect)
+
         floor_graph = storey_floor.to_graph()
         
         print('- Computing traversable volume skeleton')
@@ -112,7 +110,9 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
             floor_graph, p.n_target, p.btw_thresh, p.path_height)
 
         print('- Casting isovists')
-        origins = floor_filter.map(floor_filter.voxel_coordinates)
+        origins = list(floor_filter.map(floor_filter.voxel_coordinates))
+        print(len(origins))
+            
         isovists = cast_isovists(origins, storey_geometry_low, p.isovist_subsample, p.isovist_range)
 
         print(f"- Clustering {len(isovists)} isovists")
@@ -153,23 +153,25 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
                 c.for_each(c.set_attribute, attr='cluster', val=n_cluster)
                 n_cluster += 1
                 connected_clusters += c
-
-        print(" - Extracting topometric map")
-        topo_map = traversability_graph(connected_clusters, floor_graph, storey_floor)
+        ccc.append(connected_clusters)
+                
+        print("- Extracting topometric map")
+        topo_map = traversability_graph(connected_clusters, floor_voxel, floor_graph_voxel)
         topo_maps.append(topo_map)
 
-        node_dict = {n: TopometricNode(TopometricHierarchy.ROOM, geometry=topo_map.graph.nodes[n]['geometry']) for n in topo_map.graph.nodes}
+        node_dict = {n: TopometricNode(TopometricHierarchy.ROOM, topo_map.graph.nodes[n]['geometry']) for n in topo_map.graph.nodes}
         
         for node in node_dict:
             topometric_map.add_node(node_dict[node])
-            topometric_map.add_edge(TopometricEdge(storey, node_dict[node], TopometricEdgeType.HIERARCHY))
+            topometric_map.add_edge(storey, node_dict[node], TopometricEdgeType.HIERARCHY)
             
         for node in node_dict:
             node_edges = topo_map.graph.edges(node)
             for a, b in node_edges:
                 if a != b:
-                    topometric_map.add_edge(TopometricEdge(node_dict[a], node_dict[b], TopometricEdgeType.TRAVERSABILITY))
+                    topometric_map.add_edge(node_dict[a], node_dict[b], TopometricEdgeType.TRAVERSABILITY)
             
+    print(topo_maps)
     # Visualisation
     print("Visualising map")
     viz = Visualizer([
@@ -184,21 +186,39 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
                 has_color=False), Visualizer.default_graph_mat())
         ],
         [
-            MapVisualization(connected_clusters.to_o3d(has_color=True),
-                            Visualizer.default_pcd_mat(pt_size=3))
-        ] +
+            MapVisualization(c.to_o3d(has_color=True),
+                            Visualizer.default_pcd_mat(pt_size=3)) for c in ccc
+        ]
+         +
         [
             MapVisualization(topo_map.to_o3d(),
-                            Visualizer.default_graph_mat()) for topo_map in topo_maps
+                            Visualizer.default_graph_mat()) for topo_map in topo_maps if (len(topo_map.edges))
         ],
     ])
-        
+    from networkx.drawing.nx_agraph import graphviz_layout, to_agraph
+    
     colors = ['r' if e['edge_type'] == TopometricEdgeType.HIERARCHY else 'b' for u,v,e in topometric_map.graph.edges(data=True)]
+    node_labels = {x: y['node_level'].value for x,y in topometric_map.graph.nodes(data=True)}
+    
+    trav_graph = topometric_map.graph.edge_subgraph(topometric_map.traversability_edges())
+    trav_labels = {x: y['node_level'].value for x,y in trav_graph.nodes(data=True)}
+    plt.clf()
+    networkx.draw(trav_graph, 
+                  pos=networkx.spring_layout(trav_graph), 
+                  labels=trav_labels)
+    plt.savefig('graph_full.png')
     
     plt.clf()
-    networkx.draw(topometric_map.graph, edge_color=colors)
-    # networkx.draw(topometric_map.graph, edgelist=trav_edges, edge_color=[0,0,1])
-    plt.savefig('graph.png')
+    hier_graph = topometric_map.graph.edge_subgraph(topometric_map.hierarchy_edges())
+    hier_labels = {x: y['node_level'].name for x,y in topometric_map.graph.nodes(data=True)}
+    pos = graphviz_layout(topometric_map.graph, "twopi", args="-Grankdir=LR")
+
+    networkx.draw(G=topometric_map.graph,
+                  pos=pos,
+                  edge_color=colors,
+                  labels=hier_labels,
+                  node_size=0)
+    plt.savefig('graph_hierarchy.png')
 
     return topometric_map
 
@@ -242,7 +262,6 @@ def detect_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: i
     y_peaks = floor_voxel_grid.detect_peaks(axis=1)
     
     voxel_grid.colorize([0,0,0])
-    voxel_grid.for_each(voxel_grid.set_attribute, attr='storey', val=-1)
     
     for i, peak in enumerate(y_peaks):
         next_i = i + 1
@@ -422,15 +441,14 @@ def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floo
     for v in cluster_borders.voxels:
         if floor_voxels.contains_point(cluster_borders.voxel_coordinates(v)):
             v_cluster = cluster_borders[v]['cluster']
-            v_node = [x for x, y in G.nodes(
-                data=True) if y['cluster'] == v_cluster][0]
+            v_node = [x for x, y in G.nodes(data=True) if y['cluster'] == v_cluster][0]
             v_nbs = cluster_borders.get_kernel(v, VoxelGrid.nb6())
 
+            print(v, v_nbs)
             for v_nb in v_nbs:
                 if floor_voxels.contains_point(cluster_borders.voxel_coordinates(v_nb)):
                     v_nb_cluster = cluster_borders[v_nb]['cluster']
-                    v_nb_node = [x for x, y in G.nodes(
-                        data=True) if y['cluster'] == v_nb_cluster][0]
+                    v_nb_node = [x for x, y in G.nodes(data=True) if y['cluster'] == v_nb_cluster][0]
 
                     G.add_edge(v_node, v_nb_node)
 

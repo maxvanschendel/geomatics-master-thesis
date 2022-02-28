@@ -25,8 +25,6 @@ numba_logger.setLevel(logging.WARNING)
 
 
 class SpatialGraph:
-    leaf_size = 20
-
     def __init__(self,
                  scale: np.array = np.array([1, 1, 1]),
                  origin: np.array = np.array([0, 0, 0]),
@@ -39,8 +37,6 @@ class SpatialGraph:
 
         self.nodes = self.graph.nodes
         self.edges = self.graph.edges
-        self.sindex: KDTree = KDTree(self.list_attr(
-            'pos'), SpatialGraph.leaf_size)
 
         for i, node in enumerate(self.nodes):
             self.nodes[node]['index'] = i
@@ -55,10 +51,6 @@ class SpatialGraph:
 
     def list_attr(self, attr):
         return [self.nodes[n][attr] for n in self.nodes]
-
-    def nearest_neighbour(self, p):
-        nn_index = self.sindex.query(p, k=1)[1][0][0]
-        return self.get_by_index(nn_index)
 
     def to_o3d(self, has_color=False) -> o3d.geometry.LineSet:
         points = self.nodes
@@ -197,7 +189,8 @@ class VoxelGrid:
         return self.filter(lambda vox: attr in self[vox] and self[vox][attr] == val)
 
     def list_attribute(self, attr):
-        return self.map(lambda vox: self.voxels[vox][attr])
+        voxels_with_attr = self.filter(lambda vox: attr in self.voxels[vox])
+        return map(lambda vox: self.voxels[vox][attr], voxels_with_attr)
 
     def colorize(self, color):
         self.for_each(self.set_attribute, attr='color', val=color)
@@ -290,7 +283,7 @@ class VoxelGrid:
 
         split = []
         for unique_attr in unique_attributes:
-            attr_subset = self.subset(lambda v: self[v][attr] == unique_attr)
+            attr_subset = self.subset(lambda v: attr in self[v] and self[v][attr] == unique_attr)
             split.append(attr_subset)
 
         return split
@@ -536,7 +529,7 @@ class VoxelGrid:
             x[k] = axis_occurences[k]
         
         x = np.array(x)
-        peaks, _ = find_peaks(x, height=100)
+        peaks, _ = find_peaks(x, height=500)
     
         plt.title('Peaks in voxel height')
         plt.bar(range(len(x)), x)
@@ -772,21 +765,21 @@ class TopometricNode:
     geometry: VoxelGrid
     
 class TopometricEdgeType(Enum):
-        TRAVERSABILITY = 0
-        HIERARCHY = 1
-        
-@dataclass(eq=True, frozen=True)
-class TopometricEdge:
-    node_a: TopometricNode
-    node_b: TopometricNode
-    edge_type: TopometricEdgeType
+    TRAVERSABILITY = 0
+    HIERARCHY = 1
                 
 class HierarchicalTopometricMap():
     def __init__(self):
-        self.graph = networkx.Graph()
+        self.graph = networkx.DiGraph()
         
     def add_node(self, node: TopometricNode):
-        self.graph.add_node(node)
+        self.graph.add_node(node, node_level=node.level)
     
-    def add_edge(self, edge: TopometricEdge):
-        self.graph.add_edge(edge.node_a, edge.node_b, edge=edge, edge_type=edge.edge_type)
+    def add_edge(self, node_a: TopometricNode, node_b: TopometricNode, edge_type: TopometricEdgeType):
+        self.graph.add_edge(node_a, node_b, edge_type=edge_type)
+        
+    def traversability_edges(self) -> List[Tuple[int, int]]:
+        return [(u,v) for u,v,e in self.graph.edges(data=True) if e['edge_type'] == TopometricEdgeType.TRAVERSABILITY]
+    
+    def hierarchy_edges(self) -> List[Tuple[int, int]]:
+        return [(u,v) for u,v,e in self.graph.edges(data=True) if e['edge_type'] == TopometricEdgeType.HIERARCHY]
