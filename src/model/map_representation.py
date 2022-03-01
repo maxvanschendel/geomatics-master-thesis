@@ -285,7 +285,7 @@ class VoxelGrid:
             
             threadsperblock = 64
             blockspergrid = (len(self.voxels)) // threadsperblock
-            VoxelGrid.voxel_most_common_nbs_gpu[blockspergrid, threadsperblock](
+            VoxelGrid.convolve_most_common_nb_gpu[blockspergrid, threadsperblock](
                 voxel_matrix, origin_voxels, kernel_voxels, nbs_occurences, n_vals, max_nb)
 
             for i, label in enumerate(max_nb):
@@ -297,8 +297,7 @@ class VoxelGrid:
 
         return prop_map
 
-    def attr_borders(self, attr) -> VoxelGrid:
-        kernel = VoxelGrid.nb6()
+    def attr_borders(self, attr, kernel) -> VoxelGrid:
         border_voxels = self.clone()
 
         for voxel in self.voxels:
@@ -336,12 +335,18 @@ class VoxelGrid:
             comps.append(component_voxel)
 
         return comps
+    
+    def is_connected(self, kernel) -> bool:
+        origin = list(self.voxels.keys())[0]
+        region = self.region_grow(origin, kernel)
+        
+        return len(region) == len(self.voxels)
 
     def centroid(self) -> np.array:
         return np.mean([self.voxel_coordinates(v) for v in self.voxels], axis=0)
 
     @cuda.jit
-    def voxel_has_nbs_gpu(voxels, occupied_voxels, kernel, conv_voxels):
+    def convolve_has_nbs_gpu(voxels, occupied_voxels, kernel, conv_voxels):
         pos = cuda.grid(1)
         current_voxel = occupied_voxels[pos]
 
@@ -356,7 +361,7 @@ class VoxelGrid:
                 break
             
     @cuda.jit
-    def voxel_most_common_nbs_gpu(voxels, origin_voxels, kernel, nbs_occurences, n_vals, max_occurences):
+    def convolve_most_common_nb_gpu(voxels, origin_voxels, kernel, nbs_occurences, n_vals, max_occurences):
         pos = cuda.grid(1)
         current_voxel = origin_voxels[pos]
     
@@ -379,8 +384,6 @@ class VoxelGrid:
         max_occurences[pos] = max_val
              
     def filter_gpu_kernel_nbs(self, kernel):
-        from time import perf_counter
-
         # Allocate memory on the device for the result
         result_voxels = np.zeros(shape=(len(self.voxels), 1), dtype=np.int32)
         voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
@@ -402,7 +405,7 @@ class VoxelGrid:
         threadsperblock = 512
         blockspergrid = (len(self.voxels) +
                          (threadsperblock - 1)) // threadsperblock
-        VoxelGrid.voxel_has_nbs_gpu[blockspergrid, threadsperblock](
+        VoxelGrid.convolve_has_nbs_gpu[blockspergrid, threadsperblock](
             voxel_matrix, occupied_voxels, kernel_voxels, result_voxels)
         
         nb_voxels = []
@@ -454,7 +457,7 @@ class VoxelGrid:
                 return None
         return tuple(current_voxel)
 
-    def isovist(self, origin: np.array, max_dist: float) -> VoxelGrid:
+    def visibility(self, origin: np.array, max_dist: float) -> VoxelGrid:
         # Get all voxels within range (max_dist) of the isovist
         # For each voxel within range, get a vector pointing from origin to the voxel
         candidate_voxels = np.array(
@@ -481,7 +484,7 @@ class VoxelGrid:
         # Cast isovists on GPU
         threadsperblock = 256
         blockspergrid = (len(directions) // threadsperblock)
-        VoxelGrid.dda[blockspergrid, threadsperblock](
+        VoxelGrid.fast_voxel_traversal[blockspergrid, threadsperblock](
             origin, directions, self.bbox, self.cell_size, voxel_matrix, intersections, max_dist)
 
         isovist = {tuple(i) for i in intersections}
@@ -493,10 +496,21 @@ class VoxelGrid:
                          origin=self.origin,
                          voxels={v: self[v] for v in isovist})
 
-    # "Fast" voxel traversal, based on Amanitides & Woo (1987)
-    # Terminates when first voxel has been found
     @cuda.jit
-    def dda(point, directions, bbox, cell_size, voxels, intersections, max_dist):
+    def fast_voxel_traversal(point, directions, bbox, cell_size, voxels, intersections, max_dist):
+        """
+        "Fast" voxel traversal, based on Amanitides & Woo (1987)
+        Terminates when first voxel has been found
+
+        Args:
+            point (_type_): _description_
+            directions (_type_): _description_
+            bbox (_type_): _description_
+            cell_size (_type_): _description_
+            voxels (_type_): _description_
+            intersections (_type_): _description_
+            max_dist (_type_): _description_
+        """
         pos = cuda.grid(1)
         min_bbox, max_bbox = bbox[0], bbox[1]
         direction = directions[pos]
@@ -583,7 +597,7 @@ class VoxelGrid:
                 current_position[1] += z_vec_y
                 current_position[2] += z_vec_z
 
-    def detect_peaks(self, axis: int) -> Tuple[int]:
+    def detect_peaks(self, axis: int, height: int) -> Tuple[int]:
         from scipy.signal import find_peaks
 
         axis_values = [v[axis] for v in self.voxels]
@@ -593,8 +607,106 @@ class VoxelGrid:
         for k in axis_occurences.keys():
             x[k] = axis_occurences[k]
 
-        peaks, _ = find_peaks(np.array(x), height=1000)
+        peaks, _ = find_peaks(np.array(x), height=height)
         return peaks
+    
+    def distance_field(self) -> np.array:
+        hipf = []
+
+        for v in self.voxels:
+            i = 1
+            kernel = VoxelGrid.circle(r=i)
+            
+            while len(self.get_kernel(v, kernel)) == len(kernel.voxels):
+                i += 1
+                kernel = VoxelGrid.circle(r=i)
+                
+            hipf.append(i)
+            
+        return np.array(hipf)
+    
+    def region_grow(self, origin, kernel):
+        queue = set()
+        visited = set()
+        
+        queue.add(origin)
+        while queue:
+            cur = queue.pop()
+            visited.add(cur)
+            
+            nbs = self.get_kernel(cur, kernel)
+            for nb in nbs:
+                if nb not in visited and nb not in queue:
+                    queue.add(nb)
+        
+        return list(visited)
+    
+    def grass_fire_thinning(self, threshold=0) -> VoxelGrid:     
+        import scipy
+            
+        thinned_voxel = self.clone()
+        df = thinned_voxel.distance_field()
+        distance_field = {v: d for d, v in zip(df, list(thinned_voxel.voxels))}
+        
+        local_maxima = set()
+
+        # voxel_volume = np.empty(shape=thinned_voxel.shape.astype(int))
+        # for v in distance_field:
+        #     print(v)
+        #     voxel_volume[v] = distance_field[v]
+            
+        # laplace = scipy.ndimage.laplace(voxel_volume)
+        # laplace_filter = np.transpose((np.abs(laplace) > 0.1).nonzero())
+        
+        # print(laplace_filter)
+        
+        # laplacian_field = {}
+        # for l in laplace_filter:
+        #     t_l = tuple(l)
+        #     if t_l in distance_field:
+                # laplacian_field[t_l] = laplace[t_l]
+        kernel = VoxelGrid.sphere(r=5)
+        
+        for i, v in enumerate(distance_field):
+            v_d = distance_field[v]
+            # if v_d in laplacian_field:
+            #     local_maxima.add(v)
+            if v_d > threshold:
+                
+                v_nbs = thinned_voxel.get_kernel(v, kernel)
+                v_nbs_d = [distance_field[nb] for nb in v_nbs]
+                
+                if v_d >= max(v_nbs_d):
+                    local_maxima.add(v)
+                    
+        
+        # batch_size = 10
+        # while True:
+        #     distance_field = list(zip(thinned_voxel.distance_field(), list(thinned_voxel.voxels)))
+            
+        #     removed_voxels = 0
+        #     for i in range(len(distance_field) // batch_size):
+                
+        #         candidate_voxels = distance_field[i*batch_size:(i+1)*batch_size]
+                
+        #         for d, v in candidate_voxels:
+        #             if d == 1 and v not in local_maxima:
+        #                 thinned_voxel.remove(v)
+        #                 removed_voxels += 1
+        #         if not thinned_voxel.is_connected(VoxelGrid.nb6()):
+        #             for d, v in candidate_voxels:
+        #                 if d == 1 and v not in local_maxima:
+        #                     thinned_voxel.add(v)
+        #                     removed_voxels -= 1
+                            
+        #                     if thinned_voxel.is_connected(VoxelGrid.nb6()):
+        #                         break
+                
+        #         print(f"{i*batch_size}/{len(distance_field)}, {removed_voxels}")
+        #     if removed_voxels == 0:
+        #         break
+        
+        return thinned_voxel.subset(lambda v: v in local_maxima)
 
     def to_o3d(self, has_color=False):
         return self.to_pcd(has_color).to_o3d()
@@ -640,15 +752,27 @@ class VoxelGrid:
 
         return voxel_model
 
-    @ staticmethod
-    def sphere(d, origin, cell_size):
-        r = d/2
-        voxel_model = VoxelGrid((d, d, d), cell_size, origin)
+    @staticmethod
+    def sphere(r):
+        d = r*2
+        voxel_model = VoxelGrid((d, d, d), np.array([1, 1, 1]), np.array([0,0,0]))
 
-        for x, y, z in product(range(-d,d), range(-d,d), range(-d,d)):
-            dist = np.linalg.norm([x+0.5-r, y+0.5-r, z+0.5-r])
+        for x, y, z in product(range(-r,r), range(-r,r), range(-r,r)):
+            dist = np.linalg.norm([x,y,z])
             if dist <= r:
                 voxel_model.add((x, y, z), {})
+
+        return voxel_model
+    
+    @staticmethod
+    def circle(r):
+        d = r*2
+        voxel_model = VoxelGrid((d, 1, d), np.array([1, 1, 1]), np.array([0,0,0]))
+
+        for x, z in product(range(-r,r), range(-r,r)):
+            dist = np.linalg.norm([x,0,z])
+            if dist <= r:
+                voxel_model.add((x, 0, z), {})
 
         return voxel_model
 
@@ -895,6 +1019,6 @@ class HierarchicalTopometricMap():
         networkx.draw(G=self.graph,
                     pos=pos,
                     edge_color=colors,
-                    labels=hier_labels,
-                    node_size=0)
+                    # labels=hier_labels,
+                    node_size=1)
         plt.savefig(fn)

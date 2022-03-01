@@ -44,7 +44,7 @@ class PreProcessingParameters:
         
 
 
-def pre_process(partial_map: PointCloudRepresentation, params: PreProcessingParameters) -> VoxelRepresentation:
+def pre_process(partial_map: PointCloud, params: PreProcessingParameters) -> VoxelGrid:
     partial_map_reduced = partial_map.random_reduce(params.reduce)
     partial_map_scaled = partial_map_reduced.scale(np.array(params.scale))
 

@@ -81,11 +81,9 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
     for a, b in connections:
         topometric_map.add_edge(storey_nodes[a], storey_nodes[b], EdgeType.TRAVERSABILITY)
 
-
     print('- Computing traversable volume skeleton')
     floor_filter = skeletonize_floor_area(
-        nav_graph, p.n_target, p.btw_thresh, p.path_height)
-
+         building_voxel_high.subset(lambda v: v in nav_graph_voxel), p.n_target, p.btw_thresh, p.path_height)
 
     print(f"- Segmenting {len(storey_nodes)} storey(s)")
     for i, storey in enumerate(storey_nodes):
@@ -179,8 +177,8 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
         [
             MapViz(floor_voxel.to_o3d(has_color=True),
                    Viz.pcd_mat()),
-            MapViz(floor_filter.to_graph().to_o3d(
-                has_color=False), Viz.graph_mat())
+            MapViz(floor_filter.to_o3d(
+                has_color=False), Viz.pcd_mat())
         ],
 
         # Topometric map visualization at ROOM level
@@ -229,7 +227,7 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
 
 
 def detect_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: int):
-    y_peaks = floor_voxel_grid.detect_peaks(axis=1)
+    y_peaks = floor_voxel_grid.detect_peaks(axis=1, height=500)
 
     voxel_grid.colorize([0, 0, 0])
 
@@ -274,7 +272,7 @@ def detect_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: i
     return storeys, connections
 
 
-def skeletonize_floor_area(traversable_volume: SpatialGraph, n_target: int, betweenness_threshold: float, path_height: float) -> VoxelGrid:
+def skeletonize_floor_area(floor: VoxelGrid, n_target: int, betweenness_threshold: float, path_height: float) -> VoxelGrid:
     """_summary_
 
     Args:
@@ -285,19 +283,11 @@ def skeletonize_floor_area(traversable_volume: SpatialGraph, n_target: int, betw
     Returns:
         VoxelRepresentation: _description_
     """
-
-    trav_vol_mst = traversable_volume.minimum_spanning_tree()
-    betweenness = trav_vol_mst.betweenness_centrality(n_target_points=n_target)
-    for node in betweenness:
-        trav_vol_mst.graph.nodes[node]['betweenness'] = betweenness[node]
-
-    floor_voxel = trav_vol_mst.to_voxel()
-    floor_filter = floor_voxel.subset(
-        lambda v, **kwargs: floor_voxel[v]['betweenness'] > betweenness_threshold)
-
-    floor_filter.origin = deepcopy(floor_filter.origin)
-    floor_filter.origin += np.array([0, path_height, 0.])
-    return floor_filter
+    
+    skeleton = floor.grass_fire_thinning()  
+    skeleton.origin += np.array([0, path_height, 0.])
+    
+    return skeleton
 
 
 def cast_isovists(origins: List[Tuple], map_voxel: VoxelGrid, subsample: float, max_dist: float):
@@ -305,7 +295,7 @@ def cast_isovists(origins: List[Tuple], map_voxel: VoxelGrid, subsample: float, 
 
     for v in origins:
         if random() < subsample:
-            isovist = map_voxel.isovist(v, max_dist)
+            isovist = map_voxel.visibility(v, max_dist)
             isovists.append(isovist)
 
     return isovists
@@ -402,15 +392,16 @@ def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floo
             G.nodes[voxel_centroid_index][VoxelGrid.cluster_attr] = cluster
             G.nodes[voxel_centroid_index]['geometry'] = map_segmented.subset(lambda v: v in cluster_voxels)
 
-    cluster_borders = map_segmented.attr_borders(VoxelGrid.cluster_attr)
+    kernel = VoxelGrid.sphere(3)
+    cluster_borders = map_segmented.attr_borders(VoxelGrid.cluster_attr, kernel)
 
     for v in cluster_borders.voxels:
         if floor_voxels.contains_point(cluster_borders.voxel_coordinates(v)):
             v_cluster = cluster_borders[v][VoxelGrid.cluster_attr]
             v_node = [x for x, y in G.nodes(
                 data=True) if y[VoxelGrid.cluster_attr] == v_cluster][0]
-            v_nbs = cluster_borders.get_kernel(v, VoxelGrid.nb6())
-
+            
+            v_nbs = cluster_borders.get_kernel(v, kernel)
             for v_nb in v_nbs:
                 if floor_voxels.contains_point(cluster_borders.voxel_coordinates(v_nb)):
                     v_nb_cluster = cluster_borders[v_nb][VoxelGrid.cluster_attr]

@@ -4,7 +4,7 @@ from processing.map_merge import *
 from processing.pre_process import *
 
 # INPUT PARAMETERS #
-input_path = "./data/meshes/house_merged.ply"
+input_path = "./data/meshes/hall2frontbedroom - low.ply"
 preprocess_parameters = PreProcessingParameters(
     reduce=1,
     scale=[1, -1, 1]
@@ -29,7 +29,7 @@ map_extract_parameters = MapExtractionParameters(
     min_inflation=1.1,
     max_inflation=2,
     weight_threshold=0.3,       # Lower values lead to oversegmentation, higher to undersegmentation
-    label_prop_max_its=25,     
+    label_prop_max_its=250,     
 )
 
 if __name__ == "__main__":
