@@ -73,8 +73,8 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
     print("- Detecting storeys")
     storeys, connections = detect_storeys(floor_voxel, building_voxel_high, buffer=10)
     storey_nodes = list(map(lambda s: TopometricNode(Hierarchy.STOREY, s), storeys))
+    
     topometric_map.add_nodes(storey_nodes)
-
     for s in storey_nodes:
         topometric_map.add_edge(building_node, s, EdgeType.HIERARCHY)
 
@@ -117,16 +117,17 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
             max_inflation=p.max_inflation
         )
 
-
         print(f"    - Segmenting rooms")
         map_rooms = room_segmentation(
             isovists=isovists,
             map_voxel=storey_geometry_low,
             clustering=clustering)
 
-
         print(f"    - Propagating labels")
-        prop_kernel = VoxelGrid.nb6().dilate(VoxelGrid.nb6()).dilate(VoxelGrid.nb6())
+        prop_kernel = VoxelGrid.nb6()
+        prop_kernel = prop_kernel.translate(-prop_kernel.origin)
+        prop_kernel = prop_kernel.dilate(VoxelGrid.nb6()).dilate(VoxelGrid.nb6())
+        
         map_rooms = map_rooms.propagate_attribute(
             attr=VoxelGrid.cluster_attr,
             max_iterations=p.label_prop_max_its,

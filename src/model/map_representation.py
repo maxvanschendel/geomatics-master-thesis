@@ -370,7 +370,7 @@ class VoxelGrid:
             if nb_val != -1:
                 nbs_occurences[pos][nb_val] += 1
             
-        max_occurence, max_val = 0, -1
+        max_occurence, max_val = 1, voxels[current_voxel[0], current_voxel[1], current_voxel[2]]
         for val in range(n_vals):
             if nbs_occurences[pos][val] > max_occurence:
                 max_occurence = nbs_occurences[pos][val]
