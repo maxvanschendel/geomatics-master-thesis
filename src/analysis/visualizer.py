@@ -3,13 +3,13 @@ import open3d as o3d
 from typing import List
 
 @dataclass
-class MapVisualization:
+class MapViz:
     geometry: o3d.geometry
     material: o3d.visualization.rendering.MaterialRecord
 
 
-class Visualizer:
-    def default_pcd_mat(pt_size=7):
+class Viz:
+    def pcd_mat(pt_size=7):
         mat = o3d.visualization.rendering.MaterialRecord()
         mat.point_size = pt_size
         mat.base_color = [1, 1, 1, 1]
@@ -17,7 +17,7 @@ class Visualizer:
 
         return mat
 
-    def default_graph_mat():
+    def graph_mat():
         mat = o3d.visualization.rendering.MaterialRecord()
         mat.shader = "unlitLine"
         mat.line_width = 5
@@ -25,7 +25,7 @@ class Visualizer:
 
         return mat
 
-    def __init__(self, maps: List[List[MapVisualization]]):
+    def __init__(self, maps: List[List[MapViz]]):
         app = o3d.visualization.gui.Application.instance
         app.initialize()
 

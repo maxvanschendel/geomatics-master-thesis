@@ -12,7 +12,7 @@ preprocess_parameters = PreProcessingParameters(
 
 map_extract_parameters = MapExtractionParameters(
     # Voxelization
-    voxel_size_high=0.1,
+    voxel_size_high=0.05,
     voxel_size_low=0.2,
 
     # Traversability
@@ -21,21 +21,18 @@ map_extract_parameters = MapExtractionParameters(
     btw_thresh=0.05,
 
     # Isovists
-    path_height=1.5,
+    path_height=1.8,
     isovist_subsample=.2,
     isovist_range=3,
 
     # Room segmentation
     min_inflation=1.1,
     max_inflation=2,
-    weight_threshold=0.2,
-    label_propagation_max_iterations=100,
+    weight_threshold=0.5,       # Lower values lead to oversegmentation, higher to undersegmentation
+    label_prop_max_its=100,     
 )
 
 if __name__ == "__main__":
-    import logging
-    logging.disable(logging.WARNING)
-
     print("Reading input map")
     map_cloud = PointCloud.read_ply(input_path)
 
