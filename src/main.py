@@ -12,23 +12,21 @@ preprocess_parameters = PreProcessingParameters(
 
 map_extract_parameters = MapExtractionParameters(
     # Voxelization
-    voxel_size_high=0.05,
+    voxel_size_high=0.1,
     voxel_size_low=0.2,
 
     # Traversability
     kernel_scale=0.1,
-    n_target=50,
-    btw_thresh=0.05,             # Higher values lead to less isovists and vice versa
 
     # Isovists
     path_height=1.5,
-    isovist_subsample=.1,
+    isovist_subsample=.3,
     isovist_range=3,
 
     # Room segmentation
     min_inflation=1.1,
     max_inflation=2,
-    weight_threshold=0.3,       # Lower values lead to oversegmentation, higher to undersegmentation
+    weight_threshold=0.2,       # Lower values lead to oversegmentation, higher to undersegmentation
     label_prop_max_its=250,     
 )
 

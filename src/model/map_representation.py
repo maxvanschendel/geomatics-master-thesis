@@ -1,27 +1,27 @@
 from __future__ import annotations
 
-import copy
-import logging
+from copy import deepcopy
 import math
+import warnings
 from ast import Lambda
-
 from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
+from itertools import product
 from random import random
 from typing import Dict, Tuple
-from itertools import product
+
 import networkx
 import numpy as np
 import open3d as o3d
-from misc.helpers import random_color
-from numba import cuda, jit
+from misc.helpers import random_color, most_common
+from numba import cuda
 from plyfile import PlyData
 from sklearn.decomposition import PCA
 from sklearn.neighbors import KDTree
-import warnings
+
 warnings.filterwarnings('ignore')
-print( cuda.gpus)
+
 
 class SpatialGraph:
     def __init__(self,
@@ -32,7 +32,7 @@ class SpatialGraph:
         self.scale = scale
         self.origin = origin
         self.graph = graph
-        
+
         self.nodes = self.graph.nodes
         self.edges = self.graph.edges
 
@@ -73,7 +73,7 @@ class SpatialGraph:
     def to_voxel(self):
         vox = VoxelGrid(np.array([0, 0, 0]), self.scale, self.origin, {
             node: {'count': 1} for node in self.nodes})
-        vox.shape = vox.extents()
+        vox.shape = np.array(vox.extents())
 
         # transfer voxel attributes to nodes
         for node in self.nodes:
@@ -93,9 +93,9 @@ class SpatialGraph:
     def connected_components(self):
         return sorted(networkx.connected_components(self.graph), key=len, reverse=True)
 
-
 class VoxelGrid:
     cluster_attr: str = 'cluster'
+    color_attr: str = 'color'
 
     def __init__(self,
                  shape: np.array = None,
@@ -113,9 +113,12 @@ class VoxelGrid:
             voxels = {}
         self.voxels = voxels
 
-    def __str__(self) -> str:
-        return str(self.voxels)
-
+    def clone(self) -> VoxelGrid:
+        return VoxelGrid(deepcopy(self.shape),
+                         deepcopy(self.cell_size),
+                         deepcopy(self.origin),
+                         deepcopy(self.voxels))
+        
     def __getitem__(self, key: Tuple[int, int, int]) -> Dict[str, object]:
         return self.voxels[key]
 
@@ -129,17 +132,6 @@ class VoxelGrid:
 
         # Adapt size of voxel model to new extents after addition
         new_model.shape = new_model.extents()
-        return new_model
-
-    def __sub__(self, other: VoxelGrid) -> VoxelGrid:
-        new_model = self.clone()
-
-        for v in other.voxels:
-            if (new_model.occupied(v)):
-                if new_model[v] < other.voxels[v]:
-                    new_model.remove(v)
-                else:
-                    new_model[v] -= other.voxels[v]
         return new_model
 
     def __iter__(self):
@@ -162,22 +154,31 @@ class VoxelGrid:
         self.voxels.pop(cell)
 
     def voxel_centroids(self) -> np.array:
-        return np.array(list(self.map(self.voxel_coordinates)),dtype=np.float64)
+        return np.array(list(self.map(self.voxel_coordinates)), dtype=np.float64)
+
+    def occupied(self, cell: Tuple[int, int, int]) -> bool:
+        return cell in self.voxels
+    
+    def get_voxel(self, p: np.array) -> Tuple[int, int, int]:
+        return tuple(((p-self.origin) // self.cell_size).astype(int))
 
     def contains_point(self, point: np.array) -> bool:
         return self.get_voxel(point) in self
 
-    def intersect(self, other: VoxelGrid) -> Set[Tuple[int, int, int]]:
+    def boolean_intersect(self, other: VoxelGrid) -> Set[Tuple[int, int, int]]:
         return self.voxels.keys() & other.voxels.keys()
-
-    def isdisjoint(self, other: VoxelGrid) -> bool:
-        return self.voxels.keys().isdisjoint(other.voxels.keys())
+    
+    def boolean_union(self, other: VoxelGrid) -> Set[Tuple[int, int, int]]:
+        pass
+    
+    def boolean_difference(self, other: VoxelGrid) -> Set[Tuple[int, int, int]]:
+        pass
 
     def subset(self, func: Lambda, **kwargs) -> VoxelGrid:
         filtered_voxels = self.filter(func, **kwargs)
         voxel_dict = {voxel: self.voxels[voxel] for voxel in filtered_voxels}
 
-        return VoxelGrid(self.shape, self.cell_size, self.origin, voxel_dict)
+        return VoxelGrid(deepcopy(self.shape), deepcopy(self.cell_size), deepcopy(self.origin), voxel_dict)
 
     def for_each(self, func: Lambda, **kwargs) -> None:
         for voxel in self.voxels:
@@ -185,77 +186,40 @@ class VoxelGrid:
 
     def set_attr(self, voxel, attr, val):
         self.voxels[voxel][attr] = val
-        
+
     def set_attr_uniform(self, attr, val):
         self.for_each(self.set_attr, attr=attr, val=val)
 
-    def get_by_attr(self, attr, val):
+    def get_attr(self, attr, val):
         return self.filter(lambda vox: attr in self[vox] and self[vox][attr] == val)
 
     def list_attr(self, attr):
         voxels_with_attr = self.filter(lambda vox: attr in self.voxels[vox])
         return map(lambda vox: self.voxels[vox][attr], voxels_with_attr)
 
-    def colorize(self, color):
-        self.set_attr_uniform(attr='color', val=color)
-
-    def extents(self):
-        new_voxels = np.array(list(self.voxels.keys()))
-        new_shape = list(self.shape)
-
-        for v in new_voxels:
-            for i, c in enumerate(self.shape):
-                new_shape[i] = max([v[i].max(), c])
-        return new_shape
-
-    def clone(self) -> VoxelGrid:
-        return VoxelGrid(copy.deepcopy(self.shape),
-                         copy.deepcopy(self.cell_size),
-                         copy.deepcopy(self.origin),
-                         copy.deepcopy(self.voxels))
-
-    def occupied(self, cell: Tuple[int, int, int]) -> bool:
-        return cell in self.voxels
-
-    def voxel_coordinates(self, voxel: Tuple[int, int, int]) -> np.array:
-        return self.origin + (voxel * self.cell_size) + (0.5*self.cell_size)
-
-    def get_voxel(self, p: np.array) -> Tuple[int, int, int]:
-        return tuple(((p-self.origin) // self.cell_size).astype(int))
-
-    def get_kernel(self, voxel: Tuple[int, int, int], kernel: VoxelGrid):
-        kernel_cells = []
-        for k in kernel.voxels:
-            nb = tuple(voxel + (k - kernel.origin))
-            if self.occupied(nb):
-                kernel_cells.append(nb)
-
-        return kernel_cells
-
-    def add_attribute(self, attr: str, default_value: object) -> None:
+    def add_attr(self, attr: str, default_value: object) -> None:
         self.for_each(self.set_attr, attr=attr, val=default_value)
 
     def remove_attr(self, attr: str) -> None:
         self.for_each(lambda v: self[v].pop(attr))
 
-    def kernel_attributes(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str):
+    def kernel_attr(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str):
         voxel_nbs = self.get_kernel(voxel, kernel)
         voxel_nbs_labels = [self[v][attr] for v in voxel_nbs]
 
         return voxel_nbs_labels
 
-    def most_common_kernel_attributes(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str):
-        kernel_attrs = self.kernel_attributes(voxel, kernel, attr)
-        most_common_attr = Counter(kernel_attrs).most_common(1)[0][0]
+    def most_common_kernel_attr(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str):
+        kernel_attrs = self.kernel_attr(voxel, kernel, attr)
+        most_common_attr = most_common(kernel_attrs)
 
         return most_common_attr
 
-    def propagate_attribute(self, attr: str, max_iterations: int, prop_kernel: VoxelGrid) -> VoxelGrid:
+    def propagate_attr(self, attr: str, max_iterations: int, prop_kernel: VoxelGrid) -> VoxelGrid:
         prop_map = self.clone()
-        
         attributes = list(self.list_attr(attr))
         unique_attributes = np.unique(attributes)
-        
+
         # Get most common label of 6-neighbourhood of voxel
         # Assign most common label to voxel in propagated map
         for i in range(max_iterations):
@@ -263,26 +227,29 @@ class VoxelGrid:
 
             # Allocate memory on the device for the result
             max_nb = np.zeros(shape=(len(self.voxels), 1), dtype=np.int32)
-            
+
             voxel_matrix = np.full(self.shape.astype(int)+1, -1, dtype=np.int8)
             for v in self.voxels:
                 voxel_matrix[v] = int(prev_map.voxels[v][attr])
 
-            kernel_voxels = np.zeros(shape=(len(prop_kernel.voxels), 3), dtype=np.int32)
+            kernel_voxels = np.zeros(
+                shape=(len(prop_kernel.voxels), 3), dtype=np.int32)
             for i, k in enumerate(prop_kernel.voxels):
                 kernel_voxels[i][0] = k[0]
                 kernel_voxels[i][1] = k[1]
                 kernel_voxels[i][2] = k[2]
 
-            origin_voxels = np.zeros(shape=(len(self.voxels), 3), dtype=np.int32)
+            origin_voxels = np.zeros(
+                shape=(len(self.voxels), 3), dtype=np.int32)
             for i, k in enumerate(self.voxels):
                 origin_voxels[i][0] = k[0]
                 origin_voxels[i][1] = k[1]
                 origin_voxels[i][2] = k[2]
 
-            nbs_occurences = np.zeros(shape=(len(self.voxels), len(unique_attributes)), dtype=np.int32)
+            nbs_occurences = np.zeros(
+                shape=(len(self.voxels), len(unique_attributes)), dtype=np.int32)
             n_vals = len(unique_attributes)
-            
+
             threadsperblock = 64
             blockspergrid = (len(self.voxels)) // threadsperblock
             VoxelGrid.convolve_most_common_nb_gpu[blockspergrid, threadsperblock](
@@ -320,6 +287,33 @@ class VoxelGrid:
             split.append(attr_subset)
 
         return split
+    
+    def colorize(self, color):
+        self.set_attr_uniform(attr=VoxelGrid.color_attr, val=color)
+
+    def extents(self):
+        new_voxels = np.array(list(self.voxels.keys()))
+        new_shape = list(self.shape)
+
+        for v in new_voxels:
+            for i, c in enumerate(self.shape):
+                new_shape[i] = max([v[i].max(), c])
+        return new_shape
+
+    def centroid(self) -> np.array:
+        return np.mean([self.voxel_coordinates(v) for v in self.voxels], axis=0)
+    
+    def voxel_coordinates(self, voxel: Tuple[int, int, int]) -> np.array:
+        return self.origin + (voxel * self.cell_size) + (0.5 * self.cell_size)
+
+    def get_kernel(self, voxel: Tuple[int, int, int], kernel: VoxelGrid):
+        kernel_cells = []
+        for k in kernel.voxels:
+            nb = tuple(voxel + (k - kernel.origin))
+            if self.occupied(nb):
+                kernel_cells.append(nb)
+
+        return kernel_cells
 
     def connected_components(self, kernel) -> List[VoxelGrid]:
         graph_representation = self.to_graph(kernel)
@@ -335,15 +329,6 @@ class VoxelGrid:
             comps.append(component_voxel)
 
         return comps
-    
-    def is_connected(self, kernel) -> bool:
-        origin = list(self.voxels.keys())[0]
-        region = self.region_grow(origin, kernel)
-        
-        return len(region) == len(self.voxels)
-
-    def centroid(self) -> np.array:
-        return np.mean([self.voxel_coordinates(v) for v in self.voxels], axis=0)
 
     @cuda.jit
     def convolve_has_nbs_gpu(voxels, occupied_voxels, kernel, conv_voxels):
@@ -355,34 +340,34 @@ class VoxelGrid:
                 current_voxel[0] + nb[0],
                 current_voxel[1] + nb[1],
                 current_voxel[2] + nb[2]
-                ] == 1:
+            ] == 1:
 
                 conv_voxels[pos] = 1
                 break
-            
+
     @cuda.jit
     def convolve_most_common_nb_gpu(voxels, origin_voxels, kernel, nbs_occurences, n_vals, max_occurences):
         pos = cuda.grid(1)
-        current_voxel = origin_voxels[pos]
-    
+        cur_voxel = origin_voxels[pos]
+
         for nb in kernel:
             nb_val = voxels[
-                current_voxel[0] + nb[0],
-                current_voxel[1] + nb[1],
-                current_voxel[2] + nb[2]
-                ]
-            
+                cur_voxel[0] + nb[0],
+                cur_voxel[1] + nb[1],
+                cur_voxel[2] + nb[2]
+            ]
+
             if nb_val != -1:
                 nbs_occurences[pos][nb_val] += 1
-            
-        max_occurence, max_val = 1, voxels[current_voxel[0], current_voxel[1], current_voxel[2]]
+
+        max_occurence, max_val = 1, voxels[cur_voxel[0], cur_voxel[1], cur_voxel[2]]
         for val in range(n_vals):
             if nbs_occurences[pos][val] > max_occurence:
                 max_occurence = nbs_occurences[pos][val]
                 max_val = val
-                
+
         max_occurences[pos] = max_val
-             
+
     def filter_gpu_kernel_nbs(self, kernel):
         # Allocate memory on the device for the result
         result_voxels = np.zeros(shape=(len(self.voxels), 1), dtype=np.int32)
@@ -407,16 +392,13 @@ class VoxelGrid:
                          (threadsperblock - 1)) // threadsperblock
         VoxelGrid.convolve_has_nbs_gpu[blockspergrid, threadsperblock](
             voxel_matrix, occupied_voxels, kernel_voxels, result_voxels)
-        
+
         nb_voxels = []
         for i, occ in enumerate(result_voxels):
             if not occ[0]:
                 nb_voxels.append(tuple(occupied_voxels[i]))
-        
-        return VoxelGrid(self.shape, self.cell_size, self.origin, {v: self.voxels[v] for v in nb_voxels})
 
-    def kernel_contains_neighbours(self, cell: Tuple[int, int, int], kernel: VoxelGrid) -> bool:
-        return not self.isdisjoint(kernel.translate(np.array(cell - kernel.origin)))
+        return VoxelGrid(self.shape, self.cell_size, self.origin, {v: self.voxels[v] for v in nb_voxels})
 
     def dilate(self, kernel) -> VoxelGrid:
         dilated_model = VoxelGrid(
@@ -443,19 +425,6 @@ class VoxelGrid:
         translated_map.shape = translated_map.extents()
 
         return translated_map
-
-    def project(self, voxel, axis, step):
-        current_voxel = list(voxel)
-
-        while tuple(current_voxel) not in self.voxels:
-            if 0 <= current_voxel[0] <= self.shape[0] and \
-                    0 <= current_voxel[1] <= self.shape[1] and \
-                    0 <= current_voxel[2] <= self.shape[2]:
-
-                current_voxel[axis] += step
-            else:
-                return None
-        return tuple(current_voxel)
 
     def visibility(self, origin: np.array, max_dist: float) -> VoxelGrid:
         # Get all voxels within range (max_dist) of the isovist
@@ -487,9 +456,8 @@ class VoxelGrid:
         VoxelGrid.fast_voxel_traversal[blockspergrid, threadsperblock](
             origin, directions, self.bbox, self.cell_size, voxel_matrix, intersections, max_dist)
 
-        isovist = {tuple(i) for i in intersections}
-        if (0, 0, 0) in isovist:
-            isovist.remove((0, 0, 0))
+        intersection_tuples = [tuple(i) for i in intersections]
+        isovist = {i for i in intersection_tuples if i != (0,0,0)}
 
         return VoxelGrid(shape=self.shape,
                          cell_size=self.cell_size,
@@ -511,6 +479,7 @@ class VoxelGrid:
             intersections (_type_): _description_
             max_dist (_type_): _description_
         """
+
         pos = cuda.grid(1)
         min_bbox, max_bbox = bbox[0], bbox[1]
         direction = directions[pos]
@@ -597,7 +566,7 @@ class VoxelGrid:
                 current_position[1] += z_vec_y
                 current_position[2] += z_vec_z
 
-    def detect_peaks(self, axis: int, height: int) -> Tuple[int]:
+    def detect_peaks(self, axis: int, height: int = None, width: int = None) -> Tuple[int]:
         from scipy.signal import find_peaks
 
         axis_values = [v[axis] for v in self.voxels]
@@ -609,104 +578,36 @@ class VoxelGrid:
 
         peaks, _ = find_peaks(np.array(x), height=height)
         return peaks
-    
+
     def distance_field(self) -> np.array:
         hipf = []
-
         for v in self.voxels:
             i = 1
-            kernel = VoxelGrid.circle(r=i)
-            
+            kernel = Kernel.circle(r=i)
+
             while len(self.get_kernel(v, kernel)) == len(kernel.voxels):
                 i += 1
-                kernel = VoxelGrid.circle(r=i)
-                
-            hipf.append(i)
-            
-        return np.array(hipf)
-    
-    def region_grow(self, origin, kernel):
-        queue = set()
-        visited = set()
-        
-        queue.add(origin)
-        while queue:
-            cur = queue.pop()
-            visited.add(cur)
-            
-            nbs = self.get_kernel(cur, kernel)
-            for nb in nbs:
-                if nb not in visited and nb not in queue:
-                    queue.add(nb)
-        
-        return list(visited)
-    
-    def grass_fire_thinning(self, threshold=0) -> VoxelGrid:     
-        import scipy
-            
-        thinned_voxel = self.clone()
-        df = thinned_voxel.distance_field()
-        distance_field = {v: d for d, v in zip(df, list(thinned_voxel.voxels))}
-        
-        local_maxima = set()
+                kernel = Kernel.circle(r=i)
 
-        # voxel_volume = np.empty(shape=thinned_voxel.shape.astype(int))
-        # for v in distance_field:
-        #     print(v)
-        #     voxel_volume[v] = distance_field[v]
-            
-        # laplace = scipy.ndimage.laplace(voxel_volume)
-        # laplace_filter = np.transpose((np.abs(laplace) > 0.1).nonzero())
-        
-        # print(laplace_filter)
-        
-        # laplacian_field = {}
-        # for l in laplace_filter:
-        #     t_l = tuple(l)
-        #     if t_l in distance_field:
-                # laplacian_field[t_l] = laplace[t_l]
-        kernel = VoxelGrid.sphere(r=5)
-        
-        for i, v in enumerate(distance_field):
-            v_d = distance_field[v]
-            # if v_d in laplacian_field:
-            #     local_maxima.add(v)
-            if v_d > threshold:
-                
-                v_nbs = thinned_voxel.get_kernel(v, kernel)
-                v_nbs_d = [distance_field[nb] for nb in v_nbs]
-                
-                if v_d >= max(v_nbs_d):
-                    local_maxima.add(v)
-                    
-        
-        # batch_size = 10
-        # while True:
-        #     distance_field = list(zip(thinned_voxel.distance_field(), list(thinned_voxel.voxels)))
-            
-        #     removed_voxels = 0
-        #     for i in range(len(distance_field) // batch_size):
-                
-        #         candidate_voxels = distance_field[i*batch_size:(i+1)*batch_size]
-                
-        #         for d, v in candidate_voxels:
-        #             if d == 1 and v not in local_maxima:
-        #                 thinned_voxel.remove(v)
-        #                 removed_voxels += 1
-        #         if not thinned_voxel.is_connected(VoxelGrid.nb6()):
-        #             for d, v in candidate_voxels:
-        #                 if d == 1 and v not in local_maxima:
-        #                     thinned_voxel.add(v)
-        #                     removed_voxels -= 1
-                            
-        #                     if thinned_voxel.is_connected(VoxelGrid.nb6()):
-        #                         break
-                
-        #         print(f"{i*batch_size}/{len(distance_field)}, {removed_voxels}")
-        #     if removed_voxels == 0:
-        #         break
-        
-        return thinned_voxel.subset(lambda v: v in local_maxima)
+            hipf.append(i)
+        return np.array(hipf)
+
+    def local_distance_field_maxima(self, kernel_radius=5) -> VoxelGrid:
+        kernel = Kernel.sphere(r=kernel_radius)
+
+        df = self.distance_field()
+        distance_field = {v: d for d, v in zip(df, list(self.voxels))}
+
+        local_maxima = set()
+        for vx in distance_field:
+            vx_dist = distance_field[vx]
+            vx_nbs = self.get_kernel(vx, kernel)
+            vx_nbs_dist = [distance_field[nb] for nb in vx_nbs]
+
+            if vx_dist >= max(vx_nbs_dist):
+                local_maxima.add(vx)
+
+        return self.subset(lambda v: v in local_maxima)
 
     def to_o3d(self, has_color=False):
         return self.to_pcd(has_color).to_o3d()
@@ -717,13 +618,13 @@ class VoxelGrid:
         for voxel in self.voxels:
             points.append(self.voxel_coordinates(voxel))
             if has_color:
-                colors.append(self.voxels[voxel]['color'])
+                colors.append(self.voxels[voxel][VoxelGrid.color_attr])
 
         return PointCloud(np.array(points), colors=colors, source=self)
 
-    def to_graph(self, kernel=None) -> SpatialGraph:
+    def to_graph(self, kernel: Kernel = None) -> SpatialGraph:
         if not kernel:
-            kernel = VoxelGrid.nb6()
+            kernel = Kernel.nb6()
 
         graph = networkx.Graph()
 
@@ -740,6 +641,7 @@ class VoxelGrid:
 
         return SpatialGraph(self.cell_size, self.origin, graph)
 
+class Kernel(VoxelGrid):
     @ staticmethod
     def cylinder(d, h, origin=np.array([0, 0, 0]), cell_size=np.array([1, 1, 1])):
         r = d/2
@@ -755,22 +657,24 @@ class VoxelGrid:
     @staticmethod
     def sphere(r):
         d = r*2
-        voxel_model = VoxelGrid((d, d, d), np.array([1, 1, 1]), np.array([0,0,0]))
+        voxel_model = VoxelGrid((d, d, d), np.array(
+            [1, 1, 1]), np.array([0, 0, 0]))
 
-        for x, y, z in product(range(-r,r), range(-r,r), range(-r,r)):
-            dist = np.linalg.norm([x,y,z])
+        for x, y, z in product(range(-r, r+1), range(-r, r+1), range(-r, r+1)):
+            dist = np.linalg.norm([x, y, z])
             if dist <= r:
                 voxel_model.add((x, y, z), {})
 
         return voxel_model
-    
+
     @staticmethod
     def circle(r):
         d = r*2
-        voxel_model = VoxelGrid((d, 1, d), np.array([1, 1, 1]), np.array([0,0,0]))
+        voxel_model = VoxelGrid((d, 1, d), np.array(
+            [1, 1, 1]), np.array([0, 0, 0]))
 
-        for x, z in product(range(-r,r), range(-r,r)):
-            dist = np.linalg.norm([x,0,z])
+        for x, z in product(range(-r, r+1), range(-r, r+1)):
+            dist = np.linalg.norm([x, z])
             if dist <= r:
                 voxel_model.add((x, 0, z), {})
 
@@ -795,9 +699,9 @@ class VoxelGrid:
         b_height = int(5 // scale)
         b_width = 1
 
-        kernel_a = VoxelGrid.cylinder(
+        kernel_a = Kernel.cylinder(
             a_width, a_height).translate(np.array([0, b_height, 0]))
-        kernel_b = VoxelGrid.cylinder(b_width, b_height).translate(
+        kernel_b = Kernel.cylinder(b_width, b_height).translate(
             np.array([a_width//2, 0, a_width//2]))
         kernel_c = kernel_a + kernel_b
 
@@ -806,7 +710,6 @@ class VoxelGrid:
 
         kernel_c = kernel_c.translate(-kernel_c.origin)
         return kernel_c
-
 
 class PointCloud:
     leaf_size = 20  # Number of leaf nodes in KD-Tree spatial index
@@ -956,69 +859,77 @@ class HierarchicalTopometricMap():
 
     def add_node(self, node: TopometricNode):
         self.graph.add_node(node, node_level=node.level)
-        
+
     def add_nodes(self, nodes: List[TopometricNode]):
         for n in nodes:
             self.add_node(n)
 
     def add_edge(self, node_a: TopometricNode, node_b: TopometricNode, edge_type: EdgeType):
         self.graph.add_edge(node_a, node_b, edge_type=edge_type)
+        
+    def add_edges(self, edges, edge_type):
+        for node_a, node_b in edges:
+            self.add_edge(node_a, node_b, edge_type)
 
     def traversability_edges(self) -> List[Tuple[int, int]]:
         return self.get_edge_type(EdgeType.TRAVERSABILITY)
 
     def hierarchy_edges(self) -> List[Tuple[int, int]]:
         return self.get_edge_type(EdgeType.HIERARCHY)
-    
-    def get_edge_type(self, edge_type):
+
+    def get_edge_type(self, edge_type) -> List[Tuple[int, int]]:
         return [(u, v) for u, v, e in self.graph.edges(data=True) if e['edge_type'] == edge_type]
-    
+
     def get_node_level(self, level):
         return [n for n, data in self.graph.nodes(data=True) if data['node_level'] == level]
-    
+
     def to_o3d(self, level):
         nodes = self.get_node_level(level)
         nodes_geometry = [node.geometry for node in nodes]
         nodes_o3d = [geometry.to_o3d() for geometry in nodes_geometry]
-        
+
         for n in nodes_o3d:
             n.paint_uniform_color(random_color())
-        
+
         points, lines = [node.geometry.centroid() for node in nodes], []
-        for i, n in enumerate(nodes):           
-            edges_traversability = [(u, v) for u, v, e in self.graph.edges(n, data=True) if e['edge_type'] == EdgeType.TRAVERSABILITY]
-            
+        for i, n in enumerate(nodes):
+            edges_traversability = [(u, v) for u, v, e in self.graph.edges(
+                n, data=True) if e['edge_type'] == EdgeType.TRAVERSABILITY]
+
             for a, b in edges_traversability:
                 lines.append((i, nodes.index(b)))
-                
+
         line_set = o3d.geometry.LineSet()
         line_set.points = o3d.utility.Vector3dVector(points)
         line_set.lines = o3d.utility.Vector2iVector(lines)
-        
+
         spheres = []
         for p in points:
-            sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.2, resolution=10)
+            sphere = o3d.geometry.TriangleMesh.create_sphere(
+                radius=0.2, resolution=10)
             sphere = sphere.translate(p)
             sphere = sphere.compute_triangle_normals()
-            
-            sphere.paint_uniform_color([0,0,1])
+
+            sphere.paint_uniform_color([0, 0, 1])
             spheres.append(sphere)
-                        
+
         return nodes_o3d, line_set, spheres
-    
+
     def draw_graph(self, fn):
         import matplotlib.pyplot as plt
         from networkx.drawing.nx_agraph import graphviz_layout
-        
+
         plt.clf()
-        
-        hier_labels = {x: y['node_level'].name for x, y in self.graph.nodes(data=True)}
-        colors = ['r' if e['edge_type'] == EdgeType.HIERARCHY else 'b' for u, v, e in self.graph.edges(data=True)]
-        
+
+        hier_labels = {x: y['node_level'].name for x,
+                       y in self.graph.nodes(data=True)}
+        colors = ['r' if e['edge_type'] == EdgeType.HIERARCHY else 'b' for u,
+                  v, e in self.graph.edges(data=True)]
+
         pos = graphviz_layout(self.graph, "twopi", args="-Grankdir=LR")
         networkx.draw(G=self.graph,
-                    pos=pos,
-                    edge_color=colors,
-                    # labels=hier_labels,
-                    node_size=1)
+                      pos=pos,
+                      edge_color=colors,
+                      labels=hier_labels,
+                      node_size=1)
         plt.savefig(fn)
