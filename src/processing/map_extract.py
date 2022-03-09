@@ -56,7 +56,7 @@ class MapExtractionParameters:
             write_file.write(self.serialize())
 
 
-def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
+def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
     print("Extracting topological-metric map")
     # Map representation that is result of map extraction
     topometric_map = HierarchicalTopometricMap()
@@ -76,7 +76,7 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
 
     print("- Segmenting storeys")
     # Split building into multiple storeys and determine their adjacency
-    storeys, storey_adjacency = segment_storeys(floor_voxel, building_voxel_high, buffer=10)
+    storeys, storey_adjacency = segment_storeys(floor_voxel, building_voxel_high, buffer=10, height=500)
     
     # Create a node for each storey in the building and edges for
     # both hierarchy within building and traversability between storeys
@@ -92,7 +92,7 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
     print('- Estimating optimal isovist positions')
     # Attempt to find the positions in the map from which as much of the
     # the map is visible as possible.
-    isovist_positions = optimal_isovist_positions(floor_voxel, p.path_height)
+    isovist_positions = optimal_isovist_positions(floor_voxel, p.path_height, 1)
 
     print(f"- Segmenting {len(storey_nodes)} storey(s)")
     for i, storey in enumerate(storey_nodes):
@@ -146,6 +146,7 @@ def extract_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> Hier
 
             for c in room_components:
                 c.set_attr_uniform(attr=VoxelGrid.cluster_attr, val=n_cluster)
+                
                 n_cluster += 1
                 connected_clusters += c
 
@@ -267,7 +268,7 @@ def segment_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: 
     return storeys, connections
 
 
-def optimal_isovist_positions(floor: VoxelGrid, path_height: float, kernel_radius=10) -> VoxelGrid:
+def optimal_isovist_positions(floor: VoxelGrid, path_height: float, kernel_radius=7) -> VoxelGrid:
     skeleton = floor.local_distance_field_maxima(kernel_radius)  
     skeleton.origin += np.array([0, path_height, 0.])
     

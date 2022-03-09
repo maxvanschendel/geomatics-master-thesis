@@ -60,8 +60,6 @@ def z_order_curve(points: np.array) -> np.array:
     return sorted([morton_code(p) for p in points])
 
 # https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
-
-
 @jit(nopython=True)
 def aabb_inside_aabb(a, b):
     return (b[0][0] <= a[0][0] <= b[1][0] and b[1][0] >= a[1][0] >= b[0][0]) and \
@@ -69,8 +67,6 @@ def aabb_inside_aabb(a, b):
         (b[0][2] <= a[0][2] <= b[1][2] and b[1][2] >= a[1][2] >= b[0][2])
 
 # https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
-
-
 @jit(nopython=True)
 def aabb_intersects(a, b):
     return (a[0][0] <= b[1][0] and a[1][0] >= b[0][0]) and \
@@ -78,8 +74,6 @@ def aabb_intersects(a, b):
         (a[0][2] <= b[1][2] and a[1][2] >= b[0][2])
 
 # https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
-
-
 @jit(nopython=True)
 def aabb_sphere_intersects(p, r, aabb):
     # Clamp sphere center to closest point on box
@@ -92,8 +86,6 @@ def aabb_sphere_intersects(p, r, aabb):
     return dist < r
 
 # https://geidav.wordpress.com/2014/08/18/advanced-octrees-2-node-representations/
-
-
 @dataclass
 class OctreeNode:
     morton: int                        # Morton code of node center
@@ -103,11 +95,10 @@ class OctreeNode:
 
     def __post_init__(self):
         center = self.center()
-        self.aabb = np.vstack(
-            [center - self.half_width, center + self.half_width])
+        self.aabb = np.vstack([center - self.half_width, center + self.half_width])
 
     def center(self):
-        return decode_morton(self.morton) * (self.half_width*2)
+        return (decode_morton(self.morton) * (self.half_width*2)) + self.half_width
 
     def occupied_children(self):
         return (c for c in self.children if c is not None)
@@ -169,6 +160,11 @@ class SVO:
 
     @staticmethod
     def from_voxels(voxels, half_width):
+        if not voxels:
+            raise ValueError("Can't create octree from 0 voxels.")
+        if half_width == 0:
+            raise ValueError("Voxel half width must be greater than 0.")
+        
         z_order = z_order_curve(voxels)
         nodes = [OctreeNode(z, half_width, tuple([None]*8), leaf=True)
                  for z in z_order]
