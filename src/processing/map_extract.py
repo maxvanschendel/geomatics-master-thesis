@@ -11,7 +11,10 @@ from yaml import dump, load
 
 from analysis.visualizer import MapViz, Viz
 from misc.helpers import random_color
-from model.map_representation import *
+
+from model.topometric_map import *
+from model.voxel_grid import *
+from model.spatial_graph import *
 
 @dataclass(frozen=True)
 class MapExtractionParameters:
@@ -264,19 +267,8 @@ def segment_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: 
     return storeys, connections
 
 
-def optimal_isovist_positions(floor: VoxelGrid, path_height: float) -> VoxelGrid:
-    """_summary_
-
-    Args:
-        traversable_volume (SpatialGraphRepresentation): _description_
-        n_target (int): _description_
-        betweenness_threshold (float): _description_
-
-    Returns:
-        VoxelRepresentation: _description_
-    """
-    
-    skeleton = floor.local_distance_field_maxima()  
+def optimal_isovist_positions(floor: VoxelGrid, path_height: float, kernel_radius=10) -> VoxelGrid:
+    skeleton = floor.local_distance_field_maxima(kernel_radius)  
     skeleton.origin += np.array([0, path_height, 0.])
     
     return skeleton
@@ -304,7 +296,7 @@ def mutual_visibility_graph(isovists) -> np.array:
     pairs = combinations(range(n_isovist), r=2)
     for i, j in pairs:
         if len(isovists[i].voxels) and len(isovists[j].voxels):
-            overlap = len(isovists[i].boolean_intersect(
+            overlap = len(isovists[i].intersect(
                 isovists[j])) / min([len(isovists[j].voxels), len(isovists[i].voxels)])
 
             distance_matrix[i][j] = 1 - overlap
@@ -381,8 +373,6 @@ def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clusterin
                 map_segmented[v][VoxelGrid.cluster_attr] = most_common_cluster[0]
 
     clustered_map = map_segmented.subset(lambda v: VoxelGrid.cluster_attr in map_segmented[v])
-    clustered_map.remove_attr('clusters')
-
     return clustered_map
 
 

@@ -1,4 +1,4 @@
-from model.map_representation import PointCloud
+from model.point_cloud import PointCloud
 from processing.map_extract import *
 from processing.map_merge import *
 from processing.pre_process import *
@@ -20,7 +20,7 @@ map_extract_parameters = MapExtractionParameters(
 
     # Isovists
     path_height=1.5,
-    isovist_subsample=.3,
+    isovist_subsample=1,
     isovist_range=3,
 
     # Room segmentation

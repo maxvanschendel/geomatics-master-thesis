@@ -3,7 +3,9 @@ from dataclasses import dataclass
 from yaml import load, dump
 
 import numpy as np
-from model.map_representation import *
+from model.topometric_map import *
+from model.point_cloud import *
+from model.voxel_grid import *
 
 
 class PreProcessingParametersException(Exception):
