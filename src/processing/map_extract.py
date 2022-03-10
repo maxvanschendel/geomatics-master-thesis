@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 from collections import Counter
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import List
-
 import numpy as np
 import skopt
 from yaml import dump, load
 
 from analysis.visualizer import MapViz, Viz
-from misc.helpers import random_color
-
 from model.topometric_map import *
 from model.voxel_grid import *
 from model.spatial_graph import *
@@ -36,11 +32,6 @@ class MapExtractionParameters:
     weight_threshold: float
     min_inflation: float
     max_inflation: float
-
-    label_prop_max_its: int
-
-    def __post_init__(self):
-        pass
 
     @staticmethod
     def deserialize(data: str) -> MapExtractionParameters:
@@ -138,7 +129,6 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
         prop_kernel = Kernel.sphere(r=4)
         map_rooms = map_rooms.propagate_attr(
             attr=VoxelGrid.cluster_attr,
-            max_iterations=p.label_prop_max_its,
             prop_kernel=prop_kernel)
 
         map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
@@ -223,7 +213,7 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
     dilation_kernel = Kernel.cylinder(1, 1 + int(6 // (voxel_size / kernel_scale)))
     traversable_volume_voxel = floor_voxel_map.dilate(dilation_kernel)
     traversable_volume_voxel = traversable_volume_voxel.dilate(Kernel.nb4())
-    traversable_volume_graph = traversable_volume_voxel.to_graph()
+    traversable_volume_graph = traversable_volume_voxel.to_graph(Kernel.nb6())
 
     # Find largest connected component of traversable volume
     components = traversable_volume_graph.connected_components()

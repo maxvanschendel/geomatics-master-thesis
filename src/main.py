@@ -28,8 +28,7 @@ map_extract_parameters = MapExtractionParameters(
     # Room segmentation
     min_inflation=1.1,
     max_inflation=2,
-    weight_threshold=0.2,       # Lower values lead to oversegmentation, higher to undersegmentation
-    label_prop_max_its=250,     
+    weight_threshold=0.2,       # Lower values lead to oversegmentation, higher to undersegmentation    
 )
 
 if __name__ == "__main__":
