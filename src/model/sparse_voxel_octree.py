@@ -69,9 +69,9 @@ def aabb_inside_aabb(a, b):
 # https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
 @jit(nopython=True)
 def aabb_intersects(a, b):
-    return (a[0][0] <= b[1][0] and a[1][0] >= b[0][0]) and \
-        (a[0][1] <= b[1][1] and a[1][1] >= b[0][1]) and \
-        (a[0][2] <= b[1][2] and a[1][2] >= b[0][2])
+    return  (a[0][0] <= b[1][0] and a[1][0] >= b[0][0]) and \
+            (a[0][1] <= b[1][1] and a[1][1] >= b[0][1]) and \
+            (a[0][2] <= b[1][2] and a[1][2] >= b[0][2])
 
 # https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
 @jit(nopython=True)
@@ -94,14 +94,14 @@ class OctreeNode:
     leaf: bool = False
 
     def __post_init__(self):
-        center = self.center()
-        self.aabb = np.vstack([center - self.half_width, center + self.half_width])
+        self.center = self.center()
+        self.aabb = np.vstack([self.center - self.half_width, self.center + self.half_width])
 
     def center(self):
         return (decode_morton(self.morton) * (self.half_width*2)) + self.half_width
 
     def occupied_children(self):
-        return (c for c in self.children if c is not None)
+        return [c for c in self.children if c is not None]
 
     def octant(self, p):
         oct = 0
@@ -114,6 +114,15 @@ class OctreeNode:
         if p[2] >= center[2]:
             oct |= 1
         return oct
+    
+    def depth(self):
+        cur = self
+        i = 0
+        while not cur.leaf:
+            cur = cur.occupied_children()[0]
+            i+=1
+            
+        return i
 
     def get_children_recursive(n: OctreeNode, leaf: Set[int]):
         if n.leaf:
@@ -131,6 +140,9 @@ class OctreeNode:
 class SVO:
     root: OctreeNode
     nodes: List[OctreeNode]
+    
+    def max_depth(self):
+        return self.root.depth()
 
     @staticmethod
     def merge_octants(nodes: List[OctreeNode]):
@@ -183,11 +195,12 @@ class SVO:
             return voxels.add(o.morton)
 
         for child in o.occupied_children():
-            if aabb_inside_aabb(child.aabb, aabb):
+            if aabb_intersects(child.aabb, aabb):
+                SVO.recursive_range_search(aabb, child, voxels)
+            elif aabb_inside_aabb(child.aabb, aabb):
                 leaf_nodes = child.leaf_nodes()
                 voxels.update(leaf_nodes)
-            elif aabb_intersects(child.aabb, aabb):
-                SVO.recursive_range_search(aabb, child, voxels)
+                    
 
         return voxels
 

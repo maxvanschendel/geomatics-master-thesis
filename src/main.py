@@ -12,14 +12,16 @@ preprocess_parameters = PreProcessingParameters(
 
 map_extract_parameters = MapExtractionParameters(
     # Voxelization
-    voxel_size_high=0.1,
-    voxel_size_low=0.2,
+    leaf_voxel_size=0.1,
+    traversability_lod=0,
+    segmentation_lod=1,
 
     # Traversability
-    kernel_scale=0.1,
+    kernel_scale=0.05,
 
     # Isovists
-    path_height=1.5,
+    isovist_height=1.5,
+    isovist_spacing=1,
     isovist_subsample=1,
     isovist_range=3,
 
