@@ -10,15 +10,15 @@ from numba import jit
 def get_nbs(voxel_index, connectivity):
     nbs_i = connectivity[voxel_index]
     nbs_i = nbs_i[nbs_i != -1]
-    # nbs_i = nbs_i[np.where(nbs_i != -1)] # This option is 1.5x slower
 
     return nbs_i
 
-# Largely based on https://stackoverflow.com/a/18528775
-
-
 @jit(nopython=True, parallel=True)
 def part_64(x: int) -> int:
+    """
+    Largely based on https://stackoverflow.com/a/18528775
+    """
+    
     x &= 0x1fffff
     x = (x | x << 32) & 0x1f00000000ffff
     x = (x | x << 16) & 0x1f0000ff0000ff
@@ -31,6 +31,10 @@ def part_64(x: int) -> int:
 
 @jit(nopython=True, parallel=True)
 def unpart_64(x: int) -> int:
+    """
+    Largely based on https://stackoverflow.com/a/18528775
+    """
+    
     x &= 0x1249249249249249
     x = (x ^ (x >> 2)) & 0x10c30c30c30c30c3
     x = (x ^ (x >> 4)) & 0x100f00f00f00f00f
@@ -39,7 +43,6 @@ def unpart_64(x: int) -> int:
     x = (x ^ (x >> 32)) & 0x1fffff
 
     return x
-
 
 @jit(nopython=True, parallel=True)
 def interleave(x: int, y: int, z: int) -> int:
@@ -50,14 +53,15 @@ def interleave(x: int, y: int, z: int) -> int:
 def decode_morton(x):
     return np.array([unpart_64(x), unpart_64(x >> 1), unpart_64(x >> 2)])
 
-
 @jit(nopython=True, parallel=True)
 def morton_code(p) -> int:
     return interleave(part_64(p[0]), part_64(p[1]), part_64(p[2]))
 
-
 def z_order_curve(points: np.array) -> np.array:
     return sorted([morton_code(p) for p in points])
+
+def decode_z_order_curve(z_order: List[int]):
+    return np.array([decode_morton(z) for z in z_order])
 
 # https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
 @jit(nopython=True)
@@ -145,7 +149,7 @@ class SVO:
         return self.root.depth()
 
     @staticmethod
-    def merge_octants(nodes: List[OctreeNode]):
+    def merge_octants(nodes: List[OctreeNode]) -> List[OctreeNode]:
         parent_morton = nodes[0].morton // 8
         parent_half_width = nodes[0].half_width * 2
         parent_nodes = []
@@ -171,15 +175,14 @@ class SVO:
         return parent_nodes
 
     @staticmethod
-    def from_voxels(voxels, half_width):
+    def from_voxels(voxels: np.array, half_width: float) -> SVO:
         if not voxels:
             raise ValueError("Can't create octree from 0 voxels.")
         if half_width == 0:
             raise ValueError("Voxel half width must be greater than 0.")
         
         z_order = z_order_curve(voxels)
-        nodes = [OctreeNode(z, half_width, tuple([None]*8), leaf=True)
-                 for z in z_order]
+        nodes = [OctreeNode(z, half_width, tuple([None]*8), leaf=True) for z in z_order]
 
         parent_nodes = SVO.merge_octants(nodes)
         while len(parent_nodes) > 1:
@@ -200,8 +203,6 @@ class SVO:
             elif aabb_inside_aabb(child.aabb, aabb):
                 leaf_nodes = child.leaf_nodes()
                 voxels.update(leaf_nodes)
-                    
-
         return voxels
 
     @staticmethod
@@ -215,23 +216,30 @@ class SVO:
 
         return voxels
 
-    def range_search(self, aabb):
-        return SVO.recursive_range_search(aabb, self.root, set())
+    def range_search(self, aabb: np.array) -> np.array:
+        range_morton = SVO.recursive_range_search(aabb, self.root, set())
+        range_voxel = decode_z_order_curve(range_morton)
+        
+        return range_voxel
 
-    def radius_search(self, p, r):
-        return SVO.recursive_radius_search(p, r, self.root, set())
+    def radius_search(self, p: np.array, r: float) -> np.array:
+        radius_morton = SVO.recursive_radius_search(p, r, self.root, set())
+        radius_voxel = decode_z_order_curve(radius_morton)
+        
+        return radius_voxel
 
-    def get_depth(self, depth: int) -> List[Tuple[int, int, int]]:
-        current_level = [self.root]
+    def get_depth(self, depth: int) -> np.array:
+        if depth > self.max_depth():
+            raise ValueError("Depth argument must be smaller than or equal to the max depth.")
+            
+        cur_level = [self.root]
         for _ in range(0, depth):
-            current_level = [
-                n_c for node in current_level for n_c in node.children if n_c is not None]
-            if not current_level:
-                raise ValueError(
-                    "Depth argument must be less deep than leaf depth")
+            # Get all children of all nodes in current level that are not none
+            cur_level = [child for node in cur_level 
+                         for child in node.children 
+                         if child is not None]
 
-        return {z.morton: i for i, z in enumerate(current_level)}
-
+        return np.array([decode_morton(z.morton) for z in cur_level])
 
 def benchmark():
     from time import perf_counter

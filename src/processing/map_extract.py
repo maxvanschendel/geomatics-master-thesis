@@ -95,18 +95,15 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
         print(f"- Segmenting storey {i+1}/{len(storey_nodes)}")
 
         print(f'    - Voxelizing storey at LoD{p.segmentation_lod} ')
-        storey_geometry_low = storey.geometry.level_of_detail(p.segmentation_lod)
-
-        storey_centroids = storey_geometry_low.voxel_centroids()
-        min_bbox, max_bbox = storey_centroids.min(axis=0), storey_centroids.max(axis=0)
+        storey_geometry = storey.geometry.level_of_detail(p.segmentation_lod)
 
         print(f'    - Casting isovists')
-        origins = isovist_positions.voxel_centroids()
-        origins = list(filter(lambda o: np.all(np.greater(o, min_bbox)) and np.all(np.less(o, max_bbox)), origins))
+        origin_voxels = isovist_positions.range_search(storey_geometry.bbox())
+        origins = [isovist_positions.voxel_centroid(v) for v in origin_voxels]
 
         isovists = cast_isovists(
             origins=origins,
-            map_voxel=storey_geometry_low,
+            map_voxel=storey_geometry,
             subsample=p.isovist_subsample,
             max_dist=p.isovist_range)
 
@@ -122,7 +119,7 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
         print(f"    - Segmenting rooms")
         map_rooms = room_segmentation(
             isovists=isovists,
-            map_voxel=storey_geometry_low,
+            map_voxel=storey_geometry,
             clustering=clustering)
 
         print(f"    - Propagating labels")
@@ -235,7 +232,6 @@ def segment_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: 
         
         for vox in voxel_grid.filter(lambda v: peak - buffer <= v[1] < next_peak + buffer):
             voxel_grid[vox]['storey'] = i
-            
             if vox in floor_voxel_grid:
                 voxel_grid[vox]['stairs'] = abs(vox[1] - (peak - buffer)) > 5
 
@@ -377,7 +373,7 @@ def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floo
         cluster_voxels = list(map_segmented.get_attr(
             VoxelGrid.cluster_attr, cluster))
         voxel_coordinates = [
-            map_segmented.voxel_coordinates(v) for v in cluster_voxels]
+            map_segmented.voxel_centroid(v) for v in cluster_voxels]
 
         if voxel_coordinates:
             voxel_centroid = np.mean(voxel_coordinates, axis=0)
@@ -394,14 +390,14 @@ def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floo
         VoxelGrid.cluster_attr, kernel)
 
     for v in cluster_borders.voxels:
-        if floor_voxels.contains_point(cluster_borders.voxel_coordinates(v)):
+        if floor_voxels.contains_point(cluster_borders.voxel_centroid(v)):
             v_cluster = cluster_borders[v][VoxelGrid.cluster_attr]
             v_node = [x for x, y in G.nodes(
                 data=True) if y[VoxelGrid.cluster_attr] == v_cluster][0]
 
             v_nbs = cluster_borders.get_kernel(v, kernel)
             for v_nb in v_nbs:
-                if floor_voxels.contains_point(cluster_borders.voxel_coordinates(v_nb)):
+                if floor_voxels.contains_point(cluster_borders.voxel_centroid(v_nb)):
                     v_nb_cluster = cluster_borders[v_nb][VoxelGrid.cluster_attr]
                     v_nb_node = [x for x, y in G.nodes(
                         data=True) if y[VoxelGrid.cluster_attr] == v_nb_cluster][0]

@@ -20,6 +20,7 @@ from model.spatial_graph import *
 
 filterwarnings('ignore')
 
+
 class VoxelGrid:
     cluster_attr: str = 'cluster'
     color_attr: str = 'color'
@@ -45,8 +46,7 @@ class VoxelGrid:
 
     def level_of_detail(self, level):
         lod_voxels = self.svo.get_depth(self.svo.max_depth() - level)
-        lod_geometry = VoxelGrid(self.shape, self.cell_size * (2**level), self.origin,
-                                 {tuple(decode_morton(v)): {} for v in lod_voxels})
+        lod_geometry = VoxelGrid(self.shape, self.cell_size * (2**level), self.origin,{tuple(v): {} for v in lod_voxels})
         return lod_geometry
 
     def __getitem__(self, key: Tuple[int, int, int]) -> Dict[str, object]:
@@ -74,7 +74,7 @@ class VoxelGrid:
         return filter(lambda v: func(v, **kwargs), self.voxels)
 
     def voxel_centroids(self) -> np.array:
-        return np.array(list(self.map(self.voxel_coordinates)))
+        return np.array(list(self.map(self.voxel_centroid)))
 
     def get_voxel(self, p: np.array) -> Tuple[int, int, int]:
         return tuple(((p-self.origin) // self.cell_size).astype(int))
@@ -109,12 +109,10 @@ class VoxelGrid:
 
     def list_attr(self, attr):
         voxels_with_attr = self.filter(lambda vox: attr in self.voxels[vox])
-        
         return map(lambda vox: self.voxels[vox][attr], voxels_with_attr)
 
     def unique_attr(self, attr):
         attributes = list(self.list_attr(attr))
-        
         return np.unique(attributes)
 
     def kernel_attr(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str):
@@ -129,54 +127,53 @@ class VoxelGrid:
 
         return most_common_attr
 
+    def to_2d_array(self):
+        arr = np.zeros(shape=(len(self.voxels), 3), dtype=np.int32)
+        for i, k in enumerate(self.voxels):
+            arr[i] = k
+        return arr
+
+    def to_3d_array(self, attr=None):
+        voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
+        for v in self.voxels:
+            voxel_matrix[v] = self[v][attr] if attr else 1
+        return voxel_matrix
+
     def propagate_attr(self, attr: str, prop_kernel: VoxelGrid) -> VoxelGrid:
         prop_map = self.clone()
-        unique_attributes = self.unique_attr(attr)
+        unique_attr = self.unique_attr(attr)
+        
+        kernel_voxels = cuda.to_device(prop_kernel.to_2d_array())
+        origin_voxels = cuda.to_device(self.to_2d_array())
 
         # Get most common label of 6-neighbourhood of voxel
         # Assign most common label to voxel in propagated map
-        while True:
+        propagating = True
+        while propagating:
             prev_map = prop_map.clone()
 
             # Allocate memory on the device for the result
             max_nb = np.zeros(shape=(len(self.voxels), 1), dtype=np.int32)
-
-            voxel_matrix = np.full(self.shape.astype(int)+1, -1, dtype=np.int8)
+            nbs_occurences = np.zeros(shape=(len(self.voxels), len(unique_attr)), dtype=np.int32)
+        
+            voxel_matrix = np.full(self.shape.astype(int)+1, -1, dtype=np.int32)
             for v in self.voxels:
                 voxel_matrix[v] = int(prev_map.voxels[v][attr])
 
-            kernel_voxels = np.zeros(
-                shape=(len(prop_kernel.voxels), 3), dtype=np.int32)
-            for i, k in enumerate(prop_kernel.voxels):
-                kernel_voxels[i][0] = k[0]
-                kernel_voxels[i][1] = k[1]
-                kernel_voxels[i][2] = k[2]
-
-            origin_voxels = np.zeros(
-                shape=(len(self.voxels), 3), dtype=np.int32)
-            for i, k in enumerate(self.voxels):
-                origin_voxels[i][0] = k[0]
-                origin_voxels[i][1] = k[1]
-                origin_voxels[i][2] = k[2]
-
-            nbs_occurences = np.zeros(
-                shape=(len(self.voxels), len(unique_attributes)), dtype=np.int32)
-            n_vals = len(unique_attributes)
-
             threadsperblock = 512
-
-            blockspergrid = (len(self.voxels)) // threadsperblock
+            blockspergrid = (len(self.voxels) // threadsperblock) + 1
             VoxelGrid.convolve_most_common_nb_gpu[blockspergrid, threadsperblock](
-                voxel_matrix, origin_voxels, kernel_voxels, nbs_occurences, n_vals, max_nb)
-
+                voxel_matrix, origin_voxels, kernel_voxels, nbs_occurences, len(unique_attr), max_nb)          
+            
             for i, label in enumerate(max_nb):
                 prop_map[tuple(origin_voxels[i])][attr] = label
-
+            
             # Stop propagation once it fails to make a change
-            if prev_map.voxels == prop_map.voxels:
-                break
+            propagating = prev_map.voxels != prop_map.voxels
 
         return prop_map
+
+
 
     def attr_borders(self, attr, kernel) -> VoxelGrid:
         border_voxels = set()
@@ -210,11 +207,18 @@ class VoxelGrid:
         return new_shape
 
     def centroid(self) -> np.array:
-        return np.mean([self.voxel_coordinates(v) for v in self.voxels], axis=0)
+        return np.mean([self.voxel_centroid(v) for v in self.voxels], axis=0)
 
-    def voxel_coordinates(self, voxel: Tuple[int, int, int]) -> np.array:
+    def voxel_centroid(self, voxel: Tuple[int, int, int]) -> np.array:
         return self.origin + voxel * self.cell_size + 0.5 * self.cell_size
-
+    
+    def bbox(self):
+        centroids = self.voxel_centroids()
+        min_bbox, max_bbox = centroids.min(axis=0), centroids.max(axis=0)
+        
+        return np.array([min_bbox, max_bbox])
+        
+        
     def get_kernel(self, voxel: Tuple[int, int, int], kernel: VoxelGrid):
         kernel_cells = []
         for k in kernel.voxels:
@@ -223,6 +227,14 @@ class VoxelGrid:
                 kernel_cells.append(nb)
 
         return kernel_cells
+    
+    def radius_search(self, p: np.array, r: float) -> List[Tuple[int, int, int]]:
+        radius_morton = self.svo.radius_search(p - self.origin, r)
+        return [tuple(v) for v in radius_morton]
+    
+    def range_search(self, aabb: np.array) -> List[Tuple[int, int, int]]:
+        range_morton = self.svo.range_search(aabb - self.origin)
+        return [tuple(v) for v in range_morton]
 
     def connected_components(self, kernel) -> List[VoxelGrid]:
         graph_representation = self.to_graph(kernel)
@@ -247,7 +259,7 @@ class VoxelGrid:
         for nb in kernel:
             if voxels[
                 cur_vox[0] + nb[0], cur_vox[1] + nb[1], cur_vox[2] + nb[2]
-                ] == 1:
+            ] == 1:
 
                 conv_voxels[pos] = 1
                 break
@@ -258,10 +270,9 @@ class VoxelGrid:
         cur_vox = origin_voxels[pos]
 
         for nb in kernel:
-            nb_val = voxels[
-                        cur_vox[0] + nb[0], cur_vox[1] + nb[1], cur_vox[2] + nb[2]
-                        ]
-
+            nb_val = voxels[cur_vox[0]+nb[0],
+                            cur_vox[1]+nb[1], 
+                            cur_vox[2]+nb[2]]
             if nb_val != -1:
                 nbs_occurences[pos][nb_val] += 1
 
@@ -273,37 +284,30 @@ class VoxelGrid:
 
         max_occurences[pos] = max_val
 
+    def mutate_voxels(self, voxels):
+        return VoxelGrid(deepcopy(self.shape),
+                         deepcopy(self.cell_size),
+                         deepcopy(self.origin),
+                         voxels)
+
     def filter_gpu_kernel_nbs(self, kernel):
         # Allocate memory on the device for the result
         result_voxels = np.zeros(shape=(len(self.voxels), 1), dtype=np.int32)
-        voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
-        for v in self.voxels:
-            voxel_matrix[v] = 1
 
-        kernel_voxels = np.zeros(shape=(len(kernel.voxels), 3), dtype=np.int32)
-        for i, k in enumerate(kernel.voxels):
-            kernel_voxels[i][0] = k[0]
-            kernel_voxels[i][1] = k[1]
-            kernel_voxels[i][2] = k[2]
+        voxel_matrix = cuda.to_device(self.to_3d_array())
+        occupied_voxels = cuda.to_device(self.to_2d_array())
+        kernel_voxels = cuda.to_device(kernel.to_2d_array())
 
-        occupied_voxels = np.zeros(shape=(len(self.voxels), 3), dtype=np.int32)
-        for i, k in enumerate(self.voxels):
-            occupied_voxels[i][0] = k[0]
-            occupied_voxels[i][1] = k[1]
-            occupied_voxels[i][2] = k[2]
-
-        threadsperblock = 512
+        threadsperblock = 1024
         blockspergrid = (len(self.voxels) +
                          (threadsperblock - 1)) // threadsperblock
         VoxelGrid.convolve_has_nbs_gpu[blockspergrid, threadsperblock](
             voxel_matrix, occupied_voxels, kernel_voxels, result_voxels)
 
-        nb_voxels = []
-        for i, occ in enumerate(result_voxels):
-            if not occ[0]:
-                nb_voxels.append(tuple(occupied_voxels[i]))
+        nb_voxels = [occupied_voxels[v] for (v, occ) in enumerate(result_voxels) if not occ[0]]
+        nb_voxels = [tuple(v) for v in nb_voxels]
 
-        return VoxelGrid(self.shape, self.cell_size, self.origin, {v: self.voxels[v] for v in nb_voxels})
+        return self.mutate_voxels({v: self.voxels[v] for v in nb_voxels})
 
     def dilate(self, kernel) -> VoxelGrid:
         dilated_voxels = set(self.voxels.keys())
@@ -327,30 +331,24 @@ class VoxelGrid:
         translated_map.shape = translated_map.extents()
 
         return translated_map
+    
+
 
     def visibility(self, origin: np.array, max_dist: float) -> VoxelGrid:
         # Get all voxels within range (max_dist) of the isovist
         # For each voxel within range, get a vector pointing from origin to the voxel
-        candidate_voxels = np.array(
-            [self.voxel_coordinates(v) for v in self.voxels])
-        candidate_directions = candidate_voxels - origin
-        range_filter = np.linalg.norm(candidate_directions, axis=1) <= max_dist
-        directions = candidate_directions[range_filter]
+        radius_voxels = self.radius_search(origin, max_dist)
+        if not len(radius_voxels):
+            return self.mutate_voxels({})
+        directions = [self.voxel_centroid(v) for v in radius_voxels] - origin
 
-        # If no voxels are within range return an empty isovist
-        if len(directions) == 0:
-            return VoxelGrid(shape=self.shape, cell_size=self.cell_size, origin=self.origin)
-
-        # Construct a 3D matrix where occupied voxels are 1 and unoccupied are 0
         # This matrix is used by the GPU to quickly find occupied voxels at the cost of memory
-        voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
-        for v in self.voxels:
-            voxel_matrix[v] = 1
+        voxel_matrix = self.to_3d_array()
 
         # Allocate memory on the device for the intersection results
         intersections = np.zeros(shape=(len(directions), 3), dtype=np.int32)
-        bbox = np.array([self.origin, self.origin + (self.cell_size * self.shape)], dtype=np.float)
-
+        bbox = np.array([self.origin, self.origin + (self.cell_size * self.shape)])
+        
         # Cast isovists on GPU
         threadsperblock = 512
         blockspergrid = (len(directions) // threadsperblock) + 1
@@ -367,15 +365,6 @@ class VoxelGrid:
         """
         "Fast" voxel traversal, based on Amanitides & Woo (1987)
         Terminates when first voxel has been found
-
-        Args:
-            point (_type_): _description_
-            directions (_type_): _description_
-            bbox (_type_): _description_
-            cell_size (_type_): _description_
-            voxels (_type_): _description_
-            intersections (_type_): _description_
-            max_dist (_type_): _description_
         """
 
         pos = cuda.grid(1)
@@ -407,7 +396,7 @@ class VoxelGrid:
         cur_vox_z = int((cur_pos[2] - min_bbox[2]) // cell_size[2])
 
         i = 0
-        while ( min_bbox[0] <= cur_pos[0] <= max_bbox[0] and
+        while (min_bbox[0] <= cur_pos[0] <= max_bbox[0] and
                 min_bbox[1] <= cur_pos[1] <= max_bbox[1] and
                 min_bbox[2] <= cur_pos[2] <= max_bbox[2]):
 
@@ -473,7 +462,7 @@ class VoxelGrid:
         for k in axis_occurences.keys():
             x[k] = axis_occurences[k]
         peaks, _ = find_peaks(np.array(x), height=height)
-        
+
         return peaks
 
     def distance_field(self) -> np.array:
@@ -485,23 +474,20 @@ class VoxelGrid:
                 i += 1
                 kernel = Kernel.circle(r=i)
             hipf.append(i)
-            
+
         return np.array(hipf)
 
     def local_distance_field_maxima(self, radius) -> VoxelGrid:
         df = self.distance_field()
-        distance_field = {morton_code(v): d for d, v in zip(df, list(self.voxels))}
+        distance_field = {v: d for d, v in zip(df, list(self.voxels))}
 
         local_maxima = set()
         for vx, vx_dist in distance_field.items():
-            vx_cell = tuple(decode_morton(vx))
-            vx_coords = self.voxel_coordinates(vx_cell) - self.origin
-
-            vx_nbs = self.svo.radius_search(vx_coords, radius)
+            vx_nbs = self.radius_search(self.voxel_centroid(vx), radius)
             vx_nbs_dist = [distance_field[nb] for nb in vx_nbs]
 
             if vx_dist >= max(vx_nbs_dist):
-                local_maxima.add(vx_cell)
+                local_maxima.add(vx)
 
         return self.subset(lambda v: v in local_maxima)
 
@@ -509,8 +495,9 @@ class VoxelGrid:
         return self.to_pcd(has_color).to_o3d()
 
     def to_pcd(self, color=False) -> model.point_cloud.PointCloud:
-        points = [self.voxel_coordinates(v) for v in self.voxels]
-        colors = [self.voxels[v][VoxelGrid.color_attr] for v in self.voxels] if color else []
+        points = [self.voxel_centroid(v) for v in self.voxels]
+        colors = [self.voxels[v][VoxelGrid.color_attr]
+                  for v in self.voxels] if color else []
 
         return model.point_cloud.PointCloud(np.array(points), colors=colors, source=self)
 
@@ -524,8 +511,8 @@ class VoxelGrid:
                 graph.add_edge(*(v, nb))
             for attr in self.voxels[v]:
                 graph.nodes[v][attr] = self.voxels[v][attr]
-                
-            graph.nodes[v]['pos'] = self.voxel_coordinates(v)
+
+            graph.nodes[v]['pos'] = self.voxel_centroid(v)
 
         return SpatialGraph(self.cell_size, self.origin, graph)
 
@@ -581,7 +568,7 @@ class Kernel(VoxelGrid):
 
     @staticmethod
     def stick_kernel(scale):
-        a_height, a_width = int(15 // scale), 1  + int(5 // scale)
+        a_height, a_width = int(15 // scale), 1 + int(5 // scale)
         b_height, b_width = int(5 // scale), 1
 
         kernel_a = Kernel.cylinder(a_width, a_height).translate(
