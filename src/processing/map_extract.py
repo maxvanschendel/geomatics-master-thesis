@@ -314,8 +314,7 @@ def cluster_graph(distance_matrix, weight_threshold: float, min_inflation: float
 
     G = networkx.convert.to_networkx_graph(distance_matrix)
     edge_weights = networkx.get_edge_attributes(G, 'weight')
-    G.remove_edges_from(
-        (e for e, w in edge_weights.items() if w > weight_threshold))
+    G.remove_edges_from((e for e, w in edge_weights.items() if w > weight_threshold))
     matrix = networkx.to_scipy_sparse_matrix(G)
 
     SPACE = [skopt.space.Real(
@@ -330,7 +329,7 @@ def cluster_graph(distance_matrix, weight_threshold: float, min_inflation: float
         return 1-Q
 
     optimized_parameters = skopt.forest_minimize(
-        markov_cluster, SPACE, n_calls=15, n_random_starts=10, n_jobs=-1).x
+        markov_cluster, SPACE, n_calls=10, n_random_starts=10, n_jobs=-1).x
     result = mc.run_mcl(matrix, inflation=optimized_parameters[0])
     clusters = mc.get_clusters(result)
 
