@@ -1,6 +1,0 @@
-Traditionally, most approaches for room segmentation has focused on segmenting 2D maps. Bormann et al. (2016) gives an overview of 2D room segmentation aproaches and compares their effectiveness. They divide the approaches into three categories: mathematical morphology-based, feature-based and Voronoi graph-based. 
-
-
-Pintore et al (2020) reviews the state-of-the art of 3D reconstruction of structured indoor environments. 
-
-Ochmann et al (2019) uses visibility.

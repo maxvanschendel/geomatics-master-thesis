@@ -35,12 +35,13 @@ class VoxelGrid:
         self.cell_size = cell_size
         self.origin = origin
         self.voxels = voxels if voxels is not None else {}
-        self.size = len(voxels)
-
-        if self.size:
+        
+        if self.voxels:
+            self.size = len(voxels)
             self.svo = SVO.from_voxels(self.voxels.keys(), self.cell_size[0]/2)
         else:
-            self.svo = None
+            self.size = 0
+            self.svo = None            
 
     def clone(self) -> VoxelGrid:
         return deepcopy(self)
@@ -239,17 +240,9 @@ class VoxelGrid:
     def connected_components(self, kernel) -> List[VoxelGrid]:
         graph_representation = self.to_graph(kernel)
         components = graph_representation.connected_components()
+        components_voxel = [self.subset(lambda v: v in c) for c in components]
 
-        comps = []
-        for c in components:
-            component = SpatialGraph(
-                graph_representation.scale,
-                graph_representation.origin,
-                graph_representation.graph.subgraph(c))
-            component_voxel = component.to_voxel()
-            comps.append(component_voxel)
-
-        return comps
+        return components_voxel
 
     @cuda.jit
     def convolve_has_nbs_gpu(voxels, occupied_voxels, kernel, conv_voxels):
@@ -491,7 +484,9 @@ class VoxelGrid:
         return self.subset(lambda v: v in local_maxima)
 
     def to_o3d(self, has_color=False):
-        return self.to_pcd(has_color).to_o3d()
+        pcd = self.to_pcd(has_color).to_o3d()
+        vg = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, self.cell_size[0])
+        return vg
 
     def to_pcd(self, color=False) -> model.point_cloud.PointCloud:
         points = [self.voxel_centroid(v) for v in self.voxels]

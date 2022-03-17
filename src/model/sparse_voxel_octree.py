@@ -2,8 +2,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Tuple, Set
 import numpy as np
-
-
 from numba import jit
 
 
@@ -245,16 +243,37 @@ def benchmark():
     from time import perf_counter
     from sys import getsizeof
     from itertools import product
-    from model.topometric_map import PointCloud
+    from model.point_cloud import PointCloud
+    import open3d as o3d
 
-    cell_size = 0.05
+    cell_size = 0.1
     depth = 9
 
     # Prepare input data for benchmark
     map_cloud = PointCloud.read_ply(
-        "./data/meshes/diningroom2kitchen - low.ply")
+        "./data/meshes/diningroom2kitchen.ply")
+    map_cloud = map_cloud.scale([1,-1,1])
+    
+    lod = 1
     leaf_voxels = map_cloud.voxelize(cell_size)
+    leaf_voxels = leaf_voxels.level_of_detail(lod)
+    
+    leaf_voxels_pcd = leaf_voxels.to_o3d()
+    leaf_voxels_pcd.estimate_normals()
 
+    color = leaf_voxels_pcd.normals
+    y_axis = np.abs(np.dot(color, [0,1,0]))
+    y_axis = (y_axis - min(y_axis)) / max(y_axis)
+
+    color = np.vstack((y_axis, y_axis, y_axis))
+    color = np.transpose(color)
+    
+
+    leaf_voxels_pcd.colors = o3d.utility.Vector3dVector(color-0.1)
+    vg = o3d.geometry.VoxelGrid.create_from_point_cloud(leaf_voxels_pcd, cell_size * (2**lod))
+    o3d.visualization.draw_geometries([vg])
+    
+    
     print("Starting benchmark...")
 
     # Construct a sparse voxel octree from leaf voxels

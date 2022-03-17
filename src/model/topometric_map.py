@@ -72,10 +72,11 @@ class HierarchicalTopometricMap():
     def to_o3d(self, level):
         nodes = self.get_node_level(level)
         nodes_geometry = [node.geometry for node in nodes]
-        nodes_o3d = [geometry.to_o3d() for geometry in nodes_geometry]
+        nodes_o3d = [geometry.to_pcd(color=True).to_o3d() for geometry in nodes_geometry]
 
         for n in nodes_o3d:
             n.paint_uniform_color(random_color())
+        nodes_o3d = [o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, nodes_geometry[i].cell_size[0]) for i, pcd in enumerate(nodes_o3d)]
 
         points, lines = [node.geometry.centroid() for node in nodes], []
         for i, n in enumerate(nodes):

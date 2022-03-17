@@ -69,6 +69,7 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
     # Extract the traversable volume and get building voxels at its bottom (the floor)
     nav_volume_voxel = segment_floor_area(building_voxels, p.kernel_scale, p.leaf_voxel_size)
     floor_voxel = building_voxels.subset(lambda v: v in nav_volume_voxel)
+    floor_voxel = floor_voxel.connected_components(Kernel.nb6())[0]
 
     print("- Segmenting storeys")
     # Split building into multiple storeys and determine their adjacency
@@ -89,7 +90,13 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
     # Attempt to find the positions in the map from which as much of the
     # the map is visible as possible.
     isovist_positions = optimal_isovist_positions(floor_voxel, p.isovist_height, p.isovist_spacing)
+    isovist_positions.colorize([1,0,0])
 
+    floor_voxel = deepcopy(floor_voxel)
+    df = floor_voxel.distance_field()
+    for v, d in df.items():
+        floor_voxel[v]['color'] = np.array([d,d,d]) / max(df.values())
+        
     print(f"- Segmenting {len(storey_nodes)} storey(s)")
     for i, storey in enumerate(storey_nodes):
         print(f"- Segmenting storey {i+1}/{len(storey_nodes)}")
@@ -173,10 +180,10 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
                    Viz.pcd_mat())
         ],
         [
-            MapViz(floor_voxel.to_o3d(),
+            MapViz(floor_voxel.to_o3d(has_color=True),
                    Viz.pcd_mat()),
             MapViz(isovist_positions.to_o3d(
-                has_color=False), Viz.pcd_mat())
+                has_color=True), Viz.pcd_mat())
         ],
 
         # Topometric map visualization at room level
@@ -210,17 +217,10 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
     dilation_kernel = Kernel.cylinder(1, 1 + int(6 // (voxel_size / kernel_scale)))
     traversable_volume_voxel = floor_voxel_map.dilate(dilation_kernel)
     traversable_volume_voxel = traversable_volume_voxel.dilate(Kernel.nb4())
-    traversable_volume_graph = traversable_volume_voxel.to_graph(Kernel.nb6())
 
     # Find largest connected component of traversable volume
-    components = traversable_volume_graph.connected_components()
-    largest_component = traversable_volume_graph.graph.subgraph(components[0])
-    floor_graph = SpatialGraph(
-        traversable_volume_graph.scale,
-        traversable_volume_graph.origin,
-        largest_component)
-
-    return floor_graph.to_voxel()
+    components = traversable_volume_voxel.connected_components(Kernel.nb6())
+    return components[0]
 
 
 def segment_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: int, height: int = 500):
