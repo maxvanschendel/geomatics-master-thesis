@@ -1,4 +1,7 @@
 from __future__ import annotations
+import os
+os.environ["NUMBA_ENABLE_CUDASIM"] = "0"
+os.environ["NUMBA_CUDA_DEBUGINFO"] = "0"
 
 import math
 from ast import Lambda
@@ -26,19 +29,17 @@ class VoxelGrid:
     color_attr: str = 'color'
 
     def __init__(self,
-                 shape: np.array = None,
-                 cell_size: np.array = np.array([1, 1, 1]),
+                 cell_size: float = 1,
                  origin: np.array = np.array([0, 0, 0]),
                  voxels: Dict[Tuple[int, int, int], Dict[str, object]] = None):
 
-        self.shape = shape
         self.cell_size = cell_size
         self.origin = origin
         self.voxels = voxels if voxels is not None else {}
         
         if self.voxels:
             self.size = len(voxels)
-            self.svo = SVO.from_voxels(self.voxels.keys(), self.cell_size[0]/2)
+            self.svo = SVO.from_voxels(self.voxels.keys(), self.cell_size/2)
         else:
             self.size = 0
             self.svo = None            
@@ -48,7 +49,7 @@ class VoxelGrid:
 
     def level_of_detail(self, level):
         lod_voxels = self.svo.get_depth(self.svo.max_depth() - level)
-        lod_geometry = VoxelGrid(self.shape, self.cell_size * (2**level),
+        lod_geometry = VoxelGrid(self.cell_size*(2**level),
                                  self.origin, {tuple(v): {} for v in lod_voxels})
         return lod_geometry
 
@@ -64,7 +65,6 @@ class VoxelGrid:
             new_model.voxels[v] = other.voxels[v]
 
         # Adapt size of voxel model to new extents after addition
-        new_model.shape = new_model.extents()
         new_model.size = len(new_model.voxels)
         return new_model
 
@@ -90,7 +90,7 @@ class VoxelGrid:
         filtered_voxels = self.filter(func, **kwargs)
         voxel_dict = {voxel: self.voxels[voxel] for voxel in filtered_voxels}
 
-        return VoxelGrid(deepcopy(self.shape), deepcopy(self.cell_size), deepcopy(self.origin), voxel_dict)
+        return VoxelGrid(deepcopy(self.cell_size), deepcopy(self.origin), voxel_dict)
 
     def for_each(self, func: Lambda, **kwargs) -> None:
         for voxel in self.voxels:
@@ -135,7 +135,7 @@ class VoxelGrid:
         return arr
 
     def to_3d_array(self, attr=None):
-        voxel_matrix = np.full(self.shape.astype(int)+1, 0, dtype=np.int8)
+        voxel_matrix = np.full(self.extents().astype(int)+1, 0, dtype=np.int8)
         for v in self.voxels:
             voxel_matrix[v] = self[v][attr] if attr else 1
         return voxel_matrix
@@ -150,29 +150,34 @@ class VoxelGrid:
         # Get most common label of 6-neighbourhood of voxel
         # Assign most common label to voxel in propagated map
         propagating = True
-        while propagating:
+        while propagating:       
             prev_map = prop_map.clone()
 
             # Allocate memory on the device for the result
-            max_nb = np.zeros((self.size, 1), dtype=np.int32)
-            nbs_occurences = np.zeros(
-                (self.size, len(unique_attr)), dtype=np.int32)
+            max_nb = cuda.to_device(np.zeros((self.size, 1), dtype=np.int32))
+            nbs_occurences = cuda.to_device(np.zeros((self.size, len(unique_attr)), dtype=np.int32))
 
-            voxel_matrix = np.full(
-                self.shape.astype(int)+1, -1, dtype=np.int32)
+            attr_to_i = {}
+            for i, u_attr in enumerate(unique_attr):
+                attr_to_i[u_attr] = i
+            i_to_attr = {value: key for key, value in attr_to_i.items()}
+
+            voxel_matrix = np.full(self.extents().astype(int)+1, -1, dtype=np.int32)
             for v in self.voxels:
-                voxel_matrix[v] = int(prev_map.voxels[v][attr])
+                voxel_matrix[v] = attr_to_i[int(prev_map.voxels[v][attr])]
 
-            threadsperblock = 128
-            blockspergrid = (self.size // threadsperblock) + 1
+            threadsperblock = 1024
+            blockspergrid = (self.size + (threadsperblock - 1)) // threadsperblock
             VoxelGrid.convolve_most_common_nb_gpu[blockspergrid, threadsperblock](
                 voxel_matrix, origin_voxels, kernel_voxels, nbs_occurences, len(unique_attr), max_nb)
-
-            for i, label in enumerate(max_nb):
-                prop_map[tuple(origin_voxels[i])][attr] = label
+            
+            max_nb = max_nb.copy_to_host()
+            for i, max_i in enumerate(max_nb):
+                prop_map[tuple(origin_voxels[i])][attr] = i_to_attr[max_i[0]]
 
             # Stop propagation once it fails to make a change
             propagating = prev_map.voxels != prop_map.voxels
+
 
         return prop_map
 
@@ -198,16 +203,10 @@ class VoxelGrid:
         return split
 
     def extents(self):
-        new_voxels = np.array(list(self.voxels.keys()))
-        new_shape = list(self.shape)
-
-        for v in new_voxels:
-            for i, c in enumerate(self.shape):
-                new_shape[i] = max([v[i].max(), c])
-        return new_shape
+        return np.max(self.to_2d_array(), axis=0)
 
     def voxel_centroid(self, voxel: Tuple[int, int, int]) -> np.array:
-        return self.origin + voxel * self.cell_size + 0.5 * self.cell_size
+        return self.origin + np.array(voxel) * self.cell_size + 0.5 * self.cell_size
 
     def voxel_centroids(self) -> np.array:
         return np.array(list(self.map(self.voxel_centroid)))
@@ -247,44 +246,52 @@ class VoxelGrid:
     @cuda.jit
     def convolve_has_nbs_gpu(voxels, occupied_voxels, kernel, conv_voxels):
         pos = cuda.grid(1)
-        cur_vox = occupied_voxels[pos]
+        if pos < occupied_voxels.shape[0]:
+            cur_vox = occupied_voxels[pos]
 
-        for nb in kernel:
-            if voxels[
-                cur_vox[0]+nb[0],
-                cur_vox[1]+nb[1],
-                cur_vox[2]+nb[2]
-            ] == 1:
-
-                conv_voxels[pos] = 1
-                break
+            for nb in kernel:
+                nb_x = cur_vox[0]+nb[0]
+                nb_y = cur_vox[1]+nb[1]
+                nb_z = cur_vox[2]+nb[2]
+                
+                if  0 < nb_x < voxels.shape[0] and \
+                    0 < nb_y < voxels.shape[1] and \
+                    0 < nb_z < voxels.shape[2] and \
+                    voxels[nb_x, nb_y, nb_z] == 1:
+                
+                    conv_voxels[pos] = 1
+                    break
 
     @cuda.jit
     def convolve_most_common_nb_gpu(voxels, origin_voxels, kernel, nbs_occurences, n_vals, max_occurences):
         pos = cuda.grid(1)
-        cur_vox = origin_voxels[pos]
+        if pos < origin_voxels.shape[0]:
+            cur_vox = origin_voxels[pos]
+            
+            for nb in kernel:
+                nb_x = cur_vox[0]+nb[0]
+                nb_y = cur_vox[1]+nb[1]
+                nb_z = cur_vox[2]+nb[2]
+                nb_val = voxels[nb_x, nb_y, nb_z]
+                
+                if  0 < nb_x < voxels.shape[0] and \
+                    0 < nb_y < voxels.shape[1] and \
+                    0 < nb_z < voxels.shape[2] and \
+                        nb_val != -1:
+                        
+                    nbs_occurences[pos][nb_val] += 1
 
-        for nb in kernel:
-            nb_val = voxels[
-                cur_vox[0]+nb[0],
-                cur_vox[1]+nb[1], 
-                cur_vox[2]+nb[2]]
-            if nb_val != -1:
-                nbs_occurences[pos][nb_val] += 1
-
-        max_occurence = 1 
-        max_val = voxels[cur_vox[0], cur_vox[1], cur_vox[2]]
-        
-        for val in range(n_vals):
-            if nbs_occurences[pos][val] > max_occurence:
-                max_occurence = nbs_occurences[pos][val]
-                max_val = val
-
-        max_occurences[pos] = max_val
+            max_occurence = 1 
+            max_val = voxels[cur_vox[0], cur_vox[1], cur_vox[2]]
+            for val in range(n_vals):
+                if nbs_occurences[pos][val] > max_occurence:
+                    max_occurence = nbs_occurences[pos][val]
+                    max_val = val
+                    
+            max_occurences[pos] = max_val
 
     def mutate_voxels(self, voxels):
-        return VoxelGrid(deepcopy(self.shape),
-                         deepcopy(self.cell_size),
+        return VoxelGrid(deepcopy(self.cell_size),
                          deepcopy(self.origin),
                          voxels)
 
@@ -301,9 +308,7 @@ class VoxelGrid:
         VoxelGrid.convolve_has_nbs_gpu[blockspergrid, threadsperblock](
             voxel_matrix, occupied_voxels, kernel_voxels, result_voxels)
 
-        nb_voxels = [occupied_voxels[v] for (v, occ) in enumerate(result_voxels) if not occ[0]]
-        nb_voxels = [tuple(v) for v in nb_voxels]
-
+        nb_voxels = [tuple(occupied_voxels[v]) for (v, occ) in enumerate(result_voxels) if not occ[0]]
         return self.mutate_voxels({v: self.voxels[v] for v in nb_voxels})
 
     def dilate(self, kernel) -> VoxelGrid:
@@ -320,12 +325,8 @@ class VoxelGrid:
             voxel_t = translation + voxel
             translated_cells[tuple(voxel_t)] = self.voxels[voxel]
 
-        translated_map = VoxelGrid(
-            self.shape, self.cell_size, self.origin, translated_cells)
-        translated_map.shape = translated_map.extents()
-
-        return translated_map
-
+        return self.mutate_voxels(translated_cells)
+    
     def visibility(self, origin: np.array, max_dist: float) -> VoxelGrid:
         # Get all voxels within range (max_dist) of the isovist
         # For each voxel within range, get a vector pointing from origin to the voxel
@@ -340,7 +341,7 @@ class VoxelGrid:
         # Allocate memory on the device for the intersection results
         intersections = np.zeros(shape=(len(directions), 3), dtype=np.int32)
         bbox = np.array([self.origin, self.origin +
-                        (self.cell_size * self.shape)])
+                        (self.cell_size * self.extents())])
 
         # Cast isovists on GPU
         threadsperblock = 512
@@ -361,91 +362,93 @@ class VoxelGrid:
         """
 
         pos = cuda.grid(1)
-        min_bbox, max_bbox = bbox[0], bbox[1]
-        direction = directions[pos]
+        if pos < directions.shape[0]:
+            min_bbox, max_bbox = bbox[0], bbox[1]
+            direction = directions[pos]
+            half_width = 0.5*cell_size
 
-        # line equation
-        x1, y1, z1, l, m, n = point[0], point[1], point[2], direction[0], direction[1], direction[2]
+            # line equation
+            x1, y1, z1, l, m, n = point[0], point[1], point[2], direction[0], direction[1], direction[2]
 
-        if (l == 0.0):
-            l = 1/math.inf
-        if (m == 0.0):
-            m = 1/math.inf
-        if (n == 0.0):
-            n = 1/math.inf
+            if (l == 0.0):
+                l = 1/math.inf
+            if (m == 0.0):
+                m = 1/math.inf
+            if (n == 0.0):
+                n = 1/math.inf
 
-        x_sign = int(l / abs(l))
-        y_sign = int(m / abs(m))
-        z_sign = int(n / abs(n))
+            x_sign = int(l / abs(l))
+            y_sign = int(m / abs(m))
+            z_sign = int(n / abs(n))
 
-        # Distance from voxel center to plane for each axis
-        bd_x = cell_size[0] * x_sign
-        bd_y = cell_size[1] * y_sign
-        bd_z = cell_size[2] * z_sign
+            # Distance from voxel center to plane for each axis
+            bd_x = half_width * x_sign
+            bd_y = half_width * y_sign
+            bd_z = half_width * z_sign
 
-        cur_pos = point
-        cur_vox_x = int((cur_pos[0] - min_bbox[0]) // cell_size[0])
-        cur_vox_y = int((cur_pos[1] - min_bbox[1]) // cell_size[1])
-        cur_vox_z = int((cur_pos[2] - min_bbox[2]) // cell_size[2])
+            cur_pos = point
+            cur_vox_x = int((cur_pos[0] - min_bbox[0]) // cell_size)
+            cur_vox_y = int((cur_pos[1] - min_bbox[1]) // cell_size)
+            cur_vox_z = int((cur_pos[2] - min_bbox[2]) // cell_size)
 
-        i = 0
-        while (min_bbox[0] <= cur_pos[0] <= max_bbox[0] and
-                min_bbox[1] <= cur_pos[1] <= max_bbox[1] and
-                min_bbox[2] <= cur_pos[2] <= max_bbox[2]):
+            i = 0
+            while (min_bbox[0] <= cur_pos[0] <= max_bbox[0] and
+                    min_bbox[1] <= cur_pos[1] <= max_bbox[1] and
+                    min_bbox[2] <= cur_pos[2] <= max_bbox[2]):
 
-            if voxels[cur_vox_x, cur_vox_y, cur_vox_z] == 1:
-                intersections[pos][0] += cur_vox_x
-                intersections[pos][1] += cur_vox_y
-                intersections[pos][2] += cur_vox_z
-                break
+                if voxels[cur_vox_x, cur_vox_y, cur_vox_z] == 1:
+                    intersections[pos][0] += cur_vox_x
+                    intersections[pos][1] += cur_vox_y
+                    intersections[pos][2] += cur_vox_z
+                    break
 
-            cur_vox_center_x = min_bbox[0] + \
-                (cur_vox_x * cell_size[0]) + (0.5 * cell_size[0])
-            cur_vox_center_y = min_bbox[1] + \
-                (cur_vox_y * cell_size[1]) + (0.5 * cell_size[1])
-            cur_vox_center_z = min_bbox[2] + \
-                (cur_vox_z * cell_size[2]) + (0.5 * cell_size[2])
+                cur_vox_center_x = min_bbox[0] + \
+                    (cur_vox_x * cell_size) + half_width
+                cur_vox_center_y = min_bbox[1] + \
+                    (cur_vox_y * cell_size) + half_width
+                cur_vox_center_z = min_bbox[2] + \
+                    (cur_vox_z * cell_size) + half_width
 
-            # get coordinates of axis-aligned planes that border cell
-            x_edge = cur_vox_center_x + bd_x
-            y_edge = cur_vox_center_y + bd_y
-            z_edge = cur_vox_center_z + bd_z
+                # get coordinates of axis-aligned planes that border cell
+                x_edge = cur_vox_center_x + bd_x
+                y_edge = cur_vox_center_y + bd_y
+                z_edge = cur_vox_center_z + bd_z
 
-            # find intersection of line with cell borders and its distance
-            x_vec_x = x_edge - cur_pos[0]
-            x_vec_y = (((x_edge - x1) / l) * m) + y1 - cur_pos[1]
-            x_vec_z = (((x_edge - x1) / l) * n) + z1 - cur_pos[2]
-            x_magnitude = (x_vec_x**2 + x_vec_y**2 + x_vec_z**2)**(1/2)
+                # find intersection of line with cell borders and its distance
+                x_vec_x = x_edge - cur_pos[0]
+                x_vec_y = (((x_edge - x1) / l) * m) + y1 - cur_pos[1]
+                x_vec_z = (((x_edge - x1) / l) * n) + z1 - cur_pos[2]
+                x_magnitude = (x_vec_x**2 + x_vec_y**2 + x_vec_z**2)**(1/2)
 
-            y_vec_x = (((y_edge - y1) / m) * l) + x1 - cur_pos[0]
-            y_vec_y = y_edge - cur_pos[1]
-            y_vec_z = (((y_edge - y1) / m) * n) + z1 - cur_pos[2]
-            y_magnitude = (y_vec_x**2 + y_vec_y**2 + y_vec_z**2)**(1/2)
+                y_vec_x = (((y_edge - y1) / m) * l) + x1 - cur_pos[0]
+                y_vec_y = y_edge - cur_pos[1]
+                y_vec_z = (((y_edge - y1) / m) * n) + z1 - cur_pos[2]
+                y_magnitude = (y_vec_x**2 + y_vec_y**2 + y_vec_z**2)**(1/2)
 
-            z_vec_x = (((z_edge - z1) / n) * l) + x1 - cur_pos[0]
-            z_vec_y = (((z_edge - z1) / n) * m) + y1 - cur_pos[1]
-            z_vec_z = z_edge - cur_pos[2]
-            z_magnitude = (z_vec_x**2 + z_vec_y**2 + z_vec_z**2)**(1/2)
+                z_vec_x = (((z_edge - z1) / n) * l) + x1 - cur_pos[0]
+                z_vec_y = (((z_edge - z1) / n) * m) + y1 - cur_pos[1]
+                z_vec_z = z_edge - cur_pos[2]
+                z_magnitude = (z_vec_x**2 + z_vec_y**2 + z_vec_z**2)**(1/2)
 
-            if x_magnitude <= y_magnitude and x_magnitude <= z_magnitude:
-                cur_vox_x += x_sign
-                cur_pos[0] += x_vec_x
-                cur_pos[1] += x_vec_y
-                cur_pos[2] += x_vec_z
-            elif y_magnitude <= x_magnitude and y_magnitude <= z_magnitude:
-                cur_vox_y += y_sign
-                cur_pos[0] += y_vec_x
-                cur_pos[1] += y_vec_y
-                cur_pos[2] += y_vec_z
-            elif z_magnitude <= x_magnitude and z_magnitude <= y_magnitude:
-                cur_vox_z += z_sign
-                cur_pos[0] += z_vec_x
-                cur_pos[1] += z_vec_y
-                cur_pos[2] += z_vec_z
+                if x_magnitude <= y_magnitude and x_magnitude <= z_magnitude:
+                    cur_vox_x += x_sign
+                    cur_pos[0] += x_vec_x
+                    cur_pos[1] += x_vec_y
+                    cur_pos[2] += x_vec_z
+                elif y_magnitude <= x_magnitude and y_magnitude <= z_magnitude:
+                    cur_vox_y += y_sign
+                    cur_pos[0] += y_vec_x
+                    cur_pos[1] += y_vec_y
+                    cur_pos[2] += y_vec_z
+                elif z_magnitude <= x_magnitude and z_magnitude <= y_magnitude:
+                    cur_vox_z += z_sign
+                    cur_pos[0] += z_vec_x
+                    cur_pos[1] += z_vec_y
+                    cur_pos[2] += z_vec_z
 
-            i += 1
-            if i == 1000:
-                break
+                i += 1
+                if i == 1000:
+                    break
 
     def detect_peaks(self, axis: int, height: int = None, width: int = None) -> Tuple[int]:
         axis_values = [v[axis] for v in self.voxels]
@@ -470,22 +473,9 @@ class VoxelGrid:
 
         return hipf
 
-    def local_distance_field_maxima(self, radius) -> VoxelGrid:
-        distance_field = self.distance_field()
-
-        local_maxima = set()
-        for vx, vx_dist in distance_field.items():
-            vx_nbs = self.radius_search(self.voxel_centroid(vx), radius)
-            vx_nbs_dist = [distance_field[nb] for nb in vx_nbs]
-
-            if vx_dist >= max(vx_nbs_dist):
-                local_maxima.add(vx)
-
-        return self.subset(lambda v: v in local_maxima)
-
     def to_o3d(self, has_color=False):
         pcd = self.to_pcd(has_color).to_o3d()
-        vg = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, self.cell_size[0])
+        vg = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, self.cell_size)
         return vg
 
     def to_pcd(self, color=False) -> model.point_cloud.PointCloud:
@@ -507,12 +497,23 @@ class VoxelGrid:
             graph.nodes[v]['pos'] = self.voxel_centroid(v)
 
         return SpatialGraph(self.cell_size, self.origin, graph)
+    
+    def write(self, fn):
+        import pickle as pickle
+        with open(fn, 'wb') as write_file:
+            pickle.dump(self, write_file)
+    
+    @staticmethod   
+    def read(fn):
+        import pickle as pickle
+        with open(fn, 'rb') as read_file:
+            vg = pickle.load(read_file)
+        return vg
 
 
 class Kernel(VoxelGrid):
-    def __init__(self, shape, origin=np.array([0, 0, 0]), voxels={}):
-        self.shape = shape
-        self.cell_size = np.array([1, 1, 1])
+    def __init__(self, origin=np.array([0, 0, 0]), voxels={}):
+        self.cell_size = 1.
         self.origin = origin
         self.voxels = voxels
         self.size = len(voxels)
@@ -526,7 +527,7 @@ class Kernel(VoxelGrid):
             if dist <= r:
                 cylinder_voxels.add((x, y, z))
 
-        return Kernel(shape=(d, h, d), voxels={v: {} for v in cylinder_voxels})
+        return Kernel(voxels={v: {} for v in cylinder_voxels})
 
     @staticmethod
     def sphere(r):
@@ -536,7 +537,7 @@ class Kernel(VoxelGrid):
             if dist <= r:
                 sphere_voxels.add((x, y, z))
 
-        return Kernel(shape=(r*2, r*2, r*2), voxels={v: None for v in sphere_voxels})
+        return Kernel(voxels={v: None for v in sphere_voxels})
 
     @staticmethod
     def circle(r):
@@ -546,18 +547,23 @@ class Kernel(VoxelGrid):
             if dist <= r:
                 circle_voxels.add((x, 0, z))
 
-        return Kernel(shape=(r*2, 1, r*2), voxels={v: None for v in circle_voxels})
+        return Kernel(voxels={v: None for v in circle_voxels})
 
     @staticmethod
     def nb6():
-        return Kernel(shape=(3, 3, 3), origin=np.array([1, 1, 1]),
+        return Kernel(origin=np.array([1, 1, 1]),
                       voxels={(1, 2, 1): None,
                               (1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None,
                               (1, 0, 1): None, })
-
+        
+    @staticmethod
+    def nb26():
+        return Kernel(origin=np.array([1, 1, 1]),
+                      voxels={v: None for v in product(range(-1, 2), range(-1, 2), range(-1, 2))})
+    
     @staticmethod
     def nb4():
-        return VoxelGrid(shape=(3, 3, 1), origin=np.array([1, 1, 1]), voxels={(1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None})
+        return VoxelGrid(origin=np.array([1, 1, 1]), voxels={(1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None})
 
     @staticmethod
     def stick_kernel(scale):
@@ -572,6 +578,6 @@ class Kernel(VoxelGrid):
         kernel_c = kernel_a + kernel_b
         kernel_c.origin = np.array([a_width//2, 0, a_width//2])
         kernel_c = kernel_c.translate(np.array([0, 1, 0]))
-        kernel_c = kernel_c.translate(-kernel_c.origin)
+        kernel_c = kernel_c.translate(kernel_c.origin*-1)
 
         return kernel_c

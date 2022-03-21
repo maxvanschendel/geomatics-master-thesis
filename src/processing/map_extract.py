@@ -52,7 +52,6 @@ class MapExtractionParameters:
 
 
 def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
-    print("Extracting topological-metric map")
     # Map representation that is result of map extraction
     topometric_map = HierarchicalTopometricMap()
 
@@ -67,13 +66,11 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
 
     print("- Extracting traversable volume")
     # Extract the traversable volume and get building voxels at its bottom (the floor)
-    nav_volume_voxel = segment_floor_area(building_voxels, p.kernel_scale, p.leaf_voxel_size)
-    floor_voxel = building_voxels.subset(lambda v: v in nav_volume_voxel)
-    floor_voxel = floor_voxel.connected_components(Kernel.nb6())[0]
+    nav_volume_voxel, floor_voxel = segment_floor_area(building_voxels, p.kernel_scale, p.leaf_voxel_size)
 
     print("- Segmenting storeys")
     # Split building into multiple storeys and determine their adjacency
-    storeys, storey_adjacency = segment_storeys(floor_voxel, building_voxels, buffer=10, height=500)
+    storeys, storey_adjacency = segment_storeys(floor_voxel, building_voxels, buffer=10, height=400)
 
     # Create a node for each storey in the building and edges for
     # both hierarchy within building and traversability between storeys
@@ -130,17 +127,15 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
             clustering=clustering)
 
         print(f"    - Propagating labels")
-        prop_kernel = Kernel.sphere(r=4)
         map_rooms = map_rooms.propagate_attr(
             attr=VoxelGrid.cluster_attr,
-            prop_kernel=prop_kernel)
+            prop_kernel=Kernel.sphere(r=4))
 
         map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
 
         n_cluster = 0
         connection_kernel = Kernel.sphere(r=2)
-        connected_clusters = VoxelGrid(
-            map_rooms.shape, map_rooms.cell_size, map_rooms.origin)
+        connected_clusters = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
 
         for room in map_rooms_split:
             room_components = room.connected_components(connection_kernel)
@@ -211,16 +206,17 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
     # For all cells in voxel map, check if any neighbours in stick kernel
     # Create new voxel map with only cells that did not have any neighbours in kernel
     kernel = Kernel.stick_kernel(voxel_size / kernel_scale)
-    floor_voxel_map = voxel_map.filter_gpu_kernel_nbs(kernel)
+    candidate_voxels = voxel_map.filter_gpu_kernel_nbs(kernel)
 
     # Dilate floor area upwards to connect stairs and convert to nb6 connected 'dense' graph
     dilation_kernel = Kernel.cylinder(1, 1 + int(6 // (voxel_size / kernel_scale)))
-    traversable_volume_voxel = floor_voxel_map.dilate(dilation_kernel)
-    traversable_volume_voxel = traversable_volume_voxel.dilate(Kernel.nb4())
+    nav_volume = candidate_voxels.dilate(dilation_kernel)
 
     # Find largest connected component of traversable volume
-    components = traversable_volume_voxel.connected_components(Kernel.nb6())
-    return components[0]
+    largest_nav_volume_component = nav_volume.connected_components(Kernel.nb6())[0]
+    nav_surface = candidate_voxels.subset(lambda v: v in largest_nav_volume_component)
+    
+    return largest_nav_volume_component, nav_surface
 
 
 def segment_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: int, height: int = 500):
@@ -252,8 +248,22 @@ def segment_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: 
     return storeys, connections
 
 
-def optimal_isovist_positions(floor: VoxelGrid, path_height: float, kernel_radius=7) -> VoxelGrid:
-    skeleton = floor.local_distance_field_maxima(kernel_radius)
+def local_distance_field_maxima(vg, radius, min=0) -> VoxelGrid:
+    distance_field = vg.distance_field()
+
+    local_maxima = set()
+    for vx, vx_dist in distance_field.items():
+        vx_nbs = vg.radius_search(vg.voxel_centroid(vx), radius)
+        vx_nbs_dist = [distance_field[nb] for nb in vx_nbs]
+
+        if vx_dist >= max(vx_nbs_dist) and vx_dist >= min:
+            local_maxima.add(vx)
+
+    return vg.subset(lambda v: v in local_maxima)
+
+
+def optimal_isovist_positions(floor: VoxelGrid, path_height: float, kernel_radius=7, min_boundary_dist=2) -> VoxelGrid:
+    skeleton = local_distance_field_maxima(floor, kernel_radius, min_boundary_dist)
     skeleton.origin += np.array([0, path_height, 0.])
 
     return skeleton
@@ -286,25 +296,6 @@ def mutual_visibility_graph(isovists) -> np.array:
 
             distance_matrix[i][j] = 1 - overlap
             distance_matrix[j][i] = 1 - overlap
-
-    plt.clf()
-    plt.matshow(distance_matrix)
-    plt.title("Mutual visibility")
-    plt.colorbar()
-    plt.savefig("mutual_visibility_matrix.png")
-
-    plt.clf()
-
-    G = networkx.from_numpy_matrix(distance_matrix)
-    edge_weights = networkx.get_edge_attributes(G, 'weight')
-
-    threshold = 0.2
-    G.remove_edges_from((e for e, w in edge_weights.items() if w > threshold))
-
-    pos = graphviz_layout(G, "neato")
-    networkx.draw(G, pos=pos, node_size=5)
-    plt.title(f"Mutual visibility graph with threshold {threshold}")
-    plt.savefig("mutual_visibility_graph.png")
 
     return distance_matrix
 
@@ -353,8 +344,7 @@ def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clusterin
 
     for v in map_segmented.voxels:
         if map_segmented[v]['clusters']:
-            most_common_cluster = map_segmented[v]['clusters'].most_common(1)[
-                0]
+            most_common_cluster = map_segmented[v]['clusters'].most_common(1)[0]
             if most_common_cluster[1] > min_observations:
                 map_segmented[v][VoxelGrid.cluster_attr] = most_common_cluster[0]
 
@@ -363,7 +353,7 @@ def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clusterin
     return clustered_map
 
 
-def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floor_voxels) -> SpatialGraph:
+def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floor_voxels: VoxelGrid, min_voxels: float=10) -> SpatialGraph:
     unique_clusters = np.unique(
         list(map_segmented.list_attr(VoxelGrid.cluster_attr)))
     G = networkx.Graph()
@@ -381,12 +371,10 @@ def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floo
             G.add_node(voxel_centroid_index)
             G.nodes[voxel_centroid_index]['pos'] = voxel_centroid
             G.nodes[voxel_centroid_index][VoxelGrid.cluster_attr] = cluster
-            G.nodes[voxel_centroid_index]['geometry'] = map_segmented.subset(
-                lambda v: v in cluster_voxels)
+            G.nodes[voxel_centroid_index]['geometry'] = map_segmented.subset(lambda v: v in cluster_voxels)
 
     kernel = Kernel.sphere(2)
-    cluster_borders = map_segmented.attr_borders(
-        VoxelGrid.cluster_attr, kernel)
+    cluster_borders = map_segmented.attr_borders( VoxelGrid.cluster_attr, kernel)
 
     for v in cluster_borders.voxels:
         if floor_voxels.contains_point(cluster_borders.voxel_centroid(v)):
@@ -403,6 +391,5 @@ def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floo
 
                     G.add_edge(v_node, v_nb_node)
 
-    connected_nodes = [n for (n, d) in G.nodes(
-        data=True) if len(d["geometry"].voxels) > 100]
+    connected_nodes = [n for (n, d) in G.nodes(data=True) if len(d["geometry"].voxels) > min_voxels]
     return SpatialGraph(np.array([1, 1, 1]), np.array([0, 0, 0]), G.subgraph(connected_nodes))

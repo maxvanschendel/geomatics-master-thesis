@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 from random import random
-from typing import  Tuple
+from time import perf_counter
 from plyfile import PlyData
 import numpy as np
 import open3d as o3d
 from sklearn.decomposition import PCA
-from sklearn.neighbors import KDTree
+import os
+os.environ["NUMBA_ENABLE_CUDASIM"] = "0"
+os.environ["NUMBA_CUDA_DEBUGINFO"] = "0"
+from numba import cuda, jit
 
-from model.voxel_grid import VoxelGrid
 
 class PointCloud:
-    leaf_size = 20  # Number of leaf nodes in KD-Tree spatial index
-
     def __init__(self, points: np.array, colors: np.array = None, source: object = None):
         self.points = points
         self.colors = colors
@@ -25,9 +25,6 @@ class PointCloud:
             [np.min(points[:, 1]), np.max(points[:, 1])],
             [np.min(points[:, 2]), np.max(points[:, 2])]
         ])
-
-        # Used for fast nearest neighbour operations
-        self.kdt = KDTree(self.points, PointCloud.leaf_size)
 
     def __str__(self) -> str:
         '''Get point cloud in human-readable format.'''
@@ -47,55 +44,37 @@ class PointCloud:
 
     def scale(self, scale: np.array):
         return PointCloud(np.array(self.points*scale), source=self)
-
-    def k_nearest_neighbour(self, p: np.array, k: int) -> Tuple[np.array, np.array]:
-        '''Get the first k neighbours that are closest to a given point.'''
-
-        return self.kdt.query(p.reshape(1, -1), k)
-
-    def ball_search(self, p, r):
-        '''Get all points within r radius of point p.'''
-
-        return self.kdt.query_radius(p.reshape(1, -1), r)
-
-    def estimate_normals(self, k) -> np.array:
-        ''' Estimate normalized point cloud normals using principal component analysis.
-            Component with smallest magnitude gives the normal vector.'''
-
+    
+    def pca(self):
+        nbs = self.points.squeeze()
         pca = PCA()
-
-        normals = []
-        for p in self.points:
-            knn = self.k_nearest_neighbour(p, k)
-            nbs = self.points[knn[1]].squeeze()
-
-            pca.fit(nbs)
-            normals.append(pca.components_[2] /
-                           np.linalg.norm(pca.components_[2]))
-
-        return np.array(normals)
-
-    def filter(self, property, func):
-        '''Functional filter for point cloud'''
-
-        out_points = []
-        for i, p in enumerate(self.points):
-            if func(property[i]):
-                out_points.append(p)
-
-        return PointCloud(np.array(out_points), source=self)
+        pca.fit(nbs)
+        
+        return pca.components_
+    
+    @cuda.jit
+    def voxelize_gpu(points, aabb_min, cell_size, voxels):
+        pos = cuda.grid(1)
+        
+        if pos < len(points):
+            pt = points[pos]
+            
+            voxels[pos][0] = (pt[0] - aabb_min[0]) // cell_size
+            voxels[pos][1] = (pt[1] - aabb_min[1]) // cell_size
+            voxels[pos][2] = (pt[2] - aabb_min[2]) // cell_size
+           
 
     def voxelize(self, cell_size) -> VoxelGrid:
         '''Convert point cloud to discretized voxel representation.'''
+        
+        from model.voxel_grid import VoxelGrid
 
         aabb_min, aabb_max = self.aabb[:, 0], self.aabb[:, 1]
-        shape = (aabb_max - aabb_min) // cell_size
-
-        # Find voxel cell that each point is in
-        cell_points = ((self.points - aabb_min) // cell_size).astype(int)
-        voxels = {tuple(cell):{} for cell in cell_points}
-
-        voxel_model = VoxelGrid(shape, np.array([cell_size]*3), aabb_min, voxels)
+        result_voxels = ((self.points - aabb_min) // cell_size).astype(int)
+        
+        voxels = {tuple(cell): {} for cell in result_voxels}
+        voxel_model = VoxelGrid(cell_size, aabb_min, voxels)
+        
         return voxel_model
 
     def random_reduce(self, keep_fraction: float) -> PointCloud:

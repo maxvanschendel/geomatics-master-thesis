@@ -42,6 +42,9 @@ class EdgeType(Enum):
 class HierarchicalTopometricMap():
     def __init__(self):
         self.graph = networkx.DiGraph()
+        
+    def nodes(self):
+        return self.graph.nodes()
 
     def add_node(self, node: TopometricNode):
         self.graph.add_node(node, node_level=node.level)
@@ -76,7 +79,7 @@ class HierarchicalTopometricMap():
 
         for n in nodes_o3d:
             n.paint_uniform_color(random_color())
-        nodes_o3d = [o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, nodes_geometry[i].cell_size[0]) for i, pcd in enumerate(nodes_o3d)]
+        nodes_o3d = [o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, nodes_geometry[i].cell_size) for i, pcd in enumerate(nodes_o3d)]
 
         points, lines = [node.geometry.centroid() for node in nodes], []
         for i, n in enumerate(nodes):
@@ -120,3 +123,15 @@ class HierarchicalTopometricMap():
                       labels=hier_labels,
                       node_size=1)
         plt.savefig(fn)
+
+    def write(self, fn):
+        import pickle as pickle
+        with open(fn, 'wb') as write_file:
+            pickle.dump(self, write_file)
+    
+    @staticmethod   
+    def read(fn):
+        import pickle as pickle
+        with open(fn, 'rb') as read_file:
+            topo_map = pickle.load(read_file)
+        return topo_map

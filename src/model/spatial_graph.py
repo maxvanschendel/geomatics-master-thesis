@@ -62,13 +62,5 @@ class SpatialGraph:
 
         return vox
 
-    def minimum_spanning_tree(self) -> SpatialGraph:
-        mst = networkx.minimum_spanning_tree(self.graph)
-
-        return SpatialGraph(self.scale, self.origin, mst)
-
-    def betweenness_centrality(self, n_target_points: int):
-        return networkx.betweenness_centrality(self.graph, n_target_points)
-
     def connected_components(self):
         return sorted(networkx.connected_components(self.graph), key=len, reverse=True)
