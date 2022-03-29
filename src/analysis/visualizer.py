@@ -17,11 +17,11 @@ class Viz:
 
         return mat
 
-    def graph_mat():
+    def graph_mat(color=[1.0, 0, 0, 1.0]):
         mat = o3d.visualization.rendering.MaterialRecord()
         mat.shader = "unlitLine"
         mat.line_width = 5
-        mat.base_color = [1.0, 0, 0, 1.0]
+        mat.base_color = color
 
         return mat
 

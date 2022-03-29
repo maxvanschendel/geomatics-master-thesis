@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from torch import randint
 from yaml import load, dump
 
 import numpy as np
@@ -49,7 +50,6 @@ class PreProcessingParameters:
 def pre_process(partial_map: PointCloud, params: PreProcessingParameters) -> VoxelGrid:
     partial_map_reduced = partial_map.random_reduce(params.reduce)
     partial_map_scaled = partial_map_reduced.scale(np.array(params.scale))
+    partial_map_rot = partial_map_scaled.rotate(random()*360, [0,1,0])
     
-    partial_map
-
-    return partial_map_scaled
+    return partial_map_rot

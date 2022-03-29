@@ -1,23 +1,19 @@
 from __future__ import annotations
 
+import os
 from random import random
-from time import perf_counter
-from plyfile import PlyData
+
 import numpy as np
 import open3d as o3d
+from plyfile import PlyData
 from sklearn.decomposition import PCA
-import os
-os.environ["NUMBA_ENABLE_CUDASIM"] = "0"
-os.environ["NUMBA_CUDA_DEBUGINFO"] = "0"
-from numba import cuda, jit
 
 
 class PointCloud:
-    def __init__(self, points: np.array, colors: np.array = None, source: object = None):
+    def __init__(self, points: np.array, colors: np.array = None):
         self.points = points
         self.colors = colors
-        self.source = source
-
+        
         # Point cloud shape and bounds
         self.size = np.shape(points)[0]
         self.aabb = np.array([
@@ -39,32 +35,27 @@ class PointCloud:
 
         if self.colors is not None:
             pcd.colors = o3d.utility.Vector3dVector(self.colors)
-
         return pcd
+    
+    def rotate(self, angle: float, axis: np.array) -> PointCloud:
+        from scipy.spatial.transform import Rotation as R
+        
+        r = R.from_rotvec(angle * np.array(axis), degrees=True)
+        rotated = r.apply(self.points)
+        
+        return PointCloud(rotated)
 
     def scale(self, scale: np.array):
-        return PointCloud(np.array(self.points*scale), source=self)
+        return PointCloud(self.points*scale)
     
     def pca(self):
         nbs = self.points.squeeze()
         pca = PCA()
         pca.fit(nbs)
         
-        return pca.components_
-    
-    @cuda.jit
-    def voxelize_gpu(points, aabb_min, cell_size, voxels):
-        pos = cuda.grid(1)
-        
-        if pos < len(points):
-            pt = points[pos]
-            
-            voxels[pos][0] = (pt[0] - aabb_min[0]) // cell_size
-            voxels[pos][1] = (pt[1] - aabb_min[1]) // cell_size
-            voxels[pos][2] = (pt[2] - aabb_min[2]) // cell_size
-           
+        return pca.components_           
 
-    def voxelize(self, cell_size) -> VoxelGrid:
+    def voxelize(self, cell_size: float) -> VoxelGrid:
         '''Convert point cloud to discretized voxel representation.'''
         
         from model.voxel_grid import VoxelGrid
@@ -78,13 +69,9 @@ class PointCloud:
         return voxel_model
 
     def random_reduce(self, keep_fraction: float) -> PointCloud:
-        keep_points = []
+        keep_points = [p for p in self.points if random() < keep_fraction]
 
-        for p in self.points:
-            if random() < keep_fraction:
-                keep_points.append(p)
-
-        return PointCloud(np.array(keep_points), source=self)
+        return PointCloud(np.array(keep_points))
 
     @ staticmethod
     def read_ply(fn: str) -> PointCloud:
@@ -108,4 +95,4 @@ class PointCloud:
         except ValueError:
             colors = np.zeros(shape=[num_points, 3], dtype=np.float32)
 
-        return PointCloud(points, colors/255, source=fn)
+        return PointCloud(points, colors/255)

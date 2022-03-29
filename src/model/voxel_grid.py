@@ -140,7 +140,7 @@ class VoxelGrid:
             voxel_matrix[v] = self[v][attr] if attr else 1
         return voxel_matrix
 
-    def propagate_attr(self, attr: str, prop_kernel: VoxelGrid) -> VoxelGrid:
+    def propagate_attr(self, attr: str, prop_kernel: VoxelGrid, max_its: int = 1000) -> VoxelGrid:
         prop_map = self.clone()
         unique_attr = self.unique_attr(attr)
 
@@ -149,35 +149,31 @@ class VoxelGrid:
 
         # Get most common label of 6-neighbourhood of voxel
         # Assign most common label to voxel in propagated map
-        propagating = True
-        while propagating:       
+        for i in range(max_its):       
             prev_map = prop_map.clone()
 
             # Allocate memory on the device for the result
             max_nb = cuda.to_device(np.zeros((self.size, 1), dtype=np.int32))
             nbs_occurences = cuda.to_device(np.zeros((self.size, len(unique_attr)), dtype=np.int32))
 
-            attr_to_i = {}
-            for i, u_attr in enumerate(unique_attr):
-                attr_to_i[u_attr] = i
+            attr_to_i = {u_attr: i for (i, u_attr) in enumerate(unique_attr)}
             i_to_attr = {value: key for key, value in attr_to_i.items()}
 
-            voxel_matrix = np.full(self.extents().astype(int)+1, -1, dtype=np.int32)
+            voxel_matrix = np.full(prev_map.extents() + 1, -1, dtype=np.int32)
             for v in self.voxels:
                 voxel_matrix[v] = attr_to_i[int(prev_map.voxels[v][attr])]
 
             threadsperblock = 1024
             blockspergrid = (self.size + (threadsperblock - 1)) // threadsperblock
-            VoxelGrid.convolve_most_common_nb_gpu[blockspergrid, threadsperblock](
+            VoxelGrid.most_common_nb_gpu[blockspergrid, threadsperblock](
                 voxel_matrix, origin_voxels, kernel_voxels, nbs_occurences, len(unique_attr), max_nb)
-            
-            max_nb = max_nb.copy_to_host()
+
             for i, max_i in enumerate(max_nb):
                 prop_map[tuple(origin_voxels[i])][attr] = i_to_attr[max_i[0]]
 
             # Stop propagation once it fails to make a change
-            propagating = prev_map.voxels != prop_map.voxels
-
+            if prev_map.voxels == prop_map.voxels:
+                break
 
         return prop_map
 
@@ -244,7 +240,7 @@ class VoxelGrid:
         return components_voxel
 
     @cuda.jit
-    def convolve_has_nbs_gpu(voxels, occupied_voxels, kernel, conv_voxels):
+    def has_nb_gpu(voxels, occupied_voxels, kernel, conv_voxels):
         pos = cuda.grid(1)
         if pos < occupied_voxels.shape[0]:
             cur_vox = occupied_voxels[pos]
@@ -261,25 +257,24 @@ class VoxelGrid:
                 
                     conv_voxels[pos] = 1
                     break
-
+                           
     @cuda.jit
-    def convolve_most_common_nb_gpu(voxels, origin_voxels, kernel, nbs_occurences, n_vals, max_occurences):
+    def most_common_nb_gpu(voxels, occupied, kernel, nbs_occurences, n_vals, max_occurences):
         pos = cuda.grid(1)
-        if pos < origin_voxels.shape[0]:
-            cur_vox = origin_voxels[pos]
+        if pos < occupied.shape[0]:
+            cur_vox = occupied[pos]
             
             for nb in kernel:
                 nb_x = cur_vox[0]+nb[0]
                 nb_y = cur_vox[1]+nb[1]
                 nb_z = cur_vox[2]+nb[2]
-                nb_val = voxels[nb_x, nb_y, nb_z]
+                nb_attr = voxels[nb_x, nb_y, nb_z]    
                 
                 if  0 < nb_x < voxels.shape[0] and \
                     0 < nb_y < voxels.shape[1] and \
                     0 < nb_z < voxels.shape[2] and \
-                        nb_val != -1:
-                        
-                    nbs_occurences[pos][nb_val] += 1
+                        nb_attr != -1:
+                    nbs_occurences[pos][nb_attr] += 1
 
             max_occurence = 1 
             max_val = voxels[cur_vox[0], cur_vox[1], cur_vox[2]]
@@ -305,7 +300,7 @@ class VoxelGrid:
 
         threadsperblock = 1024
         blockspergrid = (self.size + (threadsperblock - 1)) // threadsperblock
-        VoxelGrid.convolve_has_nbs_gpu[blockspergrid, threadsperblock](
+        VoxelGrid.has_nb_gpu[blockspergrid, threadsperblock](
             voxel_matrix, occupied_voxels, kernel_voxels, result_voxels)
 
         nb_voxels = [tuple(occupied_voxels[v]) for (v, occ) in enumerate(result_voxels) if not occ[0]]
@@ -482,7 +477,7 @@ class VoxelGrid:
         points = [self.voxel_centroid(v) for v in self.voxels]
         colors = list(self.list_attr(VoxelGrid.color_attr)) if color else []
 
-        return model.point_cloud.PointCloud(np.array(points), colors=colors, source=self)
+        return model.point_cloud.PointCloud(np.array(points), colors=colors)
 
     def to_graph(self, kernel: Kernel = None) -> SpatialGraph:
         graph = networkx.Graph()

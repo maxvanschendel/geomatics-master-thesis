@@ -70,7 +70,7 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
 
     print("- Segmenting storeys")
     # Split building into multiple storeys and determine their adjacency
-    storeys, storey_adjacency = segment_storeys(floor_voxel, building_voxels, buffer=10, height=400)
+    storeys, storey_adjacency = segment_storeys(floor_voxel, building_voxels, buffer=3, height=100)
 
     # Create a node for each storey in the building and edges for
     # both hierarchy within building and traversability between storeys
@@ -110,10 +110,12 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
             map_voxel=storey_geometry,
             subsample=p.isovist_subsample,
             max_dist=p.isovist_range)
-
+        if not isovists:
+            continue
+        
         print(f'    - Clustering {len(isovists)} isovists')
         mutual_visibility = mutual_visibility_graph(isovists)
-        clustering = cluster_graph(
+        clustering = cluster_graph_mcl(
             distance_matrix=mutual_visibility,
             weight_threshold=p.weight_threshold,
             min_inflation=p.min_inflation,
@@ -129,8 +131,9 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
         print(f"    - Propagating labels")
         map_rooms = map_rooms.propagate_attr(
             attr=VoxelGrid.cluster_attr,
-            prop_kernel=Kernel.sphere(r=4))
+            prop_kernel=Kernel.sphere(r=2), max_its=10)
 
+        print(f"    - Finding connected clusters")
         map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
 
         n_cluster = 0
@@ -167,28 +170,6 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
                     topometric_map.add_edge(
                         node_dict[a], node_dict[b], EdgeType.TRAVERSABILITY)
 
-    # Visualisation
-    print("Visualising map")
-    viz = Viz([
-        [
-            MapViz(partial_map_pcd.to_o3d(),
-                   Viz.pcd_mat())
-        ],
-        [
-            MapViz(floor_voxel.to_o3d(has_color=True),
-                   Viz.pcd_mat()),
-            MapViz(isovist_positions.to_o3d(
-                has_color=True), Viz.pcd_mat())
-        ],
-
-        # Topometric map visualization at room level
-        [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in topometric_map.to_o3d(Hierarchy.ROOM)[0]] +
-        [MapViz(topometric_map.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
-        [MapViz(o, Viz.pcd_mat())
-         for o in topometric_map.to_o3d(Hierarchy.ROOM)[2]],
-    ])
-
-    topometric_map.draw_graph('graph_topology.png')
     return topometric_map
 
 
@@ -300,7 +281,7 @@ def mutual_visibility_graph(isovists) -> np.array:
     return distance_matrix
 
 
-def cluster_graph(distance_matrix, weight_threshold: float, min_inflation: float, max_inflation: float) -> List[int]:
+def cluster_graph_mcl(distance_matrix, weight_threshold: float, min_inflation: float, max_inflation: float) -> List[int]:
     import markov_clustering as mc
 
     G = networkx.convert.to_networkx_graph(distance_matrix)
@@ -328,6 +309,7 @@ def cluster_graph(distance_matrix, weight_threshold: float, min_inflation: float
     for i, c in enumerate(clusters):
         for iso in c:
             labeling[iso] = i
+            
     return labeling
 
 
