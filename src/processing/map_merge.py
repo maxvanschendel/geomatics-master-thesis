@@ -1,6 +1,6 @@
 from analysis.visualizer import MapViz, Viz
 from model.topometric_map import *
-
+import matplotlib.pyplot as plt
 
 def draw_registration_result(source, target, transformation):
     source.paint_uniform_color([1, 0.706, 0])
@@ -112,31 +112,27 @@ def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMa
     b_bof = [bag_of_features(room.geometry, cb) for room in rooms_b]
 
     similarity_matrix = np.empty((len(a_bof), len(b_bof)), dtype=np.float)
+    k = 250
     for i_a, a in enumerate(a_bof):
+        a_embedding = rooms_a[i_a].geometry.spectral_embedding(Kernel.nb6(), k)
         for i_b, b in enumerate(b_bof):
-            trans_init = np.asarray([[0.0, 0.0, -0.0, 0],
-                                     [-0, 0, -0, 0],
-                                     [0, 0, 0, 0], [0.0, 0.0, 0.0, 1.0]])
-            source = rooms_a[i_a].geometry.to_pcd().to_o3d()
-            target = rooms_b[i_b].geometry.to_pcd().to_o3d()
-            threshold = .2
-            reg_p2p = o3d.pipelines.registration.registration_icp(source, target, threshold, trans_init,
-                o3d.pipelines.registration.TransformationEstimationPointToPoint())
-            
-            evaluation = o3d.pipelines.registration.evaluate_registration(
-                source, target, threshold, trans_init)
-            print(evaluation)
-
+            b_embedding = rooms_b[i_b].geometry.spectral_embedding(Kernel.nb6(), k)
             # draw_registration_result(source, target, reg_p2p.transformation)
+            
+            print(len(a_embedding), len(b_embedding))
 
-            similarity_matrix[i_a][i_b] = np.linalg.norm(a - b)
+            if len(a_embedding) == len(b_embedding):
+                similarity_matrix[i_a][i_b] = np.linalg.norm(a_embedding - b_embedding)
+            else:
+                similarity_matrix[i_a][i_b] = 1
 
-    import matplotlib.pyplot as plt
+
+    plt.clf()
     plt.matshow(similarity_matrix)
     plt.colorbar()
     plt.savefig('sim.png')
 
-    n = 3
+    n = 1
     n_most_similar_flat = np.argpartition(similarity_matrix.ravel(), n)[:n]
     n_most_similar = [np.unravel_index(
         i, similarity_matrix.shape) for i in n_most_similar_flat]
@@ -146,20 +142,10 @@ def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMa
     line_set = o3d.geometry.LineSet()
     points, lines = [], []
 
-    avg_linkage = []
     for i, n in enumerate(n_most_similar):
         i_a, i_b = n
         m_a = rooms_a[i_a]
         m_b = rooms_b[i_b]
-
-        features_a = fpfh(m_a.geometry).T
-        features_b = fpfh(m_b.geometry).T
-
-        pair_dist = 0
-        for f_a in features_a:
-            for f_b in features_b:
-                pair_dist += np.linalg.norm(f_a - f_b)
-        avg_linkage.append(pair_dist / (len(features_a) * len(features_b)))
 
         points.append(m_a.geometry.centroid())
         points.append(m_b.geometry.centroid())

@@ -41,8 +41,9 @@ class VoxelGrid:
             self.size = len(voxels)
             self.svo = SVO.from_voxels(self.voxels.keys(), self.cell_size/2)
         else:
-            self.size = 0
-            self.svo = None            
+            self.size, self.svo = 0, None
+            
+        self.morton_index = {morton_code(v): i for i, v in enumerate(self.voxels)}              
 
     def clone(self) -> VoxelGrid:
         return deepcopy(self)
@@ -504,6 +505,37 @@ class VoxelGrid:
         with open(fn, 'rb') as read_file:
             vg = pickle.load(read_file)
         return vg
+    
+    def spectral_embedding(self, kernel, k):
+        laplacian_eigenvalues = np.linalg.eig(self.laplacian_matrix(kernel))[0]
+        return np.sort(laplacian_eigenvalues)[:k]
+    
+    def laplacian_matrix(self, kernel):
+        return self.degree_matrix(kernel) - self.adjacency_matrix(kernel)
+    
+    def degree_matrix(self, kernel):
+        degree_matrix = np.zeros((self.size, self.size))
+        
+        for v in self.voxels:
+            v_index = self.morton_index[morton_code(v)]
+            
+            v_nbs = self.get_kernel(v, kernel)
+            degree_matrix[v_index][v_index] = len(v_nbs)
+            
+        return degree_matrix
+    
+    def adjacency_matrix(self, kernel):
+        adjacency_matrix = np.zeros((self.size, self.size))
+        
+        for v in self.voxels:
+            v_index = self.morton_index[morton_code(v)]
+            
+            v_nbs = self.get_kernel(v, kernel)
+            nbs_index = [self.morton_index[morton_code(v)] for v in v_nbs]
+            
+            adjacency_matrix[v_index][nbs_index] = 1
+            
+        return adjacency_matrix
 
 
 class Kernel(VoxelGrid):
