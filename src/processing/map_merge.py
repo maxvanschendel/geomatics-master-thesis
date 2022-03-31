@@ -1,32 +1,7 @@
+import itertools
 from analysis.visualizer import MapViz, Viz
 from model.topometric_map import *
 import matplotlib.pyplot as plt
-
-def draw_registration_result(source, target, transformation):
-    source.paint_uniform_color([1, 0.706, 0])
-    target.paint_uniform_color([0, 0.651, 0.929])
-    source.transform(transformation)
-    o3d.visualization.draw_geometries([source, target],
-                                      zoom=0.4559,
-                                      front=[0.6452, -0.3036, -0.7011],
-                                      lookat=[1.9892, 2.0208, 1.8945],
-                                      up=[-0.2779, -0.9482, 0.1556])
-
-
-def execute_global_registration(source_down, target_down, source_fpfh,
-                                target_fpfh, voxel_size):
-
-    distance_threshold = voxel_size * 1.5
-    result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
-        source_down, target_down, source_fpfh, target_fpfh, distance_threshold, 10,
-        o3d.pipelines.registration.TransformationEstimationPointToPoint(False),
-        4, [
-            o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(
-                0.9),
-            o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(
-                distance_threshold)
-        ], o3d.pipelines.registration.RANSACConvergenceCriteria(4000000, 500))
-    return result
 
 
 def fpfh(voxel_grid):
@@ -64,7 +39,6 @@ def codebook(data: List[VoxelGrid], n_words: int):
     """
 
     # https://ai.stackexchange.com/questions/21914/what-are-bag-of-features-in-computer-vision
-
     from sklearn.cluster import KMeans
 
     features = np.hstack([fpfh(vg) for vg in data])
@@ -100,44 +74,79 @@ def embed_attributed_graph():
     # DANE / DMGI
     pass
 
+def spectral_embedding(voxel_grid: VoxelGrid, dim: float) -> np.array:
+    return voxel_grid.shape_dna(Kernel.nb6(), dim)
+
+def merge_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap, matches) -> HierarchicalTopometricMap:
+    pass
+
+def n_smallest_indices(input: np.array, n: int):
+    smallest_flat = np.argpartition(input.ravel(), n)[:n]
+    smallest_indices = [np.unravel_index( i, input.shape) for i in smallest_flat]
+    
+    return smallest_indices
 
 def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap):
+    global_dim = 50
+    local_dim = 50
+    n = 1
+    use_local_features = False
+    use_global_features = True
+    
+    if not use_local_features and not use_global_features:
+        raise ValueError("Both feature embeddings disabled")
+    
     rooms_a = map_a.get_node_level(Hierarchy.ROOM)
     rooms_b = map_b.get_node_level(Hierarchy.ROOM)
+    a_size, b_size = len(rooms_a), len(rooms_b)
+    
+    
+    
+    # Use bag of features to embed local geometric features
+    if use_local_features:
+        print("Extracting local features")
+        cb = codebook([a.geometry for a in rooms_a] + [b.geometry for b in rooms_b], local_dim)
+        a_bof = [bag_of_features(room.geometry, cb) for room in rooms_a]
+        b_bof = [bag_of_features(room.geometry, cb) for room in rooms_b]
+        
+    # use ShapeDNA to embed global geometric features
+    if use_global_features:
+        print("Extracting global features")
+        a_spec = [spectral_embedding(a.geometry, global_dim) for a in rooms_a]
+        b_spec = [spectral_embedding(b.geometry, global_dim) for b in rooms_b]
+    
+    # Concatenate local and global features into a single vector if both are enabled
+    if use_global_features and use_local_features:
+        a_embedding = [np.concatenate((a_spec[i],  a_bof[i])) for i in range(len(rooms_a))]
+        b_embedding = [np.concatenate((b_spec[i],  b_bof[i])) for i in range(len(rooms_b))]
+    elif use_local_features:
+        a_embedding = a_bof
+        b_embedding = b_bof
+    else:
+        a_embedding = a_spec
+        b_embedding = b_spec
 
-    cb = codebook([a.geometry for a in rooms_a] +
-                  [b.geometry for b in rooms_b], 33)
 
-    a_bof = [bag_of_features(room.geometry, cb) for room in rooms_a]
-    b_bof = [bag_of_features(room.geometry, cb) for room in rooms_b]
+    # For every room pair, compute Euclidean distance in feature space
+    print("Constructing distance matrix")
+    g2v_distance_matrix = VoxelGrid.graph2vec([a.geometry for a in rooms_a] + [b.geometry for b in rooms_b])
+    g2v_distance_matrix = g2v_distance_matrix[:a_size, a_size:]
 
-    similarity_matrix = np.empty((len(a_bof), len(b_bof)), dtype=np.float)
-    k = 250
-    for i_a, a in enumerate(a_bof):
-        a_embedding = rooms_a[i_a].geometry.spectral_embedding(Kernel.nb6(), k)
-        for i_b, b in enumerate(b_bof):
-            b_embedding = rooms_b[i_b].geometry.spectral_embedding(Kernel.nb6(), k)
-            # draw_registration_result(source, target, reg_p2p.transformation)
-            
-            print(len(a_embedding), len(b_embedding))
+    spectral_distance_matrix = np.empty((a_size, b_size), dtype=np.float)
+    room_pairs = itertools.product(range(a_size), range(b_size))
+    for i_a, i_b in room_pairs:
+        if len(a_embedding[i_a]) == len(b_embedding[i_b]):
+            spectral_distance_matrix[i_a][i_b] = np.linalg.norm(a_embedding[i_a] - b_embedding[i_b])
+        else:
+            spectral_distance_matrix[i_a][i_b] = math.inf
 
-            if len(a_embedding) == len(b_embedding):
-                similarity_matrix[i_a][i_b] = np.linalg.norm(a_embedding - b_embedding)
-            else:
-                similarity_matrix[i_a][i_b] = 1
+    distance_matrix = g2v_distance_matrix * spectral_distance_matrix
+    
+    # Find n room pairs with highest similarity
+    print("Identifying most similar matches")
+    n_most_similar = n_smallest_indices(distance_matrix, n)
 
-
-    plt.clf()
-    plt.matshow(similarity_matrix)
-    plt.colorbar()
-    plt.savefig('sim.png')
-
-    n = 1
-    n_most_similar_flat = np.argpartition(similarity_matrix.ravel(), n)[:n]
-    n_most_similar = [np.unravel_index(
-        i, similarity_matrix.shape) for i in n_most_similar_flat]
-
-    print(n_most_similar)
+    print(f"Identified matches: {n_most_similar}")
 
     line_set = o3d.geometry.LineSet()
     points, lines = [], []
@@ -157,17 +166,16 @@ def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMa
     viz = Viz([
         # Topometric map A visualization at room level
         [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_a.to_o3d(Hierarchy.ROOM)[0]] +
-        [MapViz(map_a.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
+        # [MapViz(map_a.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
         [MapViz(o, Viz.pcd_mat()) for o in map_a.to_o3d(Hierarchy.ROOM)[2]] +
 
         [MapViz(line_set, Viz.graph_mat(color=[0, 0, 1, 1]))] +
 
         # Topometric map B visualization at room level
         [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_b.to_o3d(Hierarchy.ROOM)[0]] +
-        [MapViz(map_b.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
+        # [MapViz(map_b.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
         [MapViz(o, Viz.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
-         ],
-
+        ],
     ])
 
     # 1. detect local features for nodes

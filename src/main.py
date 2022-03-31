@@ -21,8 +21,8 @@ map_extract_parameters = MapExtractionParameters(
     kernel_scale=0.05,
 
     # Isovists
-    isovist_height=1.8,
-    isovist_spacing=1,
+    isovist_height=(1.5, 1.8),
+    isovist_spacing=0.5,
     isovist_subsample=1,
     isovist_range=5,
 
@@ -30,11 +30,13 @@ map_extract_parameters = MapExtractionParameters(
     min_inflation=1.1,
     max_inflation=2,
     
+    storey_buffer = 5,
+    
     # Lower values lead to oversegmentation, higher to undersegmentation
-    weight_threshold=.7,
+    weight_threshold=.6,
 )
 
-skip_extract: bool = True
+skip_extract: bool = False
 partial_map_a: str = "../data/meshes/diningroom2kitchen.ply"
 partial_map_b: str = "../data/meshes/hall2oldkitchen.ply"
 
@@ -61,7 +63,5 @@ if __name__ == "__main__":
     else:
         htmap_a = HierarchicalTopometricMap.read(htmap_a_fn)
         htmap_b = HierarchicalTopometricMap.read(htmap_b_fn)
-
-
 
     matches = match_maps(htmap_a, htmap_b)

@@ -32,6 +32,9 @@ class MapExtractionParameters:
     weight_threshold: float
     min_inflation: float
     max_inflation: float
+    
+    storey_buffer: int = -5
+    storey_height: int = 300
 
     @staticmethod
     def deserialize(data: str) -> MapExtractionParameters:
@@ -67,10 +70,11 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
     print("- Extracting traversable volume")
     # Extract the traversable volume and get building voxels at its bottom (the floor)
     nav_volume_voxel, floor_voxel = segment_floor_area(building_voxels, p.kernel_scale, p.leaf_voxel_size)
+    floor_voxel = deepcopy(floor_voxel)
 
     print("- Segmenting storeys")
     # Split building into multiple storeys and determine their adjacency
-    storeys, storey_adjacency = segment_storeys(floor_voxel, building_voxels, buffer=3, height=100)
+    storeys, storey_adjacency = segment_storeys(floor_voxel, building_voxels, buffer=p.storey_buffer, height=p.storey_height)
 
     # Create a node for each storey in the building and edges for
     # both hierarchy within building and traversability between storeys
@@ -87,12 +91,6 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
     # Attempt to find the positions in the map from which as much of the
     # the map is visible as possible.
     isovist_positions = optimal_isovist_positions(floor_voxel, p.isovist_height, p.isovist_spacing)
-    isovist_positions.colorize([1,0,0])
-
-    floor_voxel = deepcopy(floor_voxel)
-    df = floor_voxel.distance_field()
-    for v, d in df.items():
-        floor_voxel[v]['color'] = np.array([d,d,d]) / max(df.values())
         
     print(f"- Segmenting {len(storey_nodes)} storey(s)")
     for i, storey in enumerate(storey_nodes):
@@ -145,7 +143,6 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
 
             for c in room_components:
                 c.set_attr_uniform(attr=VoxelGrid.cluster_attr, val=n_cluster)
-
                 n_cluster += 1
                 connected_clusters += c
 
@@ -243,9 +240,9 @@ def local_distance_field_maxima(vg, radius, min=0) -> VoxelGrid:
     return vg.subset(lambda v: v in local_maxima)
 
 
-def optimal_isovist_positions(floor: VoxelGrid, path_height: float, kernel_radius=7, min_boundary_dist=2) -> VoxelGrid:
+def optimal_isovist_positions(floor: VoxelGrid, path_height: Tuple[float, float], kernel_radius=7, min_boundary_dist=1) -> VoxelGrid:
     skeleton = local_distance_field_maxima(floor, kernel_radius, min_boundary_dist)
-    skeleton.origin += np.array([0, path_height, 0.])
+    skeleton.origin += np.array([0, path_height[0] + (random()*(path_height[1]-path_height[0])) , 0.])
 
     return skeleton
 

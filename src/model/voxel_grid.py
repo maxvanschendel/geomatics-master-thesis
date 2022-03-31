@@ -506,9 +506,25 @@ class VoxelGrid:
             vg = pickle.load(read_file)
         return vg
     
-    def spectral_embedding(self, kernel, k):
-        laplacian_eigenvalues = np.linalg.eig(self.laplacian_matrix(kernel))[0]
-        return np.sort(laplacian_eigenvalues)[:k]
+    @staticmethod
+    def graph2vec(voxel_grids: List[VoxelGrid]):
+        import gmatch4py as gm
+        import networkx as nx 
+        
+        graphs = [nx.from_numpy_matrix(vg.adjacency_matrix(Kernel.nb6())) for vg in voxel_grids]
+        model = gm.Graph2Vec()
+        
+        result= model.compare(graphs,None) 
+        return model.distance(result)
+        
+    def shape_dna(self, kernel, k):
+        laplacian_eigenvalues = np.linalg.eigvals(self.laplacian_matrix(kernel))
+        sorted_eigenvalues = np.sort(laplacian_eigenvalues)
+        first_k_eigenvalues = sorted_eigenvalues[:k]
+        
+        # Fit line through eigenvalues (y = ax + b)
+        a, b = np.polyfit(np.arange(len(sorted_eigenvalues)), sorted_eigenvalues, 1)
+        return first_k_eigenvalues / a
     
     def laplacian_matrix(self, kernel):
         return self.degree_matrix(kernel) - self.adjacency_matrix(kernel)
@@ -518,8 +534,8 @@ class VoxelGrid:
         
         for v in self.voxels:
             v_index = self.morton_index[morton_code(v)]
-            
             v_nbs = self.get_kernel(v, kernel)
+            
             degree_matrix[v_index][v_index] = len(v_nbs)
             
         return degree_matrix
@@ -529,7 +545,6 @@ class VoxelGrid:
         
         for v in self.voxels:
             v_index = self.morton_index[morton_code(v)]
-            
             v_nbs = self.get_kernel(v, kernel)
             nbs_index = [self.morton_index[morton_code(v)] for v in v_nbs]
             
