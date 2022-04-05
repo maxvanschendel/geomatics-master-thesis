@@ -510,21 +510,24 @@ class VoxelGrid:
     def graph2vec(voxel_grids: List[VoxelGrid]):
         import gmatch4py as gm
         import networkx as nx 
-        
+
         graphs = [nx.from_numpy_matrix(vg.adjacency_matrix(Kernel.nb6())) for vg in voxel_grids]
-        model = gm.Graph2Vec()
-        
-        result= model.compare(graphs,None) 
-        return model.distance(result)
+        model = gm.embedding.graph2vec.generate_model(graphs, iteration=2, dimensions=64)
+        vectors = model.docvecs.vectors_docs
+
+        return (vectors - np.min(vectors)) / (np.max(vectors) - np.min(vectors))
         
     def shape_dna(self, kernel, k):
-        laplacian_eigenvalues = np.linalg.eigvals(self.laplacian_matrix(kernel))
+        laplacian_eigenvalues = np.real(np.linalg.eigvals(self.laplacian_matrix(kernel)))
         sorted_eigenvalues = np.sort(laplacian_eigenvalues)
         first_k_eigenvalues = sorted_eigenvalues[:k]
         
         # Fit line through eigenvalues (y = ax + b)
         a, b = np.polyfit(np.arange(len(sorted_eigenvalues)), sorted_eigenvalues, 1)
-        return first_k_eigenvalues / a
+        normalized = first_k_eigenvalues / a
+        normalized = ((normalized - np.min(normalized)) / (np.max(normalized) - np.min(normalized)))
+        
+        return normalized
     
     def laplacian_matrix(self, kernel):
         return self.degree_matrix(kernel) - self.adjacency_matrix(kernel)
@@ -551,6 +554,10 @@ class VoxelGrid:
             adjacency_matrix[v_index][nbs_index] = 1
             
         return adjacency_matrix
+    
+    def to_nx(self, kernel):
+        import networkx as nx
+        return nx.from_numpy_matrix(self.adjacency_matrix(kernel))
 
 
 class Kernel(VoxelGrid):

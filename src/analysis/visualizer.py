@@ -2,6 +2,8 @@ from dataclasses import dataclass
 import open3d as o3d
 from typing import List
 
+from model.topometric_map import Hierarchy
+
 @dataclass
 class MapViz:
     geometry: o3d.geometry
@@ -73,3 +75,38 @@ class Viz:
 
         window.set_on_layout(on_layout)
         app.run()
+        
+def visualize_matches(map_a, map_b, matches):
+    rooms_a = map_a.get_node_level(Hierarchy.ROOM)
+    rooms_b = map_b.get_node_level(Hierarchy.ROOM)
+    
+    print("Visualizing matches")
+    line_set = o3d.geometry.LineSet()
+    points, lines = [], []
+
+    for i, n in enumerate(matches):
+        room_a, room_b = n
+        m_a = rooms_a[room_a]
+        m_b = rooms_b[room_b]
+
+        points.append(m_a.geometry.centroid())
+        points.append(m_b.geometry.centroid())
+        lines.append((i*2, i*2 + 1))
+        
+    line_set.points = o3d.utility.Vector3dVector(points)
+    line_set.lines = o3d.utility.Vector2iVector(lines)
+
+    viz = Viz([
+        # Topometric map A visualization at room level
+        [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_a.to_o3d(Hierarchy.ROOM)[0]] +
+        [MapViz(map_a.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
+        [MapViz(o, Viz.pcd_mat()) for o in map_a.to_o3d(Hierarchy.ROOM)[2]] +
+
+        [MapViz(line_set, Viz.graph_mat(color=[0, 0, 1, 1]))] +
+
+        # Topometric map B visualization at room level
+        [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_b.to_o3d(Hierarchy.ROOM)[0]] +
+        [MapViz(map_b.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
+        [MapViz(o, Viz.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
+        ],
+    ])

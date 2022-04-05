@@ -33,10 +33,10 @@ map_extract_parameters = MapExtractionParameters(
     storey_buffer = 5,
     
     # Lower values lead to oversegmentation, higher to undersegmentation
-    weight_threshold=.6,
+    weight_threshold=.5,
 )
 
-skip_extract: bool = False
+skip_extract: bool = True
 partial_map_a: str = "../data/meshes/diningroom2kitchen.ply"
 partial_map_b: str = "../data/meshes/hall2oldkitchen.ply"
 

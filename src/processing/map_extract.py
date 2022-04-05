@@ -35,6 +35,8 @@ class MapExtractionParameters:
     
     storey_buffer: int = -5
     storey_height: int = 300
+    
+    min_voxels: int = 100
 
     @staticmethod
     def deserialize(data: str) -> MapExtractionParameters:
@@ -150,7 +152,8 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
         topo_map = traversability_graph(
             map_segmented=connected_clusters,
             nav_graph=floor_voxel,
-            floor_voxels=nav_volume_voxel)
+            floor_voxels=nav_volume_voxel,
+            min_voxels=p.min_voxels)
 
         node_dict = {n: TopometricNode(
             Hierarchy.ROOM, topo_map.graph.nodes[n]['geometry']) for n in topo_map.graph.nodes}
@@ -332,7 +335,7 @@ def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clusterin
     return clustered_map
 
 
-def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floor_voxels: VoxelGrid, min_voxels: float=10) -> SpatialGraph:
+def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floor_voxels: VoxelGrid, min_voxels: float=100) -> SpatialGraph:
     unique_clusters = np.unique(
         list(map_segmented.list_attr(VoxelGrid.cluster_attr)))
     G = networkx.Graph()
