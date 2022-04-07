@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+from itertools import combinations
 from typing import List
 import numpy as np
 import skopt
@@ -262,10 +263,6 @@ def cast_isovists(origins: List[Tuple], map_voxel: VoxelGrid, subsample: float, 
 
 
 def mutual_visibility_graph(isovists) -> np.array:
-    import matplotlib.pyplot as plt
-    from networkx.drawing.nx_agraph import graphviz_layout
-    from itertools import combinations
-
     n_isovist = len(isovists)
     distance_matrix = np.zeros((n_isovist, n_isovist))
 

@@ -1,10 +1,13 @@
 from __future__ import annotations
+import itertools
+from turtle import distance
+from sklearn import cluster
 
 from sklearn.metrics.pairwise import euclidean_distances
 from analysis.visualizer import visualize_matches
 from model.topometric_map import *
 from yaml import dump, load, Loader
-
+from karateclub import FeatherGraph, IGE,  NetLSD,  GeoScattering,  WaveletCharacteristic, Graph2Vec, FeatherNode, MUSAE, AE, SINE, BANE, FSCNMF, LDP, GL2Vec, FGSD
 
 @dataclass(frozen=True)
 class MapMergeParameters:
@@ -77,7 +80,7 @@ def n_smallest_indices(input: np.array, n: int):
 def attributed_graph_embedding(map: HierarchicalTopometricMap, geometry_model, node_model) -> np.array:
     rooms = map.get_node_level(Hierarchy.ROOM)
     geometry_model = geometry_model()
-    geometry_model.fit([a.geometry.to_nx(Kernel.nb6()) for a in rooms])
+    geometry_model.fit([a.geometry.to_nx(Kernel.nb26()) for a in rooms])
     node_embedding = geometry_model.get_embedding()
 
     if node_model is not None:
@@ -90,13 +93,13 @@ def attributed_graph_embedding(map: HierarchicalTopometricMap, geometry_model, n
 
 
 def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap):
-    from karateclub import FeatherGraph, IGE,  NetLSD,  GeoScattering,  WaveletCharacteristic, Graph2Vec, FeatherNode, MUSAE, AE, SINE, BANE, FSCNMF
+    m = 3
+    draw_matches = True
+    geometry_model = LDP
+    node_model = FSCNMF
 
-    n = 5
-    m = 2
-    draw_matches = False
-    geometry_model = WaveletCharacteristic
-    node_model =  FSCNMF
+    registration_weight = 1
+    embedding_weight = 1
     
     rooms_a = map_a.get_node_level(Hierarchy.ROOM)
     rooms_b = map_b.get_node_level(Hierarchy.ROOM)
@@ -107,26 +110,28 @@ def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMa
 
     # Find n room pairs with highest similarity
     distance_matrix = euclidean_distances(a_embed, b_embed)
-    matches = n_smallest_indices(distance_matrix, n)
-    match_distances = [distance_matrix[i] for i in matches]
-    
-    # Apply ICP registration to each potential match and weight their similarity by registration fitness
-    match_transforms = [dense_registration(rooms_a[a].geometry, rooms_b[b].geometry) for a, b in matches]
-    match_f = [t.fitness for t in match_transforms]
-    match_f = [f/max(match_f) for f in match_f]
+    matches = [(x,y) for x in range(distance_matrix.shape[0]) for y in range(distance_matrix.shape[1])]
 
-    [print(i) for i in match_transforms]
-    print(list(zip(match_distances, matches)))
-    print(list(zip(match_f, matches)))
-    match_fitness = [(match_distances[i]/match_f[i]) for i, t in enumerate(match_transforms)]
-    fitness_sorted_matches = sorted(zip(match_fitness, matches))
+    embedding_dist = [distance_matrix[i] for i in matches]
+    embedding_dist = [((i-np.min(distance_matrix))/(np.max(distance_matrix)-np.min(distance_matrix)))*embedding_weight for i in embedding_dist]
     
+    # Apply ICP registration to each potential match
+    match_transforms = [dense_registration(rooms_a[a].geometry, rooms_b[b].geometry) for a, b in matches]
+    registration_dist = [t.fitness for t in match_transforms]
+    registration_dist = [(1 - ((f-np.min(registration_dist))/(np.max(distance_matrix)-np.min(distance_matrix))))*registration_weight for f in registration_dist]
+
+    # Combine registration fitness and attributed graph distance and sort
+    # Lower value indicates higher similarity
+    match_similarity = [np.linalg.norm([registration_dist[i], embedding_dist[i]]) for i, t in enumerate(match_transforms)]
+    fitness_sorted_matches = sorted(zip(match_similarity, matches))
     m_best_matches = [match for _, match in fitness_sorted_matches[:m]]
-    print(f"Identified matches: {m_best_matches}")
-    print(fitness_sorted_matches)
+
+    print(f'Attributed graph distance: {list(zip(embedding_dist, matches))}')
+    print(f'Registration fitness: {list(zip(registration_dist, matches))}')
+    print(f'Sorted combined matches: {fitness_sorted_matches}')
+
     if draw_matches:
         visualize_matches(map_a, map_b, m_best_matches)
-
     return [(rooms_a[a], rooms_b[b]) for a, b in matches]
 
 
@@ -141,7 +146,12 @@ def dense_registration(map_a: VoxelGrid, map_b: VoxelGrid) -> np.array:
 
 
 def cluster_transform_hypotheses(transforms):
-    pass
+    t_eigvals = [np.sort(np.real(np.linalg.eigvals(t))) for t in transforms]
+    dist_matrix = euclidean_distances(t_eigvals)
+
+
+
+
 
 
 def evaluate_merge_hypothesis(map_a, map_b, transform, ):
