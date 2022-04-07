@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from torch import randint
-from yaml import load, dump
+from yaml import load, Loader, dump
 
 import numpy as np
 from model.topometric_map import *
@@ -30,7 +30,7 @@ class PreProcessingParameters:
 
     @staticmethod
     def deserialize(data: str) -> PreProcessingParameters:
-        return load(data)
+        return load(data, Loader)
 
     @staticmethod
     def read(fn: str) -> PreProcessingParameters:
@@ -42,7 +42,7 @@ class PreProcessingParameters:
         return dump(self)
 
     def write(self, fn: str) -> None:
-        with open(fn, "rw") as write_file:
+        with open(fn, "w+") as write_file:
             write_file.write(self.serialize())
         
 

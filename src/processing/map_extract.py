@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import List
 import numpy as np
 import skopt
-from yaml import dump, load
+from yaml import dump, load, Loader
 
 from analysis.visualizer import MapViz, Viz
 from model.topometric_map import *
@@ -40,7 +40,7 @@ class MapExtractionParameters:
 
     @staticmethod
     def deserialize(data: str) -> MapExtractionParameters:
-        return load(data)
+        return load(data, Loader)
 
     @staticmethod
     def read(fn: str) -> MapExtractionParameters:
@@ -52,7 +52,7 @@ class MapExtractionParameters:
         return dump(self)
 
     def write(self, fn: str) -> None:
-        with open(fn, "rw") as write_file:
+        with open(fn, "w+") as write_file:
             write_file.write(self.serialize())
 
 

@@ -99,14 +99,14 @@ def visualize_matches(map_a, map_b, matches):
     viz = Viz([
         # Topometric map A visualization at room level
         [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_a.to_o3d(Hierarchy.ROOM)[0]] +
-        [MapViz(map_a.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
+        # [MapViz(map_a.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
         [MapViz(o, Viz.pcd_mat()) for o in map_a.to_o3d(Hierarchy.ROOM)[2]] +
 
         [MapViz(line_set, Viz.graph_mat(color=[0, 0, 1, 1]))] +
 
         # Topometric map B visualization at room level
         [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_b.to_o3d(Hierarchy.ROOM)[0]] +
-        [MapViz(map_b.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
+        # [MapViz(map_b.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
         [MapViz(o, Viz.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
         ],
     ])

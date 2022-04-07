@@ -1,9 +1,34 @@
+from __future__ import annotations
+
 from sklearn.metrics.pairwise import euclidean_distances
 from analysis.visualizer import visualize_matches
 from model.topometric_map import *
-from MUSAE.musae import embed_attributed_graph, MUSAEParameters
+from yaml import dump, load, Loader
 
 
+@dataclass(frozen=True)
+class MapMergeParameters:
+    class MapMergeParametersException(Exception):
+        pass
+    
+    @staticmethod
+    def deserialize(data: str) -> MapMergeParameters:
+        return load(data, Loader)
+
+    @staticmethod
+    def read(fn: str) -> MapMergeParameters:
+        with open(fn, "r") as read_file:
+            file_contents = read_file.read()
+        return MapMergeParameters.deserialize(file_contents)
+
+    def serialize(self) -> str:
+        return dump(self)
+
+    def write(self, fn: str) -> None:
+        with open(fn, "w+") as write_file:
+            write_file.write(self.serialize())
+            
+            
 def fpfh(voxel_grid):
     voxel_size = voxel_grid.cell_size
     pcd = voxel_grid.to_pcd().to_o3d()
@@ -57,19 +82,24 @@ def attributed_graph_embedding(map: HierarchicalTopometricMap, geometry_model, n
 
     if node_model is not None:
         node_model = node_model()
-        node_model.fit(map.graph.subgraph(rooms), node_embedding)
-        node_embedding = model.get_embedding()
+        room_subgraph = networkx.convert_node_labels_to_integers(map.graph.subgraph(rooms))
+        node_model.fit(room_subgraph, node_embedding)
+        node_embedding = node_model.get_embedding()
 
     return node_embedding
 
 
 def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap):
-    from karateclub import FeatherGraph, IGE,  NetLSD,  GeoScattering,  WaveletCharacteristic, Graph2Vec, FeatherNode
+    from karateclub import FeatherGraph, IGE,  NetLSD,  GeoScattering,  WaveletCharacteristic, Graph2Vec, FeatherNode, MUSAE, AE, SINE, BANE, FSCNMF
 
-    n = 1
-    draw_matches = True
-    geometry_model = FeatherGraph
-    node_model = FeatherNode
+    n = 5
+    m = 2
+    draw_matches = False
+    geometry_model = WaveletCharacteristic
+    node_model =  FSCNMF
+    
+    rooms_a = map_a.get_node_level(Hierarchy.ROOM)
+    rooms_b = map_b.get_node_level(Hierarchy.ROOM)
 
     # Attributed graph embedding
     a_embed = attributed_graph_embedding(map_a, geometry_model, node_model)
@@ -78,23 +108,43 @@ def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMa
     # Find n room pairs with highest similarity
     distance_matrix = euclidean_distances(a_embed, b_embed)
     matches = n_smallest_indices(distance_matrix, n)
+    match_distances = [distance_matrix[i] for i in matches]
+    
+    # Apply ICP registration to each potential match and weight their similarity by registration fitness
+    match_transforms = [dense_registration(rooms_a[a].geometry, rooms_b[b].geometry) for a, b in matches]
+    match_f = [t.fitness for t in match_transforms]
+    match_f = [f/max(match_f) for f in match_f]
 
-    print(f"Identified matches: {matches}")
+    [print(i) for i in match_transforms]
+    print(list(zip(match_distances, matches)))
+    print(list(zip(match_f, matches)))
+    match_fitness = [(match_distances[i]/match_f[i]) for i, t in enumerate(match_transforms)]
+    fitness_sorted_matches = sorted(zip(match_fitness, matches))
+    
+    m_best_matches = [match for _, match in fitness_sorted_matches[:m]]
+    print(f"Identified matches: {m_best_matches}")
+    print(fitness_sorted_matches)
     if draw_matches:
-        visualize_matches(map_a, map_b, matches)
+        visualize_matches(map_a, map_b, m_best_matches)
 
-    return matches
+    return [(rooms_a[a], rooms_b[b]) for a, b in matches]
 
 
+# Iterative closest point algorithm
 def dense_registration(map_a: VoxelGrid, map_b: VoxelGrid) -> np.array:
-    pass
+    from processing.registration import registration
+    
+    a_pcd = map_a.to_pcd()
+    b_pcd = map_b.to_pcd()
+    
+    return registration(a_pcd, b_pcd, voxel_size=map_a.cell_size)
 
 
 def cluster_transform_hypotheses(transforms):
     pass
 
 
-def evaluate_merge_hypothesis(map_a, map_b, transform):
+def evaluate_merge_hypothesis(map_a, map_b, transform, ):
     pass
 
 
@@ -110,18 +160,17 @@ def merge_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMa
     """
     
     # Find transform between both maps based on ICP registration between matched spaces
-    match_transforms = [dense_registration(
-        a.geometry, b.geometry) for a, b in matches]
+    match_transforms = [dense_registration(a.geometry, b.geometry) for a, b in matches]
 
-    # Cluster similar transforms into transform hypotheses
-    transform_hypotheses = cluster_transform_hypotheses(match_transforms)
+    # # Cluster similar transforms into transform hypotheses
+    # transform_hypotheses = cluster_transform_hypotheses(match_transforms)
 
-    # Identify which transform hypothesis leads to the most likely configuration
-    hypotheses_evaluation = [evaluate_merge_hypothesis(
-        map_a, map_b, t) for t in transform_hypotheses]
-    best_transform_hypothesis_index = np.argmax(hypotheses_evaluation)
-    best_transform_hypothesis = transform_hypotheses[best_transform_hypothesis_index]
+    # # Identify which transform hypothesis leads to the most likely configuration
+    # hypotheses_evaluation = [evaluate_merge_hypothesis(
+    #     map_a, map_b, t) for t in transform_hypotheses]
+    # best_transform_hypothesis_index = np.argmax(hypotheses_evaluation)
+    # best_transform_hypothesis = transform_hypotheses[best_transform_hypothesis_index]
 
-    # Merge maps, fuse geometry and topology after applying best transform hypothesis
-    merged_map = map_a.merge(map_b, best_transform_hypothesis)
-    return merged_map
+    # # Merge maps, fuse geometry and topology after applying best transform hypothesis
+    # merged_map = map_a.merge(map_b, best_transform_hypothesis)
+    # return merged_map
