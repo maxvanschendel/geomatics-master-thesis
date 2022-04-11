@@ -40,4 +40,4 @@ if __name__ == "__main__":
         htmap_b = HierarchicalTopometricMap.read(pipeline_parameters.htmap_b_fn)
 
     matches = match_maps(htmap_a, htmap_b)
-    # merge_maps(htmap_a, htmap_b, matches)
+    merge_maps(htmap_a, htmap_b, matches)

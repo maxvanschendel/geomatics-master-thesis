@@ -1,0 +1,17 @@
+!!python/object:processing.map_extract.MapExtractionParameters
+isovist_height: !!python/tuple
+- 1.5
+- 1.8
+isovist_range: 5
+isovist_spacing: 0.5
+isovist_subsample: 1
+kernel_scale: 0.05
+leaf_voxel_size: 0.1
+max_inflation: 2
+min_inflation: 1.1
+min_voxels: 250
+segmentation_lod: 1
+storey_buffer: 5
+storey_height: 300
+traversability_lod: 0
+weight_threshold: 0.5

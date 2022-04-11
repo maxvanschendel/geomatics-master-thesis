@@ -1,6 +1,5 @@
 from __future__ import annotations
 import itertools
-from turtle import distance
 from sklearn import cluster
 
 from sklearn.metrics.pairwise import euclidean_distances
@@ -8,6 +7,7 @@ from analysis.visualizer import visualize_matches
 from model.topometric_map import *
 from yaml import dump, load, Loader
 from karateclub import FeatherGraph, IGE,  NetLSD,  GeoScattering,  WaveletCharacteristic, Graph2Vec, FeatherNode, MUSAE, AE, SINE, BANE, FSCNMF, LDP, GL2Vec, FGSD
+from learning3d.models import PointNet, DGCNN, PPFNet
 
 @dataclass(frozen=True)
 class MapMergeParameters:
@@ -31,42 +31,6 @@ class MapMergeParameters:
         with open(fn, "w+") as write_file:
             write_file.write(self.serialize())
             
-            
-def fpfh(voxel_grid):
-    voxel_size = voxel_grid.cell_size
-    pcd = voxel_grid.to_pcd().to_o3d()
-
-    radius_normal = voxel_size * 2
-    radius_feature = voxel_size * 3
-
-    pcd.estimate_normals(
-        o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
-    pcd_fpfh = o3d.pipelines.registration.compute_fpfh_feature(
-        pcd, o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
-    return pcd_fpfh.data
-
-
-def codebook(data: List[VoxelGrid], n_words: int):
-    # https://ai.stackexchange.com/questions/21914/what-are-bag-of-features-in-computer-vision
-    from sklearn.cluster import KMeans
-
-    features = np.hstack([fpfh(vg) for vg in data])
-    kmeans = KMeans(n_clusters=n_words, random_state=0).fit(features.T)
-    centroids = kmeans.cluster_centers_
-
-    return centroids
-
-
-def bag_of_features(voxel_grid: VoxelGrid, codebook: np.array):
-    features = fpfh(voxel_grid)
-    bof = np.zeros(codebook.shape[0])
-    for f in features.T:
-        centroid_distance = [np.linalg.norm(c - f) for c in codebook]
-        nearest_centroid = np.argmin(centroid_distance)
-        bof[nearest_centroid] += 1
-
-    normalized_bof = bof / len(features.T)
-    return normalized_bof
 
 
 def n_smallest_indices(input: np.array, n: int):
@@ -76,30 +40,62 @@ def n_smallest_indices(input: np.array, n: int):
 
     return smallest_indices
 
+def codebook(features, n_words: int):
+    # https://ai.stackexchange.com/questions/21914/what-are-bag-of-features-in-computer-vision
+    from sklearn.cluster import KMeans
+    
+    kmeans = KMeans(n_clusters=n_words, random_state=0).fit(features.T)
+    centroids = kmeans.cluster_centers_
 
+    return centroids
+
+
+def bag_of_features(features, codebook: np.array):
+    bof = np.zeros(codebook.shape[0])
+    for f in features.T:
+        centroid_distance = [np.linalg.norm(c - f) for c in codebook]
+        nearest_centroid = np.argmin(centroid_distance)
+        bof[nearest_centroid] += 1
+
+    normalized_bof = bof / len(features.T)
+    return normalized_bof
+
+def dgcnn_global_embedding(pcd, dim):
+    import torch
+    
+    dgcnn =  DGCNN(emb_dims=dim, input_shape='bnc')
+    dgcnn_embed = dgcnn(torch.from_numpy(pcd.reshape((1, pcd.shape[0], pcd.shape[1]))).float())
+    dgcnn_embed = dgcnn_embed.detach().numpy()[0,:,:].T
+    
+    print(dgcnn_embed.shape)
+    return dgcnn_embed
+    
 def attributed_graph_embedding(map: HierarchicalTopometricMap, geometry_model, node_model) -> np.array:
+    import torch
+    
+    embed_dim = 256
+    pca_dim = 256
+    
+    
     rooms = map.get_node_level(Hierarchy.ROOM)
-    geometry_model = geometry_model()
-    geometry_model.fit([a.geometry.to_nx(Kernel.nb26()) for a in rooms])
-    node_embedding = geometry_model.get_embedding()
+    raw_embed = [dgcnn_global_embedding(r.geometry.to_pcd().points, embed_dim) for r in rooms]
+    
+    node_embedding = [r[:pca_dim] for r in raw_embed]
+    node_embedding = np.vstack([np.sort(np.real(np.linalg.eigvals(e))) for e in node_embedding])
 
     if node_model is not None:
         node_model = node_model()
         room_subgraph = networkx.convert_node_labels_to_integers(map.graph.subgraph(rooms))
-        node_model.fit(room_subgraph, node_embedding)
+        node_model.fit(room_subgraph, torch.from_numpy(node_embedding))
         node_embedding = node_model.get_embedding()
 
     return node_embedding
 
 
-def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap):
-    m = 3
-    draw_matches = True
-    geometry_model = LDP
-    node_model = FSCNMF
-
-    registration_weight = 1
-    embedding_weight = 1
+def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap, draw_matches: bool = True):
+    m = 2
+    geometry_model = FeatherGraph
+    node_model = None
     
     rooms_a = map_a.get_node_level(Hierarchy.ROOM)
     rooms_b = map_b.get_node_level(Hierarchy.ROOM)
@@ -113,26 +109,16 @@ def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMa
     matches = [(x,y) for x in range(distance_matrix.shape[0]) for y in range(distance_matrix.shape[1])]
 
     embedding_dist = [distance_matrix[i] for i in matches]
-    embedding_dist = [((i-np.min(distance_matrix))/(np.max(distance_matrix)-np.min(distance_matrix)))*embedding_weight for i in embedding_dist]
-    
-    # Apply ICP registration to each potential match
-    match_transforms = [dense_registration(rooms_a[a].geometry, rooms_b[b].geometry) for a, b in matches]
-    registration_dist = [t.fitness for t in match_transforms]
-    registration_dist = [(1 - ((f-np.min(registration_dist))/(np.max(distance_matrix)-np.min(distance_matrix))))*registration_weight for f in registration_dist]
-
-    # Combine registration fitness and attributed graph distance and sort
-    # Lower value indicates higher similarity
-    match_similarity = [np.linalg.norm([registration_dist[i], embedding_dist[i]]) for i, t in enumerate(match_transforms)]
-    fitness_sorted_matches = sorted(zip(match_similarity, matches))
+    fitness_sorted_matches = sorted(zip(embedding_dist, matches))
     m_best_matches = [match for _, match in fitness_sorted_matches[:m]]
-
+    
     print(f'Attributed graph distance: {list(zip(embedding_dist, matches))}')
-    print(f'Registration fitness: {list(zip(registration_dist, matches))}')
     print(f'Sorted combined matches: {fitness_sorted_matches}')
-
+    print(f'Best {m} matches: {m_best_matches}')
+    
     if draw_matches:
         visualize_matches(map_a, map_b, m_best_matches)
-    return [(rooms_a[a], rooms_b[b]) for a, b in matches]
+    return [(rooms_a[a], rooms_b[b]) for a, b in m_best_matches]
 
 
 # Iterative closest point algorithm
@@ -142,21 +128,29 @@ def dense_registration(map_a: VoxelGrid, map_b: VoxelGrid) -> np.array:
     a_pcd = map_a.to_pcd()
     b_pcd = map_b.to_pcd()
     
-    return registration(a_pcd, b_pcd, voxel_size=map_a.cell_size)
+    linear_transformation = registration(a_pcd, b_pcd, voxel_size=map_a.cell_size)
+    return linear_transformation
 
 
 def cluster_transform_hypotheses(transforms):
-    t_eigvals = [np.sort(np.real(np.linalg.eigvals(t))) for t in transforms]
-    dist_matrix = euclidean_distances(t_eigvals)
+    print(transforms)
+    
+    distance_matrix = np.zeros(((len(transforms), len(transforms))))
+    for i in range(len(transforms)):
+        for j in range(len(transforms)):
+            i_t, j_t = transforms[i].transformation, transforms[j].transformation
+            
+            dist =  np.linalg.norm(i_t - j_t)
+            distance_matrix[i][j] = dist
+            
+    clustering = cluster.OPTICS(max_eps=2, min_samples=1, metric='precomputed').fit(distance_matrix)
+    return clustering.labels_
 
+def merge_transforms(transforms):
+    return sum(transforms) / len(transforms)
 
-
-
-
-
-def evaluate_merge_hypothesis(map_a, map_b, transform, ):
+def evaluate_merge_hypothesis(map_a, map_b, transform):
     pass
-
 
 def merge_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap, 
                matches: List[Tuple[TopometricNode, TopometricNode]]) -> HierarchicalTopometricMap:
@@ -172,15 +166,19 @@ def merge_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMa
     # Find transform between both maps based on ICP registration between matched spaces
     match_transforms = [dense_registration(a.geometry, b.geometry) for a, b in matches]
 
-    # # Cluster similar transforms into transform hypotheses
-    # transform_hypotheses = cluster_transform_hypotheses(match_transforms)
+    # Cluster similar transforms into transform hypotheses
+    transform_clusters = cluster_transform_hypotheses(match_transforms)
+    unique_transform_hypotheses = np.unique(transform_clusters)
+    
+    max_cluster = np.max(unique_transform_hypotheses)
+    for i, l in enumerate(transform_clusters):
+        if l == -1:
+            transform_clusters[i] = max_cluster + (i + 1)
 
-    # # Identify which transform hypothesis leads to the most likely configuration
-    # hypotheses_evaluation = [evaluate_merge_hypothesis(
-    #     map_a, map_b, t) for t in transform_hypotheses]
-    # best_transform_hypothesis_index = np.argmax(hypotheses_evaluation)
-    # best_transform_hypothesis = transform_hypotheses[best_transform_hypothesis_index]
-
-    # # Merge maps, fuse geometry and topology after applying best transform hypothesis
-    # merged_map = map_a.merge(map_b, best_transform_hypothesis)
-    # return merged_map
+    for c in unique_transform_hypotheses:
+        c_i = np.argwhere(transform_clusters == c)
+        cluster_transform = merge_transforms(transform_clusters[c_i])
+        
+        map_b_transformed = map_b.transform(cluster_transform)
+            
+            
