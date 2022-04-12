@@ -64,7 +64,7 @@ def registration(source: PointCloud, target: PointCloud, voxel_size: float) -> n
     from learning3d.models import PointNet, PointNetLK, DCP, iPCRNet, PRNet, PPFNet, RPMNet
     dcp = DCP()
 
-    dcp_registration = dcp(torch.from_numpy(source.points[:1000, :1000][np.newaxis, ...]).float(),
-                           torch.from_numpy(target.points[:1000, :1000][np.newaxis, ...]).float())
+    dcp_registration = dcp(torch.from_numpy(source.points[:500, :1000][np.newaxis, ...]).float(),
+                           torch.from_numpy(target.points[:500, :1000][np.newaxis, ...]).float())
 
     return dcp_registration['est_T'].detach().numpy()

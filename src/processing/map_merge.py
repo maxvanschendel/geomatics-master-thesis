@@ -90,8 +90,8 @@ def attributed_graph_embedding(map: HierarchicalTopometricMap, geometry_model, n
     return node_embedding
 
 
-def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap, draw_matches: bool = False):
-    m = 5
+def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap, draw_matches: bool = True):
+    m = 6
     geometry_model = FeatherGraph
     node_model = None
     

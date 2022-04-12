@@ -5,7 +5,7 @@ from processing.pre_process import *
 
 @dataclass
 class PipelineParameters:
-    skip_extract: bool = False
+    skip_extract: bool = True
     partial_map_a: str = "../data/cslam_dataset/diningroom2kitchen.ply"
     partial_map_b: str = "../data/cslam_dataset/hall2oldkitchen.ply"
 
