@@ -71,6 +71,9 @@ class HierarchicalTopometricMap():
 
     def get_node_level(self, level):
         return [n for n, data in self.graph.nodes(data=True) if data['node_level'] == level]
+    
+    def incident_edges(self, node):
+        return self.graph.edges(node, data=True)
 
     def to_o3d(self, level):
         nodes = self.get_node_level(level)
@@ -104,6 +107,26 @@ class HierarchicalTopometricMap():
             spheres.append(sphere)
 
         return nodes_o3d, line_set, spheres
+    
+    def transform(self, transformation):
+        # The topometric map after applying the transformation
+        map_transformed = HierarchicalTopometricMap()
+        
+        # Apply coordinate transformation to the geometry of every node in the map
+        # and add them to the new, transformed map
+        nodes_t = {n: TopometricNode(n.level, n.geometry.transform(transformation)) for n in self.nodes()}
+        print(nodes_t)
+        map_transformed.add_nodes(nodes_t.values())
+        
+        # Get incident edges for every node in the map and add them to the
+        # corresponding nodes in the transformed map
+        incident_edges = [self.incident_edges(n) for n in self.nodes()]
+        for edges in incident_edges:
+            for n_a, n_b, data in edges:
+                map_transformed.add_edge(nodes_t[n_a], nodes_t[n_b], data['edge_type'])
+                
+        return map_transformed
+
 
     def draw_graph(self, fn):
         import matplotlib.pyplot as plt

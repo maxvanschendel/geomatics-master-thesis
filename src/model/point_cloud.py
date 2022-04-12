@@ -47,6 +47,15 @@ class PointCloud:
     def scale(self, scale: np.array):
         return PointCloud(self.points*scale)
     
+    def transform(self, transformation: np.array) -> PointCloud:
+        # Add column of 1s to allow for multiplication with 4x4 transformation matrix
+        pts = np.hstack((self.points, np.ones((self.points.shape[0], 1))))
+            
+        # Multiply every point with the transformation matrix
+        pts_t = np.array([transformation.reshape(4,4).dot(pt) for pt in pts])
+        
+        return PointCloud(pts_t[:,:3], self.colors)
+    
     def pca(self):
         nbs = self.points.squeeze()
         pca = PCA()
@@ -54,12 +63,10 @@ class PointCloud:
         
         return pca.components_           
 
-    def voxelize(self, cell_size: float) -> VoxelGrid:
-        '''Convert point cloud to discretized voxel representation.'''
-        
+    def voxelize(self, cell_size: float) -> VoxelGrid:       
         from model.voxel_grid import VoxelGrid
 
-        aabb_min, aabb_max = self.aabb[:, 0], self.aabb[:, 1]
+        aabb_min = self.aabb[:, 0]
         result_voxels = ((self.points - aabb_min) // cell_size).astype(int)
         
         voxels = {tuple(cell): {} for cell in result_voxels}

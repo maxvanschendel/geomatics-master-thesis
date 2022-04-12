@@ -4,6 +4,8 @@ import open3d as o3d
 import numpy as np
 import copy
 
+import torch
+
 from model.point_cloud import PointCloud
 
 
@@ -20,8 +22,10 @@ def preprocess_point_cloud(pcd, voxel_size):
     pcd_down = pcd.voxel_down_sample(voxel_size)
 
     radius_normal = voxel_size * 2
-    pcd.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
-    pcd_down.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
+    pcd.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(
+        radius=radius_normal, max_nn=30))
+    pcd_down.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(
+        radius=radius_normal, max_nn=30))
 
     radius_feature = voxel_size * 10
     pcd_fpfh = o3d.pipelines.registration.compute_fpfh_feature(
@@ -33,36 +37,34 @@ def preprocess_point_cloud(pcd, voxel_size):
 def execute_global_registration(source_down, target_down, source_fpfh,
                                 target_fpfh, voxel_size):
     distance_threshold = voxel_size * 3
-    
+
     result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
         source_down, target_down, source_fpfh, target_fpfh, True,
         distance_threshold,
         o3d.pipelines.registration.TransformationEstimationPointToPoint(False),
         3, [
-            o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(0.9),
-            o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(distance_threshold)
+            o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(
+                0.9),
+            o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(
+                distance_threshold)
         ], o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999))
     return result
 
 
 def refine_registration(source, target, source_fpfh, target_fpfh, voxel_size, transformation):
     distance_threshold = voxel_size * 0.4
-    
+
     result = o3d.pipelines.registration.registration_icp(
         source, target, distance_threshold, transformation,
         o3d.pipelines.registration.TransformationEstimationPointToPlane())
     return result
 
+
 def registration(source: PointCloud, target: PointCloud, voxel_size: float) -> np.array:
-    source = source.to_o3d()
-    target = target.to_o3d()
+    from learning3d.models import PointNet, PointNetLK, DCP, iPCRNet, PRNet, PPFNet, RPMNet
+    dcp = DCP()
 
-    source_down, source_fpfh = preprocess_point_cloud(source, voxel_size)
-    target_down, target_fpfh = preprocess_point_cloud(target, voxel_size)
+    dcp_registration = dcp(torch.from_numpy(source.points[:1000, :1000][np.newaxis, ...]).float(),
+                           torch.from_numpy(target.points[:1000, :1000][np.newaxis, ...]).float())
 
-    result_ransac = execute_global_registration(source_down, target_down,
-                                                source_fpfh, target_fpfh,
-                                                voxel_size)
-    
-    result_icp = refine_registration(source, target, source_fpfh, target_fpfh, voxel_size, result_ransac.transformation)
-    return result_icp
+    return dcp_registration['est_T'].detach().numpy()

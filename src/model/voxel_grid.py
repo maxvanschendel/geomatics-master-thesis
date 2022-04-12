@@ -83,6 +83,13 @@ class VoxelGrid:
 
     def contains_point(self, point: np.array) -> bool:
         return self.get_voxel(point) in self
+    
+    def transform(self, transformation):
+        pcd = self.to_pcd()
+        pcd_t = pcd.transform(transformation)
+        voxel_grid_t = pcd_t.voxelize(self.cell_size)
+        
+        return voxel_grid_t
 
     def intersect(self, other: VoxelGrid) -> Set[Tuple[int, int, int]]:
         return self.voxels.keys() & other.voxels.keys()

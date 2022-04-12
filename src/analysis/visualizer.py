@@ -76,6 +76,23 @@ class Viz:
         window.set_on_layout(on_layout)
         app.run()
         
+        
+def visualize_map_merge(map_a, map_b):
+    rooms_a = map_a.get_node_level(Hierarchy.ROOM)
+    rooms_b = map_b.get_node_level(Hierarchy.ROOM)
+
+
+    viz = Viz([
+        # Topometric map A visualization at room level
+        [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_a.to_o3d(Hierarchy.ROOM)[0]] +
+        [MapViz(o, Viz.pcd_mat()) for o in map_a.to_o3d(Hierarchy.ROOM)[2]] +
+        
+        # Topometric map B visualization at room level
+        [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_b.to_o3d(Hierarchy.ROOM)[0]] +
+        [MapViz(o, Viz.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
+        ],
+    ])
+
 def visualize_matches(map_a, map_b, matches):
     rooms_a = map_a.get_node_level(Hierarchy.ROOM)
     rooms_b = map_b.get_node_level(Hierarchy.ROOM)

@@ -3,7 +3,7 @@ import itertools
 from sklearn import cluster
 
 from sklearn.metrics.pairwise import euclidean_distances
-from analysis.visualizer import visualize_matches
+from analysis.visualizer import visualize_map_merge, visualize_matches
 from model.topometric_map import *
 from yaml import dump, load, Loader
 from karateclub import FeatherGraph, IGE,  NetLSD,  GeoScattering,  WaveletCharacteristic, Graph2Vec, FeatherNode, MUSAE, AE, SINE, BANE, FSCNMF, LDP, GL2Vec, FGSD
@@ -60,14 +60,13 @@ def bag_of_features(features, codebook: np.array):
     normalized_bof = bof / len(features.T)
     return normalized_bof
 
-def dgcnn_global_embedding(pcd, dim):
+def dgcnn(pcd, dim):
     import torch
     
     dgcnn =  DGCNN(emb_dims=dim, input_shape='bnc')
     dgcnn_embed = dgcnn(torch.from_numpy(pcd.reshape((1, pcd.shape[0], pcd.shape[1]))).float())
     dgcnn_embed = dgcnn_embed.detach().numpy()[0,:,:].T
     
-    print(dgcnn_embed.shape)
     return dgcnn_embed
     
 def attributed_graph_embedding(map: HierarchicalTopometricMap, geometry_model, node_model) -> np.array:
@@ -76,9 +75,8 @@ def attributed_graph_embedding(map: HierarchicalTopometricMap, geometry_model, n
     embed_dim = 256
     pca_dim = 256
     
-    
     rooms = map.get_node_level(Hierarchy.ROOM)
-    raw_embed = [dgcnn_global_embedding(r.geometry.to_pcd().points, embed_dim) for r in rooms]
+    raw_embed = [dgcnn(r.geometry.to_pcd().points, embed_dim) for r in rooms]
     
     node_embedding = [r[:pca_dim] for r in raw_embed]
     node_embedding = np.vstack([np.sort(np.real(np.linalg.eigvals(e))) for e in node_embedding])
@@ -92,8 +90,8 @@ def attributed_graph_embedding(map: HierarchicalTopometricMap, geometry_model, n
     return node_embedding
 
 
-def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap, draw_matches: bool = True):
-    m = 2
+def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap, draw_matches: bool = False):
+    m = 5
     geometry_model = FeatherGraph
     node_model = None
     
@@ -133,12 +131,11 @@ def dense_registration(map_a: VoxelGrid, map_b: VoxelGrid) -> np.array:
 
 
 def cluster_transform_hypotheses(transforms):
-    print(transforms)
-    
+
     distance_matrix = np.zeros(((len(transforms), len(transforms))))
     for i in range(len(transforms)):
         for j in range(len(transforms)):
-            i_t, j_t = transforms[i].transformation, transforms[j].transformation
+            i_t, j_t = transforms[i], transforms[j]
             
             dist =  np.linalg.norm(i_t - j_t)
             distance_matrix[i][j] = dist
@@ -175,10 +172,11 @@ def merge_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMa
         if l == -1:
             transform_clusters[i] = max_cluster + (i + 1)
 
-    for c in unique_transform_hypotheses:
+    for c in np.unique(transform_clusters):
         c_i = np.argwhere(transform_clusters == c)
-        cluster_transform = merge_transforms(transform_clusters[c_i])
         
+        cluster_transform = merge_transforms(np.array(match_transforms)[c_i])
+        print(cluster_transform)
         map_b_transformed = map_b.transform(cluster_transform)
-            
+        visualize_map_merge(map_a, map_b_transformed)
             
