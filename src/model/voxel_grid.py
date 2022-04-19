@@ -13,7 +13,7 @@ from warnings import filterwarnings
 
 import networkx
 import numpy as np
-from misc.helpers import most_common
+from utils.array import most_common
 from numba import cuda
 from scipy.signal import find_peaks
 

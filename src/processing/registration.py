@@ -1,12 +1,13 @@
 from argparse import ArgumentError
-from typing import List
 from model.point_cloud import PointCloud
 from learning3d.models import PointNet, PointNetLK, DCP, iPCRNet, PRNet, PPFNet, RPMNet
 import numpy as np
-import torch
+from torch import from_numpy as as_tensor
+
+from utils.validation import kwargs_valid
 
 
-def deep_closest_point(source: PointCloud, target: PointCloud, iterations: int = 1) -> np.array:
+def deep_closest_point(source: PointCloud, target: PointCloud, iterations: int = 1, **kwargs) -> np.array:
     """
     Register two point clouds using Deep Closest Point (DCP) model. 
     https://arxiv.org/abs/1905.03304
@@ -20,33 +21,40 @@ def deep_closest_point(source: PointCloud, target: PointCloud, iterations: int =
         np.array: 4x4 transformation matrix which aligns the source with the target point cloud.
     """
 
+    if not kwargs_valid(['pointer', 'head'], kwargs):
+        raise ArgumentError(
+            'Missing required keyword arguments for Deep Closest Point registration.')
+
+    # Number of points must be equal for both point clouds
+    # so we remove the additional points from the larger point cloud
+    n_points = min([len(source.points), len(target.points)])
+
     # Convert numpy array point clouds to Torch tensor
-    pts_source = torch.from_numpy(
-        source.points[:500, :][np.newaxis, ...]).float()
-    pts_target = torch.from_numpy(
-        target.points[:500, :][np.newaxis, ...]).float()
+    pts_source = as_tensor(
+        source.points[:n_points, :][np.newaxis, ...]).float()
+    pts_target = as_tensor(
+        target.points[:n_points, :][np.newaxis, ...]).float()
 
     # Deep Closest Point model.
-    dcp = DCP()
+    dcp = DCP(pointer_=kwargs['pointer'], head=kwargs['head'])
 
     # Iteratively refine registration.
     for _ in range(iterations):
         dcp_registration = dcp(pts_source, pts_target)
         pts_source = dcp_registration['transformed_source']
 
+    # Get 4x4 transformation matrix from results
     estimated_transformation = dcp_registration['est_T'].detach().numpy()
     return estimated_transformation
 
 
-def iterative_closest_point():
-    pass
+def iterative_closest_point(source: PointCloud, target: PointCloud, iterations: int = 1, **kwargs) -> np.array:
+    raise NotImplementedError()
 
 
-def normal_iterative_closest_point():
-    pass
+def normal_iterative_closest_point(source: PointCloud, target: PointCloud, iterations: int = 1, **kwargs) -> np.array:
+    raise NotImplementedError()
 
-def kwargs_valid(contains: List[str], **kwargs):
-    return set(contains).issubset(kwargs.keys())
 
 def registration(source: PointCloud, target: PointCloud, iterations: int = 1, algo: str = 'dcp', **kwargs) -> np.array:
     """Register two point clouds (find 4x4 transformation matrix that brings them into alignment) using various existing methods.
@@ -58,27 +66,25 @@ def registration(source: PointCloud, target: PointCloud, iterations: int = 1, al
         algo (str, optional): Algorithm used for registration. Defaults to 'dcp'. Currently accepts 'dcp', 'icp' and 'nicp'.
 
     Raises:
-        NotImplementedError: Specified registration algorithm is not implemented.
+        ArgumentError: Specified registration algorithm is not implemented.
 
     Returns:
         np.array: 4x4 transformation matrix which aligns the source with the target point cloud.
     """
 
-    if algo == 'dcp':
-        if not kwargs_valid(['pointer', 'head'], kwargs):
-            raise ArgumentError(
-                f'Missing required keyword arguments: {['pointer', 'head']} for Deep Closest Point registration.')
+    # Available registration algorithms and their corresponding methods
+    algo_methods = {'dcp': deep_closest_point,
+                    'icp': iterative_closest_point,
+                    'nicp': normal_iterative_closest_point}
 
-        # Apply deep closest point registration
-        estimated_transformation = deep_closest_point(
-            source, target, iterations, kwargs['pointer'], kwargs['head'])
+    # Raise an error if the supplied registration algorithm is not available
+    if algo not in algo_methods.keys():
+        raise ArgumentError(
+            algo, "Target registration algorithm is not currently implemented.")
 
-    elif algo == 'icp':
-        raise NotImplementedError()
-    elif algo == 'nicp':
-        raise NotImplementedError()
-    else:
-        raise NotImplementedError(
-            "Target registration algorithm is not currently implemented.")
+    # Get corresponding method for supplied registration algorithm and execute
+    registration_method = algo_methods[algo]
+    estimated_transformation = registration_method(
+        source, target, iterations, kwargs)
 
     return estimated_transformation

@@ -1,7 +1,11 @@
+from collections import Counter
 from itertools import product
 from typing import Iterable
 import numpy as np
 
+def most_common(elements):
+    return Counter(elements).most_common(1)[0][0]
+    
 def n_smallest_indices(input: np.array, n: int):
     smallest_flat = np.argpartition(input.ravel(), n)[:n]
     smallest_indices = [np.unravel_index(
@@ -24,7 +28,7 @@ def replace_with_unique(array: np.array, replace_val: int) -> np.array:
 
     return out_array
 
-def euclidean_distance_matrix(arrays: Iterable[np.array]) -> np.array:
+def distance_matrix(arrays: Iterable[np.array]) -> np.array:
     n_arrays = len(arrays)
     distance_matrix = np.zeros(((n_arrays, n_arrays)))
 

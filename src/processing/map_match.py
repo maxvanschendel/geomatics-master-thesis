@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from utils.visualization import visualize_matches
-from utils.helpers import *
 from model.topometric_map import *
 
 import torch
@@ -21,13 +20,12 @@ def dgcnn(pcd, dim):
     return dgcnn_embed
 
 
-def attributed_graph_embedding(map: HierarchicalTopometricMap, geometry_model, node_model, embed_dim=256, pca_dim=256) -> np.array:
+def attributed_graph_embedding(map: HierarchicalTopometricMap, node_model, embed_dim=256, pca_dim=256) -> np.array:
     rooms = map.get_node_level(Hierarchy.ROOM)
     raw_embed = [dgcnn(r.geometry.to_pcd().points, embed_dim) for r in rooms]
 
     node_embedding = [r[:pca_dim] for r in raw_embed]
-    node_embedding = np.vstack(
-        [np.sort(np.real(np.linalg.eigvals(e))) for e in node_embedding])
+    node_embedding = np.vstack([np.sort(np.real(np.linalg.eigvals(e))) for e in node_embedding])
 
     if node_model is not None:
         node_model = node_model()
@@ -39,15 +37,14 @@ def attributed_graph_embedding(map: HierarchicalTopometricMap, geometry_model, n
 
 
 def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap, draw_matches: bool = True, m: int = 10):
-    geometry_model = FeatherGraph
     node_model = None
 
     rooms_a = map_a.get_node_level(Hierarchy.ROOM)
     rooms_b = map_b.get_node_level(Hierarchy.ROOM)
 
     # Attributed graph embedding
-    a_embed = attributed_graph_embedding(map_a, geometry_model, node_model)
-    b_embed = attributed_graph_embedding(map_b, geometry_model, node_model)
+    a_embed = attributed_graph_embedding(map_a, node_model)
+    b_embed = attributed_graph_embedding(map_b, node_model)
 
     # Find n room pairs with highest similarity
     distance_matrix = euclidean_distances(a_embed, b_embed)

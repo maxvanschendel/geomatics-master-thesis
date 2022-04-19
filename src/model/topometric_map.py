@@ -1,25 +1,21 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import math
 import warnings
-from ast import Lambda
-from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
-from itertools import product
-from random import random
-from typing import Dict, Tuple
+from typing import Tuple
 
 import networkx
 import numpy as np
 import open3d as o3d
-from misc.helpers import random_color, most_common
+from utils.visualization import random_color
 from numba import cuda
 from model.sparse_voxel_octree import *
 from model.voxel_grid import *
 
 warnings.filterwarnings('ignore')
+
 
 class Hierarchy(Enum):
     BUILDING = 0
@@ -42,7 +38,7 @@ class EdgeType(Enum):
 class HierarchicalTopometricMap():
     def __init__(self):
         self.graph = networkx.DiGraph()
-        
+
     def nodes(self):
         return self.graph.nodes()
 
@@ -55,7 +51,7 @@ class HierarchicalTopometricMap():
 
     def add_edge(self, node_a: TopometricNode, node_b: TopometricNode, edge_type: EdgeType):
         self.graph.add_edge(node_a, node_b, edge_type=edge_type)
-        
+
     def add_edges(self, edges, edge_type):
         for node_a, node_b in edges:
             self.add_edge(node_a, node_b, edge_type)
@@ -71,18 +67,20 @@ class HierarchicalTopometricMap():
 
     def get_node_level(self, level):
         return [n for n, data in self.graph.nodes(data=True) if data['node_level'] == level]
-    
+
     def incident_edges(self, node):
         return self.graph.edges(node, data=True)
 
     def to_o3d(self, level):
         nodes = self.get_node_level(level)
         nodes_geometry = [node.geometry for node in nodes]
-        nodes_o3d = [geometry.to_pcd(color=True).to_o3d() for geometry in nodes_geometry]
+        nodes_o3d = [geometry.to_pcd(color=True).to_o3d()
+                     for geometry in nodes_geometry]
 
         for n in nodes_o3d:
             n.paint_uniform_color(random_color())
-        nodes_o3d = [o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, nodes_geometry[i].cell_size) for i, pcd in enumerate(nodes_o3d)]
+        nodes_o3d = [o3d.geometry.VoxelGrid.create_from_point_cloud(
+            pcd, nodes_geometry[i].cell_size) for i, pcd in enumerate(nodes_o3d)]
 
         points, lines = [node.geometry.centroid() for node in nodes], []
         for i, n in enumerate(nodes):
@@ -107,26 +105,27 @@ class HierarchicalTopometricMap():
             spheres.append(sphere)
 
         return nodes_o3d, line_set, spheres
-    
+
     def transform(self, transformation):
         # The topometric map after applying the transformation
         map_transformed = HierarchicalTopometricMap()
-        
+
         # Apply coordinate transformation to the geometry of every node in the map
         # and add them to the new, transformed map
-        nodes_t = {n: TopometricNode(n.level, n.geometry.transform(transformation)) for n in self.nodes()}
+        nodes_t = {n: TopometricNode(n.level, n.geometry.transform(
+            transformation)) for n in self.nodes()}
         print(nodes_t)
         map_transformed.add_nodes(nodes_t.values())
-        
+
         # Get incident edges for every node in the map and add them to the
         # corresponding nodes in the transformed map
         incident_edges = [self.incident_edges(n) for n in self.nodes()]
         for edges in incident_edges:
             for n_a, n_b, data in edges:
-                map_transformed.add_edge(nodes_t[n_a], nodes_t[n_b], data['edge_type'])
-                
-        return map_transformed
+                map_transformed.add_edge(
+                    nodes_t[n_a], nodes_t[n_b], data['edge_type'])
 
+        return map_transformed
 
     def draw_graph(self, fn):
         import matplotlib.pyplot as plt
@@ -151,8 +150,8 @@ class HierarchicalTopometricMap():
         import pickle as pickle
         with open(fn, 'wb') as write_file:
             pickle.dump(self, write_file)
-    
-    @staticmethod   
+
+    @staticmethod
     def read(fn):
         import pickle as pickle
         with open(fn, 'rb') as read_file:

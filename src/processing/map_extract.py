@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from itertools import combinations
+import random
 from typing import List
 import numpy as np
 import skopt
@@ -12,8 +13,6 @@ from processing.parameters import MapExtractionParameters
 from model.topometric_map import *
 from model.voxel_grid import *
 from model.spatial_graph import *
-
-
 
 
 def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
