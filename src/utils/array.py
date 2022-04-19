@@ -28,7 +28,7 @@ def replace_with_unique(array: np.array, replace_val: int) -> np.array:
 
     return out_array
 
-def distance_matrix(arrays: Iterable[np.array]) -> np.array:
+def euclidean_distance_matrix(arrays: Iterable[np.array]) -> np.array:
     n_arrays = len(arrays)
     distance_matrix = np.zeros(((n_arrays, n_arrays)))
 
