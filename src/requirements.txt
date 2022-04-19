@@ -1,1 +1,8 @@
 gensim==3.8.3
+numba==0.55.1
+open3d==0.15.2
+scikit-optimize==0.8.1
+pyaml==21.10.1
+numpy==1.21.4
+plyfile==0.7.4
+torch==1.11.0

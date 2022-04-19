@@ -1,60 +1,19 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
 from itertools import combinations
 from typing import List
 import numpy as np
 import skopt
-from yaml import dump, load, Loader
+import markov_clustering as mc
 
-from analysis.visualizer import MapViz, Viz
+from processing.parameters import MapExtractionParameters
+
 from model.topometric_map import *
 from model.voxel_grid import *
 from model.spatial_graph import *
 
 
-@dataclass(frozen=True)
-class MapExtractionParameters:
-    class MapExtractionParametersException(Exception):
-        pass
-
-    leaf_voxel_size: float
-    traversability_lod: int
-    segmentation_lod: int
-    
-    kernel_scale: float
-    isovist_height: float
-    isovist_spacing: float
-
-    isovist_subsample: float
-    isovist_range: float
-
-    weight_threshold: float
-    min_inflation: float
-    max_inflation: float
-    
-    storey_buffer: int = -5
-    storey_height: int = 300
-    
-    min_voxels: int = 100
-
-    @staticmethod
-    def deserialize(data: str) -> MapExtractionParameters:
-        return load(data, Loader)
-
-    @staticmethod
-    def read(fn: str) -> MapExtractionParameters:
-        with open(fn, "r") as read_file:
-            file_contents = read_file.read()
-        return MapExtractionParameters.deserialize(file_contents)
-
-    def serialize(self) -> str:
-        return dump(self)
-
-    def write(self, fn: str) -> None:
-        with open(fn, "w+") as write_file:
-            write_file.write(self.serialize())
 
 
 def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
@@ -204,14 +163,17 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
 def segment_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: int, height: int = 500):
     height_peaks = floor_voxel_grid.detect_peaks(axis=1, height=height)
 
+
     for i, peak in enumerate(height_peaks):
         next_i = i + 1
         next_peak = height_peaks[next_i] if next_i < len(height_peaks) else math.inf
-        
-        for vox in voxel_grid.filter(lambda v: peak - buffer <= v[1] < next_peak + buffer):
+        storey_voxels = voxel_grid.filter(lambda v: peak-buffer <= v[1] < next_peak+buffer)
+
+        for vox in storey_voxels:
             voxel_grid[vox]['storey'] = i
             if vox in floor_voxel_grid:
-                voxel_grid[vox]['stairs'] = abs(vox[1] - (peak - buffer)) > 5
+                voxel_is_stair =  abs(vox[1] - (peak - buffer)) > 5
+                voxel_grid[vox]['stairs'] = voxel_is_stair
 
     storeys = voxel_grid.split_by_attr('storey')
     stairs = [storey.get_attr('stairs', True) for storey in storeys]
@@ -279,8 +241,6 @@ def mutual_visibility_graph(isovists) -> np.array:
 
 
 def cluster_graph_mcl(distance_matrix, weight_threshold: float, min_inflation: float, max_inflation: float) -> List[int]:
-    import markov_clustering as mc
-
     G = networkx.convert.to_networkx_graph(distance_matrix)
     edge_weights = networkx.get_edge_attributes(G, 'weight')
     G.remove_edges_from((e for e, w in edge_weights.items() if w > weight_threshold))

@@ -1,70 +1,84 @@
-# Mostly based on http://www.open3d.org/docs/0.14.1/tutorial/pipelines/global_registration.html
-
-import open3d as o3d
+from argparse import ArgumentError
+from typing import List
+from model.point_cloud import PointCloud
+from learning3d.models import PointNet, PointNetLK, DCP, iPCRNet, PRNet, PPFNet, RPMNet
 import numpy as np
-import copy
-
 import torch
 
-from model.point_cloud import PointCloud
 
+def deep_closest_point(source: PointCloud, target: PointCloud, iterations: int = 1) -> np.array:
+    """
+    Register two point clouds using Deep Closest Point (DCP) model. 
+    https://arxiv.org/abs/1905.03304
 
-def draw_registration_result(source, target, transformation):
-    source_temp = copy.deepcopy(source)
-    target_temp = copy.deepcopy(target)
-    source_temp.paint_uniform_color([1, 0.706, 0])
-    target_temp.paint_uniform_color([0, 0.651, 0.929])
-    source_temp.transform(transformation)
-    o3d.visualization.draw_geometries([source_temp, target_temp])
+    Args:
+        source (PointCloud): Misaligned input point cloud
+        target (PointCloud): Input point cloud which source is aligned to
+        iterations (int, optional): How often to repeat the registration to refine results. Defaults to 1.
 
+    Returns:
+        np.array: 4x4 transformation matrix which aligns the source with the target point cloud.
+    """
 
-def preprocess_point_cloud(pcd, voxel_size):
-    pcd_down = pcd.voxel_down_sample(voxel_size)
+    # Convert numpy array point clouds to Torch tensor
+    pts_source = torch.from_numpy(
+        source.points[:500, :][np.newaxis, ...]).float()
+    pts_target = torch.from_numpy(
+        target.points[:500, :][np.newaxis, ...]).float()
 
-    radius_normal = voxel_size * 2
-    pcd.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(
-        radius=radius_normal, max_nn=30))
-    pcd_down.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(
-        radius=radius_normal, max_nn=30))
-
-    radius_feature = voxel_size * 10
-    pcd_fpfh = o3d.pipelines.registration.compute_fpfh_feature(
-        pcd_down,
-        o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
-    return pcd_down, pcd_fpfh
-
-
-def execute_global_registration(source_down, target_down, source_fpfh,
-                                target_fpfh, voxel_size):
-    distance_threshold = voxel_size * 3
-
-    result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
-        source_down, target_down, source_fpfh, target_fpfh, True,
-        distance_threshold,
-        o3d.pipelines.registration.TransformationEstimationPointToPoint(False),
-        3, [
-            o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(
-                0.9),
-            o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(
-                distance_threshold)
-        ], o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999))
-    return result
-
-
-def refine_registration(source, target, source_fpfh, target_fpfh, voxel_size, transformation):
-    distance_threshold = voxel_size * 0.4
-
-    result = o3d.pipelines.registration.registration_icp(
-        source, target, distance_threshold, transformation,
-        o3d.pipelines.registration.TransformationEstimationPointToPlane())
-    return result
-
-
-def registration(source: PointCloud, target: PointCloud, voxel_size: float) -> np.array:
-    from learning3d.models import PointNet, PointNetLK, DCP, iPCRNet, PRNet, PPFNet, RPMNet
+    # Deep Closest Point model.
     dcp = DCP()
 
-    dcp_registration = dcp(torch.from_numpy(source.points[:500, :1000][np.newaxis, ...]).float(),
-                           torch.from_numpy(target.points[:500, :1000][np.newaxis, ...]).float())
+    # Iteratively refine registration.
+    for _ in range(iterations):
+        dcp_registration = dcp(pts_source, pts_target)
+        pts_source = dcp_registration['transformed_source']
 
-    return dcp_registration['est_T'].detach().numpy()
+    estimated_transformation = dcp_registration['est_T'].detach().numpy()
+    return estimated_transformation
+
+
+def iterative_closest_point():
+    pass
+
+
+def normal_iterative_closest_point():
+    pass
+
+def kwargs_valid(contains: List[str], **kwargs):
+    return set(contains).issubset(kwargs.keys())
+
+def registration(source: PointCloud, target: PointCloud, iterations: int = 1, algo: str = 'dcp', **kwargs) -> np.array:
+    """Register two point clouds (find 4x4 transformation matrix that brings them into alignment) using various existing methods.
+
+    Args:
+        source (PointCloud): Misaligned input point cloud
+        target (PointCloud): Input point cloud which source is aligned to
+        iterations (int, optional): How often to repeat the registration to refine results. Defaults to 1.
+        algo (str, optional): Algorithm used for registration. Defaults to 'dcp'. Currently accepts 'dcp', 'icp' and 'nicp'.
+
+    Raises:
+        NotImplementedError: Specified registration algorithm is not implemented.
+
+    Returns:
+        np.array: 4x4 transformation matrix which aligns the source with the target point cloud.
+    """
+
+    if algo == 'dcp':
+        if not kwargs_valid(['pointer', 'head'], kwargs):
+            raise ArgumentError(
+                f'Missing required keyword arguments: {['pointer', 'head']} for Deep Closest Point registration.')
+
+        # Apply deep closest point registration
+        estimated_transformation = deep_closest_point(
+            source, target, iterations, kwargs['pointer'], kwargs['head'])
+
+    elif algo == 'icp':
+        raise NotImplementedError()
+    elif algo == 'nicp':
+        raise NotImplementedError()
+    else:
+        raise NotImplementedError(
+            "Target registration algorithm is not currently implemented.")
+
+    return estimated_transformation
