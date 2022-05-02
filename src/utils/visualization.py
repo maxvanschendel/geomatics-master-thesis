@@ -1,18 +1,17 @@
 from dataclasses import dataclass
-import random
+from random import random
 import open3d as o3d
 from typing import List
-
-from model.topometric_map import Hierarchy
+from model.point_cloud import PointCloud
 
 
 @dataclass
-class MapViz:
+class MapVisualization:
     geometry: o3d.geometry
     material: o3d.visualization.rendering.MaterialRecord
 
 
-class Viz:
+class Visualization:
     def pcd_mat(pt_size=7):
         mat = o3d.visualization.rendering.MaterialRecord()
         mat.point_size = pt_size
@@ -29,7 +28,7 @@ class Viz:
 
         return mat
 
-    def __init__(self, maps: List[List[MapViz]]):
+    def __init__(self, maps: List[List[MapVisualization]]):
         app = o3d.visualization.gui.Application.instance
         app.initialize()
 
@@ -83,23 +82,41 @@ def random_color(alpha: bool = False) -> List[float]:
     return [random(), random(), random()]
 
 
+def visualize_point_cloud(point_cloud: PointCloud):
+    visualization = Visualization([[MapVisualization(point_cloud.to_o3d(), Visualization.pcd_mat(pt_size=6))]])
+
+def visualize_htmap(map):
+    from model.topometric_map import Hierarchy
+
+    rooms = map.get_node_level(Hierarchy.ROOM)
+    print(rooms)
+    visualization = Visualization([
+        # Topometric map A visualization at room level
+        [MapVisualization(o, Visualization.pcd_mat(pt_size=6)) for o in map.to_o3d(Hierarchy.ROOM)[0]]
+    ])
+    
+
 def visualize_map_merge(map_a, map_b):
+    from model.topometric_map import Hierarchy
+
     rooms_a = map_a.get_node_level(Hierarchy.ROOM)
     rooms_b = map_b.get_node_level(Hierarchy.ROOM)
 
-    viz = Viz([
+    visualization = Visualization([
         # Topometric map A visualization at room level
-        [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_a.to_o3d(Hierarchy.ROOM)[0]] +
-        [MapViz(o, Viz.pcd_mat()) for o in map_a.to_o3d(Hierarchy.ROOM)[2]] +
+        [MapVisualization(o, Visualization.pcd_mat(pt_size=6)) for o in map_a.to_o3d(Hierarchy.ROOM)[0]] +
+        [MapVisualization(o, Visualization.pcd_mat()) for o in map_a.to_o3d(Hierarchy.ROOM)[2]] +
 
         # Topometric map B visualization at room level
-        [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_b.to_o3d(Hierarchy.ROOM)[0]] +
-        [MapViz(o, Viz.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
+        [MapVisualization(o, Visualization.pcd_mat(pt_size=6)) for o in map_b.to_o3d(Hierarchy.ROOM)[0]] +
+        [MapVisualization(o, Visualization.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
          ],
     ])
 
 
 def visualize_matches(map_a, map_b, matches):
+    from model.topometric_map import Hierarchy
+
     rooms_a = map_a.get_node_level(Hierarchy.ROOM)
     rooms_b = map_b.get_node_level(Hierarchy.ROOM)
 
@@ -119,17 +136,17 @@ def visualize_matches(map_a, map_b, matches):
     line_set.points = o3d.utility.Vector3dVector(points)
     line_set.lines = o3d.utility.Vector2iVector(lines)
 
-    viz = Viz([
+    viz = Visualization([
         # Topometric map A visualization at room level
-        [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_a.to_o3d(Hierarchy.ROOM)[0]] +
+        [MapVisualization(o, Visualization.pcd_mat(pt_size=6)) for o in map_a.to_o3d(Hierarchy.ROOM)[0]] +
         # [MapViz(map_a.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
-        [MapViz(o, Viz.pcd_mat()) for o in map_a.to_o3d(Hierarchy.ROOM)[2]] +
+        [MapVisualization(o, Visualization.pcd_mat()) for o in map_a.to_o3d(Hierarchy.ROOM)[2]] +
 
-        [MapViz(line_set, Viz.graph_mat(color=[0, 0, 1, 1]))] +
+        [MapVisualization(line_set, Visualization.graph_mat(color=[0, 0, 1, 1]))] +
 
         # Topometric map B visualization at room level
-        [MapViz(o, Viz.pcd_mat(pt_size=6)) for o in map_b.to_o3d(Hierarchy.ROOM)[0]] +
+        [MapVisualization(o, Visualization.pcd_mat(pt_size=6)) for o in map_b.to_o3d(Hierarchy.ROOM)[0]] +
         # [MapViz(map_b.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
-        [MapViz(o, Viz.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
+        [MapVisualization(o, Visualization.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
          ],
     ])

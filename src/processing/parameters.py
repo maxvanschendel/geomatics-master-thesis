@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Tuple
-from pyaml import load, dump, Loader
+from yaml import load, Loader, dump
 
 
 @dataclass
@@ -38,6 +38,7 @@ class PreProcessingParametersException(Exception):
 class PreProcessingParameters:
     reduce: float
     scale: Tuple[float]
+    noise_scale: float
 
     # input validation
     def __post_init__(self):

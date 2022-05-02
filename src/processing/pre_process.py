@@ -8,8 +8,16 @@ from processing.parameters import PreProcessingParameters
 
 
 def pre_process(partial_map: PointCloud, params: PreProcessingParameters) -> VoxelGrid:
-    partial_map_reduced = partial_map.random_reduce(params.reduce)
+    # Add Gaussian noise to input point cloud
+    partial_map_noise = partial_map.add_noise(params.noise_scale)
+
+    # Random reduce points
+    partial_map_reduced = partial_map_noise.random_reduce(params.reduce)
+
+    # Apply a scaling factor to point cloud
     partial_map_scaled = partial_map_reduced.scale(np.array(params.scale))
+
+    # Randomly rotate input point cloud to remove any prior alignment
     partial_map_rot = partial_map_scaled.rotate(random()*360, [0,1,0])
     
     return partial_map_rot

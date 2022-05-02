@@ -1,12 +1,8 @@
-"""_summary_
-"""
-
 from processing.parameters import *
 from processing.pre_process import *
 from processing.map_extract import *
 from processing.map_match import *
 from processing.map_fuse import *
-
 
 
 def run(preprocess_config: PreProcessingParameters, map_extract_config: MapExtractionParameters,

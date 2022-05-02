@@ -9,9 +9,9 @@ kernel_scale: 0.05
 leaf_voxel_size: 0.1
 max_inflation: 2
 min_inflation: 1.1
-min_voxels: 250
+min_voxels: 100
 segmentation_lod: 1
-storey_buffer: 5
-storey_height: 300
+storey_buffer: 1
+storey_height: 5000
 traversability_lod: 0
 weight_threshold: 0.5
