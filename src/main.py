@@ -36,10 +36,10 @@ def run(preprocess_config: PreProcessingParameters, map_extract_config: MapExtra
         cloud_b_preprocess = pre_process(cloud_b, preprocess_config)
 
         print('Extracting topometric map from partial map A')
-        htmap_a = extract_map(cloud_a_preprocess, map_extract_config)
+        htmap_a = extract_topometric_map(cloud_a_preprocess, map_extract_config)
 
         print('Extracting topometric map from partial map B')
-        htmap_b = extract_map(cloud_b_preprocess, map_extract_config)
+        htmap_b = extract_topometric_map(cloud_b_preprocess, map_extract_config)
 
         # Optionally write map extraction results to disk for later use
         if pipeline_config.write_htmap:

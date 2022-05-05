@@ -1,24 +1,30 @@
 from __future__ import annotations
-from model.spatial_graph import *
-from model.sparse_voxel_octree import *
-import model.point_cloud
-from scipy.signal import find_peaks
-from numba import cuda
-from utils.array import most_common
-import numpy as np
-import networkx
-from warnings import filterwarnings
-from typing import Dict, Tuple
-from itertools import product
-from copy import deepcopy
-from collections import Counter
-from ast import Lambda
+
 import math
 import os
+from ast import Lambda
+from collections import Counter
+from copy import deepcopy
+from itertools import product
+from typing import Dict, Tuple
+from warnings import filterwarnings
 
-os.environ["NUMBA_ENABLE_CUDASIM"] = "0"
-os.environ["NUMBA_CUDA_DEBUGINFO"] = "0"
+import networkx
+import numpy as np
+
+from scipy.signal import find_peaks
+from utils.array import most_common
+
+import model.point_cloud
+from model.sparse_voxel_octree import *
+from model.spatial_graph import *
+
+enable_debug = False
+os.environ["NUMBA_ENABLE_CUDASIM"] = str(int(enable_debug))
+os.environ["NUMBA_CUDA_DEBUGINFO"] = str(int(enable_debug))
 filterwarnings('ignore')
+
+from numba import cuda
 
 
 class VoxelGrid:
@@ -54,12 +60,6 @@ class VoxelGrid:
         Generate level of detail using octree, where level 0 represents the leaf-level voxel grid 
         and each level above represents a non-leaf or root level in the tree. 
         The maximum level is equal to the octree's depth.
-
-        Args:
-            level (int): _description_
-
-        Returns:
-            VoxelGrid: _description_
         """
 
         lod_voxels = self.svo.get_depth(self.svo.max_depth() - level)
@@ -131,11 +131,15 @@ class VoxelGrid:
 
     def list_attr(self, attr):
         voxels_with_attr = self.filter(lambda vox: attr in self.voxels[vox])
-        return map(lambda vox: self.voxels[vox][attr], voxels_with_attr)
+        voxel_attributes = map(lambda vox: self.voxels[vox][attr], voxels_with_attr)
+
+        return voxel_attributes
 
     def unique_attr(self, attr):
         attributes = list(self.list_attr(attr))
-        return np.unique(attributes)
+        unique_attributes = np.unique(attributes)
+
+        return unique_attributes
 
     def kernel_attr(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str):
         voxel_nbs = self.get_kernel(voxel, kernel)
@@ -170,27 +174,31 @@ class VoxelGrid:
 
         # Get most common label of 6-neighbourhood of voxel
         # Assign most common label to voxel in propagated map
-        for i in range(max_its):
+        for i in range(max_its):      
             prev_map = prop_map.clone()
 
             # Allocate memory on the device for the result
             max_nb = cuda.to_device(np.zeros((self.size, 1), dtype=np.int32))
-            nbs_occurences = cuda.to_device(
-                np.zeros((self.size, len(unique_attr)), dtype=np.int32))
+            nbs_occurences = cuda.to_device(np.zeros((self.size, len(unique_attr)), dtype=np.int32))
 
+            # Map unique attributes to integers in range 0 to number of unique attributes
+            # Also store inverse for easy lookup
             attr_to_i = {u_attr: i for (i, u_attr) in enumerate(unique_attr)}
             i_to_attr = {value: key for key, value in attr_to_i.items()}
 
+            # Create dense matrix where each cell contains the mapped attribute
             voxel_matrix = np.full(prev_map.extents() + 1, -1, dtype=np.int32)
             for v in self.voxels:
                 voxel_matrix[v] = attr_to_i[int(prev_map.voxels[v][attr])]
 
-            threadsperblock = 1024
-            blockspergrid = (self.size + (threadsperblock - 1)
-                             ) // threadsperblock
+            # For each cell, find the most common neighbour
+            threadsperblock = 256
+            blockspergrid = (self.size + (threadsperblock - 1)) // threadsperblock
             VoxelGrid.most_common_nb_gpu[blockspergrid, threadsperblock](
                 voxel_matrix, origin_voxels, kernel_voxels, nbs_occurences, len(unique_attr), max_nb)
+            cuda.synchronize()
 
+            # Map integer attributes back to original attributes
             for i, max_i in enumerate(max_nb):
                 prop_map[tuple(origin_voxels[i])][attr] = i_to_attr[max_i[0]]
 
@@ -203,14 +211,16 @@ class VoxelGrid:
     def attr_borders(self, attr, kernel) -> VoxelGrid:
         border_voxels = set()
         for voxel in self.voxels:
-            voxel_nbs = self.get_kernel(voxel, kernel)
-            voxel_nbs_labels = [self[v][attr] for v in voxel_nbs]
+            voxel_nbs_labels = self.kernel_attr(voxel, kernel, attr)
 
             # Check if neighbourhood all has the same attribute value
             if voxel_nbs_labels != [self[voxel][attr]]*len(voxel_nbs_labels):
                 border_voxels.add(voxel)
 
-        return self.subset(lambda v: v in border_voxels)
+        # Return a new voxel grid containing only the voxels that lie on the border
+        # between two attributes
+        border_voxel_grid = self.subset(lambda v: v in border_voxels)
+        return border_voxel_grid
 
     def split_by_attr(self, attr) -> List[VoxelGrid]:
         split = []
@@ -282,31 +292,42 @@ class VoxelGrid:
                     break
 
     @cuda.jit
-    def most_common_nb_gpu(voxels, occupied, kernel, nbs_occurences, n_vals, max_occurences):
+    def most_common_nb_gpu(voxels, occupied_voxels, kernel, attribute_count, n_vals, max_occurences):
         pos = cuda.grid(1)
-        if pos < occupied.shape[0]:
-            cur_vox = occupied[pos]
+
+        if pos < occupied_voxels.shape[0]:
+            current_voxel = occupied_voxels[pos]
 
             for nb in kernel:
-                nb_x = cur_vox[0]+nb[0]
-                nb_y = cur_vox[1]+nb[1]
-                nb_z = cur_vox[2]+nb[2]
-                nb_attr = voxels[nb_x, nb_y, nb_z]
+                nb_x = current_voxel[0] + nb[0]
+                nb_y = current_voxel[1] + nb[1]
+                nb_z = current_voxel[2] + nb[2]
+                
+                # Check that neighbour index is not out of bounds
+                if  0 <= nb_x < voxels.shape[0] and \
+                    0 <= nb_y < voxels.shape[1] and \
+                    0 <= nb_z < voxels.shape[2]:
 
-                if 0 < nb_x < voxels.shape[0] and \
-                    0 < nb_y < voxels.shape[1] and \
-                    0 < nb_z < voxels.shape[2] and \
-                        nb_attr != -1:
-                    nbs_occurences[pos][nb_attr] += 1
+                    # Get attribute of neighbour
+                    nb_attr = voxels[nb_x, nb_y, nb_z]
 
-            max_occurence = 1
-            max_val = voxels[cur_vox[0], cur_vox[1], cur_vox[2]]
+                    # Increment the counter for the voxel's attribute unless its value is -1
+                    # -1 is reserved for null attribute
+                    if nb_attr != -1:
+                        attribute_count[pos][nb_attr] += 1
+
+            # The most common neighbour attribute is assumed to be the current
+            # voxel's attribute first. Another attribute needs to occur more than once
+            # to be the most common neighbour attribute.
+            occurances = voxels[current_voxel[0], current_voxel[1], current_voxel[2]]
+            most_common_attribute = 1
+
             for val in range(n_vals):
-                if nbs_occurences[pos][val] > max_occurence:
-                    max_occurence = nbs_occurences[pos][val]
-                    max_val = val
+                if attribute_count[pos][val] > most_common_attribute:
+                    most_common_attribute = attribute_count[pos][val]
+                    occurances = val
 
-            max_occurences[pos] = max_val
+            max_occurences[pos] = occurances
 
     def mutate_voxels(self, voxels):
         return VoxelGrid(deepcopy(self.cell_size),

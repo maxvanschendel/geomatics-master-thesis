@@ -18,7 +18,7 @@ def load_stanford(dir: str) -> Dict[str, PointCloud]:
 
     # skip annotation files as only room-level semantics are used
     xyz_files = filter(
-        lambda x: 'Annotations' not in x and 'alignmentAngle' not in path, txt_files)
+        lambda x: 'Annotations' not in x and 'alignmentAngle' not in x, txt_files)
 
     for path in xyz_files:
         print(f'Reading {path}')
@@ -34,7 +34,7 @@ def load_stanford(dir: str) -> Dict[str, PointCloud]:
     return data
 
 
-def merge_rooms(data: Dict[str, PointCloud], target_rooms: List[str]):
+def merge_dataset_subset(data: Dict[str, PointCloud], target_rooms: List[str]):
     merged_point_cloud = PointCloud()
 
     for room, room_point_cloud in data.items():
@@ -45,13 +45,13 @@ def merge_rooms(data: Dict[str, PointCloud], target_rooms: List[str]):
 
 
 if __name__ == "__main__":
+    from utils.io import write_pickle
+
     folder_selected = select_directory_dialog()
-    rooms = load_stanford(folder_selected)
+    stanford_dataset = load_stanford(folder_selected)
 
-    target_rooms = rooms.keys()
-    merged_rooms = merge_rooms(rooms, target_rooms)
+    stanford_dataset_subsets = stanford_dataset.keys()
+    merged_subset = merge_dataset_subset(stanford_dataset, stanford_dataset_subsets)
 
-    with open(save_file_dialog().name, 'wb') as write_file:
-        dump(merged_rooms, write_file)
-
-    visualize_point_cloud(merged_rooms)
+    visualize_point_cloud(merged_subset)
+    write_pickle(save_file_dialog(), merged_subset)

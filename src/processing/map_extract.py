@@ -16,7 +16,7 @@ from model.spatial_graph import *
 from utils.visualization import visualize_htmap, visualize_point_cloud
 
 
-def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
+def extract_topometric_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
     # Map representation that is result of map extraction
     topometric_map = HierarchicalTopometricMap()
 
@@ -34,6 +34,8 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
     nav_volume_voxel, floor_voxel = segment_floor_area(
         building_voxels, p.kernel_scale, p.leaf_voxel_size)
     floor_voxel = deepcopy(floor_voxel)
+
+    # visualize_point_cloud(floor_voxel.to_pcd())
 
     print("- Segmenting storeys")
     # Split building into multiple storeys and determine their adjacency
@@ -115,8 +117,7 @@ def extract_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionP
 
         print(f"    - Extracting topometric map")
         topo_map = traversability_graph(
-            map_segmented=connected_clusters,
-            nav_graph=floor_voxel,
+            map_segments=connected_clusters,
             floor_voxels=nav_volume_voxel,
             min_voxels=p.min_voxels)
 
@@ -161,7 +162,7 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
 
     # Find largest connected component of traversable volume
     largest_nav_volume_component = nav_volume.connected_components(Kernel.nb6())[
-        0]
+        1]
     nav_surface = candidate_voxels.subset(
         lambda v: v in largest_nav_volume_component)
 
@@ -272,8 +273,8 @@ def cluster_graph_mcl(distance_matrix, weight_threshold: float, min_inflation: f
 
         return 1-Q
 
-    optimized_parameters = skopt.forest_minimize(
-        markov_cluster, SPACE, n_calls=10, n_random_starts=10, n_jobs=-1).x
+    # Find hyperparameters that produce optimal clustering, then perform clustering using them
+    optimized_parameters = skopt.forest_minimize(markov_cluster, SPACE, n_calls=10, n_random_starts=10, n_jobs=-1).x
     result = mc.run_mcl(matrix, inflation=optimized_parameters[0])
     clusters = mc.get_clusters(result)
 
@@ -308,77 +309,67 @@ def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clusterin
     return clustered_map
 
 
-def traversability_graph(map_segmented: VoxelGrid, nav_graph: SpatialGraph, floor_voxels: VoxelGrid, min_voxels: float = 100) -> SpatialGraph:
-    unique_clusters = np.unique(
-        list(map_segmented.list_attr(VoxelGrid.cluster_attr)))
+def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_voxels: float = 100) -> SpatialGraph:
     G = networkx.Graph()
+    cluster_attr = VoxelGrid.cluster_attr
+
+    unique_clusters = np.unique(list(map_segments.list_attr(cluster_attr)))
 
     for cluster in unique_clusters:
-        cluster_voxels = list(map_segmented.get_attr(
-            VoxelGrid.cluster_attr, cluster))
-        voxel_coordinates = [
-            map_segmented.voxel_centroid(v) for v in cluster_voxels]
+        cluster_voxels = list(map_segments.get_attr(cluster_attr, cluster))
+        voxel_coordinates = [map_segments.voxel_centroid(v) for v in cluster_voxels]
 
         if voxel_coordinates:
             voxel_centroid = np.mean(voxel_coordinates, axis=0)
-            voxel_centroid_index = tuple(np.mean(voxel_coordinates, axis=0))
+            voxel_centroid_index = tuple(voxel_centroid)
 
             G.add_node(voxel_centroid_index)
             G.nodes[voxel_centroid_index]['pos'] = voxel_centroid
-            G.nodes[voxel_centroid_index][VoxelGrid.cluster_attr] = cluster
-            G.nodes[voxel_centroid_index]['geometry'] = map_segmented.subset(
+            G.nodes[voxel_centroid_index][cluster_attr] = cluster
+            G.nodes[voxel_centroid_index]['geometry'] = map_segments.subset(
                 lambda v: v in cluster_voxels)
 
     kernel = Kernel.sphere(2)
-    cluster_borders = map_segmented.attr_borders(
-        VoxelGrid.cluster_attr, kernel)
+    cluster_borders = map_segments.attr_borders(cluster_attr, kernel)
 
     for v in cluster_borders.voxels:
         if floor_voxels.contains_point(cluster_borders.voxel_centroid(v)):
-            v_cluster = cluster_borders[v][VoxelGrid.cluster_attr]
+            v_cluster = cluster_borders[v][cluster_attr]
             v_node = [x for x, y in G.nodes(
-                data=True) if y[VoxelGrid.cluster_attr] == v_cluster][0]
+                data=True) if y[cluster_attr] == v_cluster][0]
 
             v_nbs = cluster_borders.get_kernel(v, kernel)
             for v_nb in v_nbs:
                 if floor_voxels.contains_point(cluster_borders.voxel_centroid(v_nb)):
-                    v_nb_cluster = cluster_borders[v_nb][VoxelGrid.cluster_attr]
+                    v_nb_cluster = cluster_borders[v_nb][cluster_attr]
                     v_nb_node = [x for x, y in G.nodes(
-                        data=True) if y[VoxelGrid.cluster_attr] == v_nb_cluster][0]
+                        data=True) if y[cluster_attr] == v_nb_cluster][0]
 
                     G.add_edge(v_node, v_nb_node)
 
     connected_nodes = [n for (n, d) in G.nodes(
         data=True) if len(d["geometry"].voxels) > min_voxels]
-    return SpatialGraph(np.array([1, 1, 1]), np.array([0, 0, 0]), G.subgraph(connected_nodes))
+    traversability_graph = SpatialGraph(np.array([1, 1, 1]),
+                                        np.array([0, 0, 0]),
+                                        G.subgraph(connected_nodes))
+
+    return traversability_graph
 
 
 if __name__ == '__main__':
-    from utils.io import select_file_dialog, save_file_dialog
-    from pickle import dump as dump_pickle
-    from pickle import load as load_pickle
+    from utils.io import select_file_dialog, save_file_dialog, write_pickle, load_pickle
 
-    skip_extract = False
+    print('Loading parameters...')
+    parameters_path = './config/map_extract.yaml'
+    parameters = MapExtractionParameters.read(parameters_path)
 
-    if skip_extract:
-        with open(select_file_dialog().name, 'rb') as map_file:
-            map_extract = load_pickle(map_file)
-    else:
-        print('Select map extract parameters file...')
-        parameters_path = select_file_dialog().name
-        print('Select map file...')
-        map_path = select_file_dialog().name
+    print('Select input point cloud...')
+    point_cloud = load_pickle(select_file_dialog())
+    point_cloud = point_cloud.rotate(-90, [1, 0, 0])
 
-        parameters = MapExtractionParameters.read(parameters_path)
+    print('Extracting topometric map from point cloud...')
+    topometric_map = extract_topometric_map(point_cloud, parameters)
 
-        with open(map_path, 'rb') as map_file:
-            map = load_pickle(map_file)
-
-        map = map.rotate(-90, [1, 0, 0])
-        visualize_point_cloud(map)
-        map_extract = extract_map(map, parameters)
-
-        with open(save_file_dialog().name, 'wb') as write_file:
-            dump_pickle(map_extract, write_file)
-
-    visualize_htmap(map_extract)
+    print('Visualizing topometric map...')
+    visualize_htmap(topometric_map)
+    write_pickle(save_file_dialog(), topometric_map)
