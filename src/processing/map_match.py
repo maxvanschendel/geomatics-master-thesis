@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from utils.visualization import visualize_matches
-from model.topometric_map import *
-
 import torch
 from karateclub import (AE, BANE, FGSD, FSCNMF, IGE, LDP, MUSAE, SINE,
                         FeatherGraph, FeatherNode, GeoScattering, GL2Vec,
                         Graph2Vec, NetLSD, WaveletCharacteristic)
 from learning3d.models import DGCNN
+from model.topometric_map import *
 from sklearn.metrics.pairwise import euclidean_distances
+from utils.visualization import visualize_matches
 
 
 def dgcnn(pcd, dim):

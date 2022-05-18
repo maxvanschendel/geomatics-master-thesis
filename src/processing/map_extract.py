@@ -1,146 +1,115 @@
 from __future__ import annotations
 
 from collections import Counter
+from copy import deepcopy
 from itertools import combinations
 from random import random
-from typing import List
+from typing import List, Tuple
+
+import markov_clustering as mc
+import networkx as nx
 import numpy as np
 import skopt
-import markov_clustering as mc
+
+from model.point_cloud import PointCloud
+from model.spatial_graph import SpatialGraph
+from model.topometric_map import EdgeType, Hierarchy, HierarchicalTopometricMap, TopometricNode
+from model.voxel_grid import Kernel, VoxelGrid
 
 from processing.parameters import MapExtractionParameters
 
-from model.topometric_map import *
-from model.voxel_grid import *
-from model.spatial_graph import *
-from utils.visualization import visualize_htmap, visualize_point_cloud
 
-
-def extract_topometric_map(partial_map_pcd: model.point_cloud.PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
+def extract_topometric_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
     # Map representation that is result of map extraction
     topometric_map = HierarchicalTopometricMap()
 
     print('- Voxelizing point cloud')
     # Voxelize point cloud partial map at high resolution
     leaf_voxels = partial_map_pcd.voxelize(p.leaf_voxel_size)
-    building_voxels = leaf_voxels.level_of_detail(p.traversability_lod)
+    traversability_lod = leaf_voxels.level_of_detail(p.traversability_lod)
 
-    # Add building level node to hierarchical topometric map
-    building_node = TopometricNode(Hierarchy.BUILDING, building_voxels)
-    topometric_map.add_node(building_node)
-
-    print("- Extracting traversable volume")
+    print('- Extracting traversable volume')
     # Extract the traversable volume and get building voxels at its bottom (the floor)
     nav_volume_voxel, floor_voxel = segment_floor_area(
-        building_voxels, p.kernel_scale, p.leaf_voxel_size)
+        traversability_lod, p.kernel_scale, p.leaf_voxel_size)
     floor_voxel = deepcopy(floor_voxel)
-
-    # visualize_point_cloud(floor_voxel.to_pcd())
-
-    print("- Segmenting storeys")
-    # Split building into multiple storeys and determine their adjacency
-    storeys, storey_adjacency = segment_storeys(
-        floor_voxel, building_voxels, buffer=p.storey_buffer, height=p.storey_height)
-
-    # Create a node for each storey in the building and edges for
-    # both hierarchy within building and traversability between storeys
-    storey_nodes = [TopometricNode(Hierarchy.STOREY, s) for s in storeys]
-    storey_hierarchy = [(building_node, s) for s in storey_nodes]
-    storey_adjacency = [(storey_nodes[a], storey_nodes[b])
-                        for (a, b) in storey_adjacency]
-
-    # Add storey nodes and edges to hierarchical topometric map
-    topometric_map.add_nodes(storey_nodes)
-    topometric_map.add_edges(storey_hierarchy, EdgeType.HIERARCHY)
-    topometric_map.add_edges(storey_adjacency, EdgeType.TRAVERSABILITY)
 
     print('- Estimating optimal isovist positions')
     # Attempt to find the positions in the map from which as much of the
     # the map is visible as possible.
-    isovist_positions = optimal_isovist_positions(
+    isovist_voxels = optimal_isovist_voxels(
         floor_voxel, p.isovist_height, p.isovist_spacing)
+    isovist_centroids = isovist_voxels.voxel_centroids()
 
-    print(f"- Segmenting {len(storey_nodes)} storey(s)")
-    for i, storey in enumerate(storey_nodes):
-        print(f"- Segmenting storey {i+1}/{len(storey_nodes)}")
+    print(f'- Voxelizing partial map at LoD{p.segmentation_lod} for room segmentation')
+    segmentation_lod = leaf_voxels.level_of_detail(p.segmentation_lod)
 
-        print(f'    - Voxelizing storey at LoD{p.segmentation_lod} ')
-        storey_geometry = storey.geometry.level_of_detail(p.segmentation_lod)
+    print(f'- Casting isovists')
+    isovists = cast_isovists(
+        origins=isovist_centroids,
+        map_grid=segmentation_lod,
+        subsample=p.isovist_subsample,
+        max_dist=p.isovist_range)
 
-        print(f'    - Casting isovists')
-        origin_voxels = isovist_positions.range_search(storey_geometry.bbox())
-        origins = [isovist_positions.voxel_centroid(v) for v in origin_voxels]
+    print(f'- Clustering {len(isovists)} isovists')
+    mutual_visibility = mutual_visibility_graph(isovists)
+    clustering = cluster_graph_mcl(
+        distance_matrix=mutual_visibility,
+        weight_threshold=p.weight_threshold,
+        min_inflation=p.min_inflation,
+        max_inflation=p.max_inflation
+    )
 
-        isovists = cast_isovists(
-            origins=origins,
-            map_voxel=storey_geometry,
-            subsample=p.isovist_subsample,
-            max_dist=p.isovist_range)
-        if not isovists:
-            storey_nodes[i+1].geometry.__add__(storey.geometry)
-            continue
+    print(f'- Segmenting rooms')
+    map_rooms = room_segmentation(
+        isovists=isovists,
+        map_voxel=segmentation_lod,
+        clustering=clustering)
 
-        print(f'    - Clustering {len(isovists)} isovists')
-        mutual_visibility = mutual_visibility_graph(isovists)
-        clustering = cluster_graph_mcl(
-            distance_matrix=mutual_visibility,
-            weight_threshold=p.weight_threshold,
-            min_inflation=p.min_inflation,
-            max_inflation=p.max_inflation
-        )
+    print(f'- Propagating labels')
+    map_rooms = map_rooms.propagate_attr(
+        attr=VoxelGrid.cluster_attr,
+        prop_kernel=Kernel.sphere(r=2), max_its=10)
 
-        print(f"    - Segmenting rooms")
-        map_rooms = room_segmentation(
-            isovists=isovists,
-            map_voxel=storey_geometry,
-            clustering=clustering)
+    print(f'- Finding connected clusters')
+    map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
 
-        print(f"    - Propagating labels")
-        map_rooms = map_rooms.propagate_attr(
-            attr=VoxelGrid.cluster_attr,
-            prop_kernel=Kernel.sphere(r=2), max_its=10)
+    connection_kernel = Kernel.sphere(r=2)
+    connected_clusters = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
+    n_cluster = 0
 
-        print(f"    - Finding connected clusters")
-        map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
+    for room in map_rooms_split:
+        room_components = room.connected_components(connection_kernel)
 
-        n_cluster = 0
-        connection_kernel = Kernel.sphere(r=2)
-        connected_clusters = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
+        for c in room_components:
+            c.set_attr_uniform(attr=VoxelGrid.cluster_attr, val=n_cluster)
+            n_cluster += 1
+            connected_clusters += c
 
-        for room in map_rooms_split:
-            room_components = room.connected_components(connection_kernel)
+    print(f'- Extracting topometric map')
+    topological_map = traversability_graph(
+        map_segments=connected_clusters,
+        floor_voxels=nav_volume_voxel,
+        min_voxels=p.min_voxels)
 
-            for c in room_components:
-                c.set_attr_uniform(attr=VoxelGrid.cluster_attr, val=n_cluster)
-                n_cluster += 1
-                connected_clusters += c
+    node_dict = {n: TopometricNode(
+        Hierarchy.ROOM, topological_map.graph.nodes[n]['geometry']) for n in topological_map.graph.nodes}
 
-        print(f"    - Extracting topometric map")
-        topo_map = traversability_graph(
-            map_segments=connected_clusters,
-            floor_voxels=nav_volume_voxel,
-            min_voxels=p.min_voxels)
+    for node in node_dict:
+        topometric_map.add_node(node_dict[node])
 
-        node_dict = {n: TopometricNode(
-            Hierarchy.ROOM, topo_map.graph.nodes[n]['geometry']) for n in topo_map.graph.nodes}
-
-        for node in node_dict:
-            topometric_map.add_node(node_dict[node])
-            topometric_map.add_edge(
-                storey, node_dict[node], EdgeType.HIERARCHY)
-
-        for node in node_dict:
-            node_edges = topo_map.graph.edges(node)
-            for a, b in node_edges:
-                if a != b:
-                    topometric_map.add_edge(
-                        node_dict[a], node_dict[b], EdgeType.TRAVERSABILITY)
+    for node in node_dict:
+        node_edges = topological_map.graph.edges(node)
+        for a, b in node_edges:
+            if a != b:
+                topometric_map.add_edge(
+                    node_dict[a], node_dict[b], EdgeType.TRAVERSABILITY)
 
     return topometric_map
 
 
 def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_size: float = 0.1) -> SpatialGraph:
-    """Uses stick-shaped structuring element to extract 3D traversable volume from voxel map. 
+    '''Uses stick-shaped structuring element to extract 3D traversable volume from voxel map. 
     Based on Gorte et al (2019).
 
     Args:
@@ -148,25 +117,28 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
 
     Returns:
         SpatialGraphRepresentation: Graph representation of traversable volume, nodes are connected to 6-neighbourhood.
-    """
+    '''
 
     # For all cells in voxel map, check if any neighbours in stick kernel
     # Create new voxel map with only cells that did not have any neighbours in kernel
-    kernel = Kernel.stick_kernel(voxel_size / kernel_scale)
-    candidate_voxels = voxel_map.filter_gpu_kernel_nbs(kernel)
+    stick_kernel = Kernel.stick_kernel(voxel_size / kernel_scale)
+    candidate_voxels = voxel_map.filter_gpu_kernel_nbs(stick_kernel)
 
     # Dilate floor area upwards to connect stairs and convert to nb6 connected 'dense' graph
+    # TODO: fix kernel scales, argument should just be its dimensions in meters.
     dilation_kernel = Kernel.cylinder(
         1, 1 + int(6 // (voxel_size / kernel_scale)))
     nav_volume = candidate_voxels.dilate(dilation_kernel)
 
-    # Find largest connected component of traversable volume
-    largest_nav_volume_component = nav_volume.connected_components(Kernel.nb6())[
-        1]
-    nav_surface = candidate_voxels.subset(
-        lambda v: v in largest_nav_volume_component)
+    # Find the largest connected component that is traversable
+    traversability_kernel = Kernel.nb6()
+    traversable_components = nav_volume.connected_components(
+        traversability_kernel)
+    traversable_manifold = traversable_components[0]
 
-    return largest_nav_volume_component, nav_surface
+    traversable_voxels = candidate_voxels.subset(
+        lambda v: v in traversable_manifold)
+    return traversable_manifold, traversable_voxels
 
 
 def segment_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: int, height: int = 500):
@@ -218,22 +190,20 @@ def local_distance_field_maxima(vg, radius, min=0) -> VoxelGrid:
     return vg.subset(lambda v: v in local_maxima)
 
 
-def optimal_isovist_positions(floor: VoxelGrid, path_height: Tuple[float, float], kernel_radius=7, min_boundary_dist=1) -> VoxelGrid:
-    skeleton = local_distance_field_maxima(
-        floor, kernel_radius, min_boundary_dist)
-    skeleton.origin += np.array([0, path_height[0] +
-                                (random()*(path_height[1]-path_height[0])), 0.])
+def optimal_isovist_voxels(floor: VoxelGrid, height: Tuple[float, float], radius=7, min_dist=1) -> VoxelGrid:
+    # Find voxels that are the furthest away from the boundary of the map within a given radius
+    # Add height and random jitter to distance field maxima to simulate
+    # a scanner moving through the environment.
+    df_maxima = local_distance_field_maxima(floor, radius, min_dist)
+    df_maxima.origin += np.array([0, height[0] +
+                                 (random()*(height[1]-height[0])), 0.])
 
-    return skeleton
+    return df_maxima
 
 
-def cast_isovists(origins: List[Tuple], map_voxel: VoxelGrid, subsample: float, max_dist: float):
-    isovists = []
-
-    for v in origins:
-        if random() < subsample:
-            isovist = map_voxel.visibility(v, max_dist)
-            isovists.append(isovist)
+def cast_isovists(origins: List[Tuple], map_grid: VoxelGrid, subsample: float, max_dist: float):
+    isovists = [map_grid.visibility(o, max_dist) for o in origins
+                if random() < subsample]
 
     return isovists
 
@@ -244,23 +214,21 @@ def mutual_visibility_graph(isovists) -> np.array:
 
     pairs = combinations(range(n_isovist), r=2)
     for i, j in pairs:
-        if len(isovists[i].voxels) and len(isovists[j].voxels):
-            overlap = len(isovists[i].intersect(
-                isovists[j])) / min([len(isovists[j].voxels), len(isovists[i].voxels)])
+        overlap = isovists[i].symmetric_overlap(isovists[j])
 
-            # Mutual visibility is symmetric between isovists
-            distance_matrix[i][j] = 1 - overlap
-            distance_matrix[j][i] = 1 - overlap
+        # Mutual visibility is symmetric between isovists
+        distance_matrix[i][j] = 1 - overlap
+        distance_matrix[j][i] = 1 - overlap
 
     return distance_matrix
 
 
 def cluster_graph_mcl(distance_matrix, weight_threshold: float, min_inflation: float, max_inflation: float) -> List[int]:
-    G = networkx.convert.to_networkx_graph(distance_matrix)
-    edge_weights = networkx.get_edge_attributes(G, 'weight')
+    G = nx.convert.to_networkx_graph(distance_matrix)
+    edge_weights = nx.get_edge_attributes(G, 'weight')
     G.remove_edges_from(
         (e for e, w in edge_weights.items() if w > weight_threshold))
-    matrix = networkx.to_scipy_sparse_matrix(G)
+    matrix = nx.to_scipy_sparse_matrix(G)
 
     SPACE = [skopt.space.Real(
         min_inflation, max_inflation, name='inflation', prior='log-uniform'), ]
@@ -274,7 +242,8 @@ def cluster_graph_mcl(distance_matrix, weight_threshold: float, min_inflation: f
         return 1-Q
 
     # Find hyperparameters that produce optimal clustering, then perform clustering using them
-    optimized_parameters = skopt.forest_minimize(markov_cluster, SPACE, n_calls=10, n_random_starts=10, n_jobs=-1).x
+    optimized_parameters = skopt.forest_minimize(
+        markov_cluster, SPACE, n_calls=10, n_random_starts=10, n_jobs=-1).x
     result = mc.run_mcl(matrix, inflation=optimized_parameters[0])
     clusters = mc.get_clusters(result)
 
@@ -317,7 +286,8 @@ def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_v
 
     for cluster in unique_clusters:
         cluster_voxels = list(map_segments.get_attr(cluster_attr, cluster))
-        voxel_coordinates = [map_segments.voxel_centroid(v) for v in cluster_voxels]
+        voxel_coordinates = [
+            map_segments.voxel_centroid(v) for v in cluster_voxels]
 
         if voxel_coordinates:
             voxel_centroid = np.mean(voxel_coordinates, axis=0)
@@ -348,7 +318,7 @@ def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_v
                     G.add_edge(v_node, v_nb_node)
 
     connected_nodes = [n for (n, d) in G.nodes(
-        data=True) if len(d["geometry"].voxels) > min_voxels]
+        data=True) if len(d['geometry'].voxels) > min_voxels]
     traversability_graph = SpatialGraph(np.array([1, 1, 1]),
                                         np.array([0, 0, 0]),
                                         G.subgraph(connected_nodes))
@@ -357,19 +327,20 @@ def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_v
 
 
 if __name__ == '__main__':
-    from utils.io import select_file_dialog, save_file_dialog, write_pickle, load_pickle
+    from utils.io import (load_pickle, save_file_dialog, select_file,
+                          write_pickle)
 
     print('Loading parameters...')
     parameters_path = './config/map_extract.yaml'
     parameters = MapExtractionParameters.read(parameters_path)
 
     print('Select input point cloud...')
-    point_cloud = load_pickle(select_file_dialog())
-    point_cloud = point_cloud.rotate(-90, [1, 0, 0])
+    fn = select_file()
+    point_cloud = load_pickle(fn)
+    print(f'Selected {fn}')
 
     print('Extracting topometric map from point cloud...')
     topometric_map = extract_topometric_map(point_cloud, parameters)
 
-    print('Visualizing topometric map...')
-    visualize_htmap(topometric_map)
+    print('Select output path...')
     write_pickle(save_file_dialog(), topometric_map)

@@ -4,6 +4,14 @@
 \usepackage{bm}
 \begin{document}
 
+\newcommand{\voxel}{\boldsymbol{v}}
+\newcommand{\voxelgrid}{\mathcal{V}}
+\newcommand{\voxelset}{\mathbb{Z}^{n \times 3}}
+\newcommand{\graph}{\mathcal{G}}
+\newcommand{\integers}{\mathbb{Z}}
+\newcommand{\topologicalgraph}{\mathcal{G}_{\mathbf{T}}}
+\newcommand{\topometricmap}{\mathcal{T}}
+
 \section{Map Extraction}
 In the map extraction module we extract topometric maps from each individual partial point cloud map. In this section we will discuss the algorithms and data structures used for this purpose.
 
@@ -20,6 +28,8 @@ Due to the regularly spaced nature of the voxel grid a voxel coordinate only con
 Several operations on voxel grids benefit from using a spatial index, including range searching, radius searching and level of detail generation. We use a data structure called a sparse voxel octree (SVO) to achieve this. A normal octree recursively subdivides a volume into 8 cells, called octants. This operation results in a tree data structure, with nodes representing octants at a certain level of subsidivision. The root node of the tree structure represents the entire volume while the leaf nodes represent batches of 1 or more data points. In the case of a voxel octree, the leaf nodes represent individual voxels. In a sparse voxel octree only the octants which are occupied are represented in the tree. 
 
 To generate the SVO we first create a Morton Order for the voxel grid. A Morton order maps the three-dimensional coordinates of the voxels to one dimension while preserving locality. It does by interleaving the binary coordinates into a single binary number, called a Morton code. The ordered vector of Morton codes gives the Morton order. We define the Morton order of a voxel grid as \(M_{\mathcal{V}}=\{m_i\}_{i=1}^{|\mathcal{V}|},\ m_i < m_{i+1},\ m_i \in \mathbb{Z^+}\). We then divide the Morton order into buckets with width 8, such that each bucket contains at most 8 Morton codes, with a maximum difference of 8, in Morton order. Each non-empty bucket represents a parent node of at most 8 child nodes in the octree. By recursively performing this step until only one bucket remains, the root node, a sparse voxel octree is constructed. 
+
+We denote the function that returns all \(n\) voxels within range \(r\) of a voxel as \(radius: \mathbb{Z}^{3+},\ \mathbb{R} \mapsto \voxelset\).
 
 \subsection{Navigable volume}
 To extract the topology from the voxel grid map we first extract a navigable volume. The navigable volume tells us which voxels a theoretical agent in the environment would use to navigate through that environment. In practice, this means the areas of the floor and stairs that are at a sufficient distance from a wall and a ceiling. We compute the navigable volume using a three step algorithm.
@@ -43,24 +53,23 @@ There exists a path between two voxels \(\boldsymbol{v_a},\ \boldsymbol{v_b}\) i
 To compute the isovists necessary for room segmentation it is first necessary to estimate hypothetical scanning positions that maximize the view of the map. We compute these by finding the local maxima of the horizontal distance field of the navigable volume. The steps to achieve this are as follows. 
 
 \subsubsection{Horizontal distance field}
-For each voxel in \(\mathcal{V}\) we compute the horizontal Manhattan distance to the nearest boundary voxel. A boundary voxel is a voxel for which not every voxel in its Von Neumann neighbourhood is occupied. To compute this value we iteratively convolve the voxel grid with a circle-shaped kernel on the X-Z plane, where the radius of the circle is expanded by 1 voxel with each iteration, starting with a radius of 1. When the number of voxel neighbours within the kernel is less than the number of voxels in the kernel a boundary voxel has been reached. Thus, the number of radius expansions tells us the Manhattan distance to the boundary of a particular voxel. We denote the distance of a voxel to its boundary as \(dist: \mathbb{Z}^{3+} \mapsto \mathbb{Z}\). 
-
-In the next step we detect local maxima in the vo
-    \subsubsection{Local maxima}
+For each voxel in \(\voxelgrid\) we compute the horizontal Manhattan distance to the nearest boundary voxel. A boundary voxel is a voxel for which not every voxel in its Von Neumann neighbourhood is occupied. To compute this value we iteratively convolve the voxel grid with a circle-shaped kernel on the X-Z plane, where the radius of the circle is expanded by 1 voxel with each iteration, starting with a radius of 1. When the number of voxel neighbours within the kernel is less than the number of voxels in the kernel a boundary voxel has been reached. Thus, the number of radius expansions tells us the Manhattan distance to the boundary of a particular voxel. We denote the horizontal distance of a voxel to its boundary as \(dist: \mathbb{Z}^{3+} \mapsto \mathbb{Z}\). Computing the horizontal distance for every voxel in \(\voxelgrid\) gives us the horizontal distance field (HDF), such that \(HDF = \{dist(\voxel) \mid \voxel \in \voxelgrid\}\). We then find the maxima of the horizontal distance field within a given radius \(r \in \mathbb{R}\).  The local maxima of the horizontal distance field are all voxels that have a larger or equal horizontal distance than all voxels within \(r\), such that \(HDF_{max} = \{\voxel \mid dist(\voxel) \geq max \{dist(\boldsymbol{v_{r}} \mid \boldsymbol{v_{r}} \in radius(\voxel,\ r))\}\}\). Increasing the value of \(r\) reduces the number of local maxima and vice versa. All voxels in \(HDF_{max}\) lie within the geometry of the environment, which means the view of the environment is blocked by the surrounding voxels. To solve this, we take the centroids of the voxels in \(HDF_{max}\) and translate them upwards to a reasonable scanning height \(h\), to estimate the positions with the optimal view of the map. We denote these positions as \(views = \{\boldsymbol{v_c} + (0, h, 0) \mid \boldsymbol{v} \in HDF_{max}\}\)
 
 \subsection{Visibility}
-    \subsubsection{Voxel raycasting}
+The next step in the room segmentation algorithm is to compute the visibility from each position in \(views\). We denote the all voxels that are visible from a given position as \(visibility: \mathbb{R},\ \voxelset \mapsto \mathbb{Z}^{m \times 3},\ m \in \mathbb{R},\ n \geq m\). A target voxel is visible from a position if a ray cast from the position towards the centroid of the voxel does not intersect with any other voxel. To compute this we use the digital differential analyzer (DDA) algorithm to rasterize the ray onto the voxel grid in 3D. We then check if any of the voxels that the ray enters- except the target voxel- is occupied. If none are, the target voxel is visible from the point. We perform this raycasting operation from every position in \(views\) towards every voxel within a radius \(r_{visibility}\) of that position. Only taking into account voxels within a radius speeds up the visibility computation, and is justifiable based on the fact that real-world 3D scanners have limited range. We denote the set of visibilities from each point in views as \(visibility_{views} = \{visibility(\boldsymbol{x}) \mid \boldsymbol{x} \in views\}\).
 
 \subsection{Room segmentation}
-    \subsubsection{Visibility clustering}
-    \subsubsection{Similarity measure}
-    \subsubsection{Markov Clustering}
-    \subsubsection{Label propagation}
+After computing the set of visibilities from the estimated optimal views we apply clustering to group the visibilities by similarity. This is based on the definition of a room as a region of similar visibility. Remember that each visibility is a subset of the voxel grid map. To compute the similarity of two sets we use the Jaccard index, which is given by \(J(A,B) = \frac{|A \cap B|}{|A \cup B|}\). Computing the Jaccard index for every combination of visibilities gives us a similarity matrix \(S^{n \times n} \in [0, 1]\). The similarity matrix is symmetric because \(J(A,B) = J(B,A)\). Its diagonals are 1, as \(J(A,A) = 1\). We can also consider \(S^{n \times n}\) as an undirected weighted graph \(\graph_S\), where every node represents a visibility and the edges the Jaccard index of two visibilities. This means we can treat visibility clustering as a weighted graph clustering problem. To solve this problem we used the Markov Cluster (MCL) algorithm (CITE MCL), which has been shown by previous research to be state-of-the-art for visibility clustering. 
+
+The main parameter of the MCL algorithm is inflation. By varying this parameter between an approximate range of \([1.2, 2.5]\) we get different clustering results. 
+%TODO FINISH PARAGRAPH WITH TECHNICAL EXPLANATION OF MCL CLUSTERING
+
+We denote the clustering of \(visibility_{views}\) that results from the MCL algorithm as \(\mathbf{C}_{visibility} = \{c_0, c_1, \dots c_{n-1}, c_{n}\},\ n=|views|,\ c \in \integers,\ n \geq c\), where \(n\)th element of \(\mathbf{C}_{visibility}\) is the cluster that the \(n\)th element of \(visibility_{views}\) belongs to, such that for a given value of \(c\), the elements in \(visibility_{views}\) for which the corresponding \(c\) in \(\mathbf{C}_{visibility}\) has the same value belong to the same cluster. As each visibility is a subset of the map, each cluster of visibilities is also a subset of the map. We denote the union of the visibilities belonging to each cluster as \(\mathcal{V}_{c}\). 
+
+It is possible for visibility clusters in \(\mathcal{V}_{c}\) to have overlapping voxels. This means that each voxel in the partial map may have multiple associated visibility clusters. However, the goal is to assign a single room to each voxel in the map. To solve this we assign to each voxel the cluster in which the most visibilities contain that voxel. The result is a mapping from voxels to visibility clusters (which we will from now on refer to as rooms), which we denote as \(room: \voxel \mapsto \integers\), such that \(room(\voxel) = c,\ c \in \mathbf{C}_{visibility},\ \voxel \in \voxelgrid\). This often results in noisy results, with small, disconnected islands of rooms surrounded by other rooms. Intuitively, this does not correspond to a reasonable room segmentation. To solve this, we apply a label propagation algorithm. This means that for every voxel we find the voxels within a neighbourhood as defined by a convolution kernel. We then assign to the voxel the most common label, in this case the room, of its neighbourhood, if that label is more common than the current label. We iteratively apply this step until the assigned labels stop changing. Depending on the size of the convolution kernel the results are smoothed and small islands are absorbed by the surrounding rooms.
 
 \subsection{Topometric map extraction}
-
-
-Pintore et al (2020) reviews the state-of-the art of 3D reconstruction of structured indoor environments. Ochmann et al (2019) uses visibility.
+The above steps segment the map into multiple non-overlapping rooms based on visibility clustering. In the next step we transform the map into a topometric representation \(\topometricmap = (\topologicalgraph, \voxelgrid)\), which consists of a topological graph \(\topologicalgraph=(V,E)\) and a voxel grid map \(\voxelgrid\). Each node in \(\topologicalgraph\) represents a room, and also has an associated voxel grid which is a subset of \(\voxelgrid\) and represents the geometry of that room. Edges in \(\topologicalgraph\) represent navigability between rooms, meaning that there is a path between them on the navigable volume that does not pass through any other rooms. This means that for two rooms to have a navigable relationship they need to have adjacent voxels that are both in the navigable volume. To construct the topometric map we thus add a node for every room in the segmented map with its associated voxels, we then add edges between every pair of nodes that satisfy the above navigability requirement.  
 
 \end{document}
 

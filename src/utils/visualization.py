@@ -4,6 +4,8 @@ import open3d as o3d
 from typing import List
 from model.point_cloud import PointCloud
 
+from utils.io import load_pickle, select_file
+
 
 @dataclass
 class MapVisualization:
@@ -83,18 +85,22 @@ def random_color(alpha: bool = False) -> List[float]:
 
 
 def visualize_point_cloud(point_cloud: PointCloud):
-    visualization = Visualization([[MapVisualization(point_cloud.to_o3d(), Visualization.pcd_mat(pt_size=6))]])
+    Visualization(
+        [[MapVisualization(point_cloud.to_o3d(), Visualization.pcd_mat(pt_size=6))]])
+
+def visualize_point_clouds(point_clouds: List[PointCloud]):
+    Visualization(
+        [[MapVisualization(point_cloud.to_o3d(), Visualization.pcd_mat(pt_size=6))] for point_cloud in point_clouds])
+
 
 def visualize_htmap(map):
     from model.topometric_map import Hierarchy
 
-    rooms = map.get_node_level(Hierarchy.ROOM)
-    print(rooms)
-    visualization = Visualization([
-        # Topometric map A visualization at room level
-        [MapVisualization(o, Visualization.pcd_mat(pt_size=6)) for o in map.to_o3d(Hierarchy.ROOM)[0]]
+    Visualization([
+        [MapVisualization(o, Visualization.pcd_mat(pt_size=6))
+         for o in map.to_o3d(Hierarchy.ROOM)[0]]
     ])
-    
+
 
 def visualize_map_merge(map_a, map_b):
     from model.topometric_map import Hierarchy
@@ -150,3 +156,15 @@ def visualize_matches(map_a, map_b, matches):
         [MapVisualization(o, Visualization.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
          ],
     ])
+
+
+if __name__ == '__main__':
+    from model.topometric_map import HierarchicalTopometricMap
+
+    map = load_pickle(select_file())
+    map_type = type(map)
+
+    if map_type == HierarchicalTopometricMap:
+        visualize_htmap(map)
+    elif map_type == PointCloud:
+        visualize_point_cloud(map)

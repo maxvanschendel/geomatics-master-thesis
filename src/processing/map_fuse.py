@@ -46,7 +46,7 @@ def fuse_geometry(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometri
 
 
 def fuse(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap,
-         matches: List[Tuple[TopometricNode, TopometricNode]], draw_result: bool = True) -> HierarchicalTopometricMap:
+         matches: List[Tuple[TopometricNode, TopometricNode]], draw_result: bool = True) -> Tuple[HierarchicalTopometricMap, np.array]:
     """
     From a set of matches between nodes in topometric maps,
     identify best transform to bring maps into alignment and fuse them at topological level.

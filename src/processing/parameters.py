@@ -30,6 +30,7 @@ class PipelineParameters:
 
         pass
 
+
 class PreProcessingParametersException(Exception):
     pass
 
@@ -67,6 +68,7 @@ class PreProcessingParameters:
         with open(fn, "w+") as write_file:
             write_file.write(self.serialize())
 
+
 @dataclass(frozen=True)
 class MapExtractionParameters:
     class MapExtractionParametersException(Exception):
@@ -75,7 +77,7 @@ class MapExtractionParameters:
     leaf_voxel_size: float
     traversability_lod: int
     segmentation_lod: int
-    
+
     kernel_scale: float
     isovist_height: float
     isovist_spacing: float
@@ -86,11 +88,8 @@ class MapExtractionParameters:
     weight_threshold: float
     min_inflation: float
     max_inflation: float
-    
-    storey_buffer: int = -5
-    storey_height: int = 300
-    
-    min_voxels: int = 100
+
+    min_voxels: int
 
     @staticmethod
     def deserialize(data: str) -> MapExtractionParameters:
@@ -108,6 +107,7 @@ class MapExtractionParameters:
     def write(self, fn: str) -> None:
         with open(fn, "w+") as write_file:
             write_file.write(self.serialize())
+
 
 @dataclass(frozen=True)
 class MapMergeParameters:

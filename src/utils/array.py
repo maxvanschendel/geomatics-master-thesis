@@ -1,10 +1,14 @@
 from collections import Counter
 from itertools import product
+from statistics import mean
 from typing import Iterable
 import numpy as np
 
 def most_common(elements):
-    return Counter(elements).most_common(1)[0][0]
+    if elements:
+        return Counter(elements).most_common(1)[0][0]
+    else:
+        raise ValueError('Input must contain at least 1 item.')
     
 def n_smallest_indices(input: np.array, n: int):
     smallest_flat = np.argpartition(input.ravel(), n)[:n]
@@ -43,3 +47,13 @@ def euclidean_distance_matrix(arrays: Iterable[np.array]) -> np.array:
         distance_matrix[i][j] = array_distance
 
     return distance_matrix
+
+
+def flatten_list(list_of_lists):
+    return [item for sublist in list_of_lists for item in sublist]
+
+def sort_dict_by_value(d, reverse=False):
+    return sorted(d.items(), reverse=reverse, key=lambda i: i[1])
+
+def mean_dict_value(d):
+    return mean(d.values())

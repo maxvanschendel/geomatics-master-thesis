@@ -1,4 +1,5 @@
 from __future__ import annotations
+from numba import cuda
 
 import math
 import os
@@ -24,12 +25,11 @@ os.environ["NUMBA_ENABLE_CUDASIM"] = str(int(enable_debug))
 os.environ["NUMBA_CUDA_DEBUGINFO"] = str(int(enable_debug))
 filterwarnings('ignore')
 
-from numba import cuda
-
 
 class VoxelGrid:
     cluster_attr: str = 'cluster'
     color_attr: str = 'color'
+    ground_truth_attr = 'ground_truth'
 
     def __init__(self,
                  cell_size: float = 1,
@@ -63,8 +63,22 @@ class VoxelGrid:
         """
 
         lod_voxels = self.svo.get_depth(self.svo.max_depth() - level)
-        lod_voxel_grid = VoxelGrid(self.cell_size*(2**level),
-                                   self.origin, {tuple(v): {} for v in lod_voxels})
+        lod_voxel_grid = VoxelGrid(
+            self.cell_size*(2**level), self.origin, {tuple(v): {} for v in lod_voxels})
+
+        # TODO: clean this part
+        attributes = self.attributes()
+        lod_voxel_attributes = {voxel: {attr: [] for attr in attributes} for voxel in lod_voxel_grid.voxels}
+        for v in self.voxels:
+            parent_voxel = lod_voxel_grid.get_voxel(self.voxel_centroid(v))
+            for attr, value in self.voxels[v].items():
+                lod_voxel_attributes[parent_voxel][attr].append(value)
+
+        for voxel, attributes in lod_voxel_attributes.items():
+            for attr, values in attributes.items():
+                if len(values):
+                    lod_voxel_grid[voxel][attr] = most_common(values)
+
         return lod_voxel_grid
 
     def __getitem__(self, key: Tuple[int, int, int]) -> Dict[str, object]:
@@ -153,6 +167,12 @@ class VoxelGrid:
 
         return most_common_attr
 
+    def attributes(self):
+        from utils.array import flatten_list
+
+        voxel_attributes = [list(self.voxels[v].keys()) for v in self.voxels]
+        return np.unique(flatten_list(voxel_attributes))
+
     def to_2d_array(self):
         arr = np.zeros((self.size, 3), dtype=np.int32)
         for i, k in enumerate(self.voxels):
@@ -174,12 +194,13 @@ class VoxelGrid:
 
         # Get most common label of 6-neighbourhood of voxel
         # Assign most common label to voxel in propagated map
-        for i in range(max_its):      
+        for i in range(max_its):
             prev_map = prop_map.clone()
 
             # Allocate memory on the device for the result
             max_nb = cuda.to_device(np.zeros((self.size, 1), dtype=np.int32))
-            nbs_occurences = cuda.to_device(np.zeros((self.size, len(unique_attr)), dtype=np.int32))
+            nbs_occurences = cuda.to_device(
+                np.zeros((self.size, len(unique_attr)), dtype=np.int32))
 
             # Map unique attributes to integers in range 0 to number of unique attributes
             # Also store inverse for easy lookup
@@ -193,7 +214,8 @@ class VoxelGrid:
 
             # For each cell, find the most common neighbour
             threadsperblock = 256
-            blockspergrid = (self.size + (threadsperblock - 1)) // threadsperblock
+            blockspergrid = (self.size + (threadsperblock - 1)
+                             ) // threadsperblock
             VoxelGrid.most_common_nb_gpu[blockspergrid, threadsperblock](
                 voxel_matrix, origin_voxels, kernel_voxels, nbs_occurences, len(unique_attr), max_nb)
             cuda.synchronize()
@@ -302,11 +324,11 @@ class VoxelGrid:
                 nb_x = current_voxel[0] + nb[0]
                 nb_y = current_voxel[1] + nb[1]
                 nb_z = current_voxel[2] + nb[2]
-                
+
                 # Check that neighbour index is not out of bounds
-                if  0 <= nb_x < voxels.shape[0] and \
-                    0 <= nb_y < voxels.shape[1] and \
-                    0 <= nb_z < voxels.shape[2]:
+                if 0 <= nb_x < voxels.shape[0] and \
+                        0 <= nb_y < voxels.shape[1] and \
+                        0 <= nb_z < voxels.shape[2]:
 
                     # Get attribute of neighbour
                     nb_attr = voxels[nb_x, nb_y, nb_z]
@@ -319,7 +341,8 @@ class VoxelGrid:
             # The most common neighbour attribute is assumed to be the current
             # voxel's attribute first. Another attribute needs to occur more than once
             # to be the most common neighbour attribute.
-            occurances = voxels[current_voxel[0], current_voxel[1], current_voxel[2]]
+            occurances = voxels[current_voxel[0],
+                                current_voxel[1], current_voxel[2]]
             most_common_attribute = 1
 
             for val in range(n_vals):
@@ -329,10 +352,21 @@ class VoxelGrid:
 
             max_occurences[pos] = occurances
 
-    def mutate_voxels(self, voxels):
+    def symmetric_overlap(self, other):
+        if len(self.voxels) and len(other.voxels):
+            return len(self.intersect(other)) / min([len(other.voxels), len(self.voxels)])
+        else:
+            return 0
+
+    def mutate(self, voxels):
         return VoxelGrid(deepcopy(self.cell_size),
                          deepcopy(self.origin),
                          voxels)
+
+    def voxel_subset(self, voxels):
+        return VoxelGrid(deepcopy(self.cell_size),
+                         deepcopy(self.origin),
+                         {v: self.voxels[v] for v in voxels})
 
     def filter_gpu_kernel_nbs(self, kernel):
         # Allocate memory on the device for the result
@@ -349,7 +383,7 @@ class VoxelGrid:
 
         nb_voxels = [tuple(occupied_voxels[v])
                      for (v, occ) in enumerate(result_voxels) if not occ[0]]
-        return self.mutate_voxels({v: self.voxels[v] for v in nb_voxels})
+        return self.mutate({v: self.voxels[v] for v in nb_voxels})
 
     def dilate(self, kernel) -> VoxelGrid:
         dilated_voxels = set(self.voxels.keys())
@@ -358,7 +392,7 @@ class VoxelGrid:
                              for k in kernel.voxels}
             dilated_voxels.update(kernel_voxels)
 
-        return self.mutate_voxels({v: {} for v in dilated_voxels})
+        return self.mutate({v: {} for v in dilated_voxels})
 
     def translate(self, translation: np.array):
         translated_cells = {}
@@ -366,14 +400,14 @@ class VoxelGrid:
             voxel_t = translation + voxel
             translated_cells[tuple(voxel_t)] = self.voxels[voxel]
 
-        return self.mutate_voxels(translated_cells)
+        return self.mutate(translated_cells)
 
     def visibility(self, origin: np.array, max_dist: float) -> VoxelGrid:
         # Get all voxels within range (max_dist) of the isovist
         # For each voxel within range, get a vector pointing from origin to the voxel
         radius_voxels = self.radius_search(origin, max_dist)
         if not len(radius_voxels):
-            return self.mutate_voxels({})
+            return self.mutate({})
         directions = [self.voxel_centroid(v) for v in radius_voxels] - origin
 
         # This matrix is used by the GPU to quickly find occupied voxels at the cost of memory
@@ -527,6 +561,8 @@ class VoxelGrid:
         return model.point_cloud.PointCloud(np.array(points), colors=colors)
 
     def to_graph(self, kernel: Kernel = None) -> SpatialGraph:
+        from model.spatial_graph import SpatialGraph
+
         graph = networkx.Graph()
         for v in self.voxels:
             nbs = self.get_kernel(v, kernel)

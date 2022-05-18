@@ -1,15 +1,15 @@
 from tkinter import Tk, filedialog
-from pickle import dump
+from pickle import dump, load
 
 
-def select_directory_dialog() -> str:
+def select_directory() -> str:
     selected_dir = filedialog.askdirectory()
     return selected_dir
 
 
-def select_file_dialog() -> str:
+def select_file() -> str:
     file = filedialog.askopenfile()
-    return file.name
+    return str(file.name)
 
 
 def save_file_dialog() -> str:
@@ -24,5 +24,5 @@ def write_pickle(fn: str, obj: object):
 
 def load_pickle(fn: str) -> object:
     with open(fn, 'rb') as load_file:
-        obj = load_pickle(load_file)
+        obj = load(load_file)
     return obj

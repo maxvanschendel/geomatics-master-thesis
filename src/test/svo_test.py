@@ -79,7 +79,7 @@ class SVOTest(unittest.TestCase):
         self.assertEqual(morton_code((-1,-1,-1)), morton_code((2**21-1,2**21-1,2**21-1)))
         self.assertNotEqual(tuple(decode_morton(morton_code((-1,-1,-1)))), (-1,-1,-1))
             
-        self.assertRaises(OverflowError,decode_morton, x=2**63)
+        self.assertRaises(OverflowError, decode_morton, x=2**63)
         
     def test_z_order_curve(self):
         pass
