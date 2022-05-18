@@ -2,15 +2,10 @@
 \usepackage[utf8]{inputenc}
 \usepackage{amsfonts}
 \usepackage{bm}
-\begin{document}
 
-\newcommand{\voxel}{\boldsymbol{v}}
-\newcommand{\voxelgrid}{\mathcal{V}}
-\newcommand{\voxelset}{\mathbb{Z}^{n \times 3}}
-\newcommand{\graph}{\mathcal{G}}
-\newcommand{\integers}{\mathbb{Z}}
-\newcommand{\topologicalgraph}{\mathcal{G}_{\mathbf{T}}}
-\newcommand{\topometricmap}{\mathcal{T}}
+\include{commands.tex}
+
+\begin{document}
 
 \section{Map Extraction}
 In the map extraction module we extract topometric maps from each individual partial point cloud map. In this section we will discuss the algorithms and data structures used for this purpose.

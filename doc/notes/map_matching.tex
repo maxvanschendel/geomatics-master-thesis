@@ -1,0 +1,21 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsfonts}
+\usepackage{bm}
+
+\include{commands.tex}
+
+\begin{document}
+\section{Map Matching}
+The process of identifying overlapping areas between partial maps is called map matching. In the case of topometric map matching, this refers to identifying which nodes represent the same rooms between two partial maps. We denote our two partial topometric maps as \(\topometricmap_A = (\mathcal{G}_A,\ \voxelgrid_A)\) and \(\topometricmap_B = (\mathcal{G}_B,\ \voxelgrid_B)\). The goal of map matching is to find a mapping \(match: v_A \mapsto v_B,\ v_A \in \mathcal{G}_A,\ v_B \in \mathcal{G}_B\) which corresponds to the real world and is robust to differences in coordinate system, resolution and quality between partial maps. To identify matches between nodes we need to be able to compute the similarity between them. To do so, we must first transform each node into a feature vector which represents both the node itself and its relationship to its neighbourhood. The feature vectors of two nodes with similar geometry and a similar neighbourhood should be close to eachother, meaning their Minkowski distance is small. Conversely, the feature vectors of two dissimilar nodes should be far away from eachother. The first step of this process, encoding the node's geometry into a feature vector, is called geometrical feature embedding. The second step, encoding both the geometrical feature embedding of the node itself and of its neighbourhood into a new feature vector is called attributed node embedding. We hypothesize that the attributed node embedding will have better performance for map matching, especially when differences between partial maps are large, because it involves not just the node itself but also its neighbourhood in the similarity measure. This can be compared to human place recognition, where places are identified not just by their appearance but also by their relationship to their context. In this section we will discuss multiple algorithms used for geometrical feature embedding and attributed node embedding. We will also discuss how we identify matches between nodes based on their feature vectors.
+
+\subsection{Geometrical Feature Embedding}
+Geometrical feature embedding means transforming a geometric object into a feature vector \(f_{geometry} \in \mathbb{R}^m\), where \(m\) is the dimensionality of the vector. We denote the function that embeds a set of voxels into a feature vector as \(embed_{geo}: \voxelset \mapsto \mathbb{R}^m\). We implemented this function using three different approaches, which we discuss below.
+
+\subsubsection{Engineered Features}
+\subsubsection{ShapeDNA}
+\subsubsection{Deep Learning}
+
+\subsection{Attributed Node Embedding}
+\subsection{Feature Matching}
+\end{document}
