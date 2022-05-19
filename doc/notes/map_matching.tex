@@ -2,11 +2,60 @@
 The process of identifying overlapping areas between partial maps is called map matching. In the case of topometric map matching, this refers to identifying which nodes represent the same rooms between two partial maps. We denote our two partial topometric maps as \(\topometricmap_A = (\mathcal{G}_A,\ \voxelgrid_A)\) and \(\topometricmap_B = (\mathcal{G}_B,\ \voxelgrid_B)\). The goal of map matching is to find a mapping \(match: v_A \mapsto v_B,\ v_A \in \mathcal{G}_A,\ v_B \in \mathcal{G}_B\) which corresponds to the real world and is robust to differences in coordinate system, resolution and quality between partial maps. To identify matches between nodes we need to be able to compute the similarity between them. To do so, we must first transform each node into a feature vector which represents both the node itself and its relationship to its neighbourhood. The feature vectors of two nodes with similar geometry and a similar neighbourhood should be close to eachother, meaning their Minkowski distance is small. Conversely, the feature vectors of two dissimilar nodes should be far away from eachother. The first step of this process, encoding the node's geometry into a feature vector, is called geometrical feature embedding. The second step, encoding both the geometrical feature embedding of the node itself and of its neighbourhood into a new feature vector is called attributed node embedding. We hypothesize that the attributed node embedding will have better performance for map matching, especially when differences between partial maps are large, because it involves not just the node itself but also its neighbourhood in the similarity measure. This can be compared to human place recognition, where places are identified not just by their appearance but also by their relationship to their context. In this section we will discuss multiple algorithms used for geometrical feature embedding and attributed node embedding. We will also discuss how we identify matches between nodes based on their feature vectors.
 
 \subsection{Geometrical Feature Embedding}
-Geometrical feature embedding means transforming a geometric object into a feature vector \(f_{geometry} \in \mathbb{R}^m\), where \(m\) is the dimensionality of the vector. We denote the function that embeds a set of voxels into a feature vector as \(embed_{geo}: \voxelset \mapsto \mathbb{R}^m\). We implemented this function using three different approaches, which we discuss below.
+Geometrical feature embedding means transforming a geometric object into a feature vector \(f \in \mathbb{R}^m\), where \(m\) is the dimensionality of the vector. We denote the function that embeds a set of voxels into a feature vector as \(embed_{geometry}: \voxelset \mapsto \mathbb{R}^m\). We implement this function using three different approaches, which we discuss below.
 
 \subsubsection{Engineered Features}
+The first approach uses a number of manually engineered features to construct the feature vector from a room's geometry. These features include, for example, the height of the room and its volume. A full list of features and their explanation is given below. More features were tried, but only the ones that were found to contribute to the accuracy of the clustering by trial and error are included here. The features are computed using a point cloud derived from centroids of the occupied voxels of the voxel grid, which we will denote here as \(\mathbf{P}\).
+
+\paragraph{Volume}
+The axis aligned bounding box (aabb) of \(\mathbf{P}\) is given by the minimum and maximum value along each axis. This results in two 3-dimensional vectors \(aabb_{min}\) and \(aabb_{max}\). With these vectors we compute the length of each axis of the aabb by computing \(\mathbf{l} = aabb_{max} - aabb_{min}\). We then find the volume of the aabb by finding the product of each element of \(\mathbf{l}\).
+
+\paragraph{Height} 
+Using the same approach as described above we compute the length of each axis of the aabb, \(\mathbf{l}\). The height of the point cloud is simply the y-value of \(\mathbf{l}\).
+
+\paragraph{Horizontal Area} 
+Once again we first compute \(\mathbf{l}\). To find the horizontal area of \(\mathbf{P}\) we multiply the x- and y-values of \(\mathbf{l}\). 
+
+\paragraph{Mean distance to centroid} 
+To compute the centroid \(\mathbf{c}\) of \(\mathbf{P}\) we compute the mean value of each axis of all points in \(\mathbf{P}\). We then compute the Euclidean distance of each point in \(\mathbf{P}\) to \(\mathbf{c}\) and compute the mean distance. This metric is closely correlated with an object's volume. 
+
+\paragraph{Number of points} 
+To compute this value we simply count the number of points in the point cloud. Larger objects will generally contain more points.
+
+\paragraph{Quotient of eigenvalues} 
+By using principal component analysis we can determine the 3 eigenvectors and eigenvalues of \(\mathbf{P}\), which indicate the directions of maximal variance in the point cloud and the amount of variance along those directions. If all eigenvalues are approximately equal then no direction dominates. We compute if this is the case by finding the quotient of eigenvalues (the first eigenvalue divided by the second and third). If the quotient is close to 1 then no direction dominates.
+
+\paragraph{Ratio of smallest eigenvalue to sum of two largest eigenvalues} 
+We take the two largest eigenvalues and find their sum, then we divide the smallest eigenvalue by it. Objects for which the largest two eigenvalues are much larger than the smallest eigenvector have a single direction that is non-dominant.
+
+\paragraph{Verticality of largest eigenvector} 
+We take the largest eigenvector, normalize it, and then find the dot product of the eigenvector and the unit vector in the z-direction. This gives us the degree to which the point cloud is vertically aligned. If the largest eigenvalue is non-vertical then the object is mostly horizontal, which is the case for fences, buildings and cars. If the largest eigenvalue is vertical then the object is vertical, which is the case for poles and trees.
+
+\paragraph{Roughness}
+For each point we find their \(n\) nearest neighbours. We then fit a plane through the point's neighbourhood, we do this by finding the eigenvectors of the neighbourhood. The smallest eigenvector gives us the normal vector of the neighbourhood, which along with the neighbourhood's centroid gives us the best fit plane. We then determine the sum distance of each point in the neighbourhood in the plane. The roughness of the point cloud is then given by the mean of the sum distance of each point's neighbourhood to its best fit plane. 
+
 \subsubsection{ShapeDNA}
+
 \subsubsection{Deep Learning}
+Another approach to geometrical feature embedding uses deep learning. This works by using a pretrained model, used for segmentation of objects in indoor environments for example, and using the output of the last hidden layer as the feature vector. We use two different network architectures and models to achieve this, PointNet and DGCNN, which we will describe below. 
+
+\paragraph{PointNet}
+\paragraph{DGCNN}
 
 \subsection{Attributed Node Embedding}
+%TODO: FIX MATHEMATICAL DESCRIPTION OF ATTR NODE EMBEDDING
+
+Attributed node embedding aims to find a feature embedding for each node in a graph that uses both an attribute of the node, in our case a geometrical feature embedding, and the node's relationship to the rest of the graph. We denote the function that embeds a node's attribute \(f_{attr}\) and its graph into a feature vector as \(embed_{node}: \mathbb{R}^m,\ \graph \mapsto \mathbb{R}^m\), such that \(embed_{node}(f_{attr},\ \graph_{attr}) = f_{node}\). Finding the attributed node embedding of a node \(n\) in the topometric map \(\topometricmap\) with topological graph \(\graph_{T}\) is then equal to computing \(f_{node}=embed_{node}(embed_{geometry}(n),\ \graph_{T})\).
+
+We use a number of different algorithms to solve this problem in our research, which we will describe below.
+
+\paragraph{SINE}
+\paragraph{MUSAE}
+\paragraph{FEATHER-N}
+
 \subsection{Feature Matching}
+%TODO: EXPLAIN WHAT AN INJECTION IS
+
+The above steps are applied to both partial maps. This gives us two sets of feature vectors \(\mathcal{E}_A,\ \mathcal{E}_B\) that represent the partial maps' attributed node embedding. Our goal is to find a injection between the elements of both sets. To do so, we first find the Cartesian product \(\mathcal{E}_{AB} = \mathcal{E}_A \times \mathcal{E}_B = \{(a,b) \mid a \in \mathcal{E}_A,\ b \in \mathcal{E}_B\}\). We then compute the Euclidean distance between every element in \(\mathcal{E}_{AB}\), such that \(\mathcal{D}_{AB} = \{\sqrt{(a - b)^2} \mid (a, b) \in \mathcal{E}_{AB}\}\). \(\mathcal{D}_{AB}\) describes the pairwise distance between each combination of nodes in the partial maps. To extract an injection between the two sets of nodes from this we use the following algorithm:
+
+%TODO: PSEUDOCODE FOR INJECTION FROM PAIRWISE DISTANCE

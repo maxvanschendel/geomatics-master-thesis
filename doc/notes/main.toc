@@ -28,7 +28,21 @@
 \contentsline {section}{\numberline {3}Map Matching}{11}{}%
 \contentsline {subsection}{\numberline {3.1}Geometrical Feature Embedding}{11}{}%
 \contentsline {subsubsection}{\numberline {3.1.1}Engineered Features}{11}{}%
-\contentsline {subsubsection}{\numberline {3.1.2}ShapeDNA}{11}{}%
-\contentsline {subsubsection}{\numberline {3.1.3}Deep Learning}{11}{}%
-\contentsline {subsection}{\numberline {3.2}Attributed Node Embedding}{11}{}%
-\contentsline {subsection}{\numberline {3.3}Feature Matching}{11}{}%
+\contentsline {paragraph}{Volume}{12}{}%
+\contentsline {paragraph}{Height}{12}{}%
+\contentsline {paragraph}{Horizontal Area}{12}{}%
+\contentsline {paragraph}{Mean distance to centroid}{12}{}%
+\contentsline {paragraph}{Number of points}{12}{}%
+\contentsline {paragraph}{Quotient of eigenvalues}{12}{}%
+\contentsline {paragraph}{Ratio of smallest eigenvalue to sum of two largest eigenvalues}{12}{}%
+\contentsline {paragraph}{Verticality of largest eigenvector}{12}{}%
+\contentsline {paragraph}{Roughness}{12}{}%
+\contentsline {subsubsection}{\numberline {3.1.2}ShapeDNA}{13}{}%
+\contentsline {subsubsection}{\numberline {3.1.3}Deep Learning}{13}{}%
+\contentsline {paragraph}{PointNet}{13}{}%
+\contentsline {paragraph}{DGCNN}{13}{}%
+\contentsline {subsection}{\numberline {3.2}Attributed Node Embedding}{13}{}%
+\contentsline {paragraph}{SINE}{13}{}%
+\contentsline {paragraph}{MUSAE}{13}{}%
+\contentsline {paragraph}{FEATHER-N}{13}{}%
+\contentsline {subsection}{\numberline {3.3}Feature Matching}{13}{}%
