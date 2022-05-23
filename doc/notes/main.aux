@@ -35,38 +35,46 @@
 \@writefile{toc}{\contentsline {paragraph}{Topological-Metric Map}{5}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {2}Map Extraction}{6}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Overview}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Voxel representation}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.1}Sparse Voxel Octree}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Navigable volume}{7}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.3.1}Voxel convolution}{7}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.3.2}Dilation}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.3.3}Connected components}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.4}Maximum visibility estimation}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.4.1}Horizontal distance field}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.5}Visibility}{9}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.6}Room segmentation}{9}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.7}Topometric map extraction}{10}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {3}Map Matching}{11}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Geometrical Feature Embedding}{11}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.1}Engineered Features}{11}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Volume}{12}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Height}{12}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Horizontal Area}{12}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Mean distance to centroid}{12}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Number of points}{12}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Quotient of eigenvalues}{12}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Ratio of smallest eigenvalue to sum of two largest eigenvalues}{12}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Verticality of largest eigenvector}{12}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Roughness}{12}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.2}ShapeDNA}{13}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.3}Deep Learning}{13}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{PointNet}{13}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{DGCNN}{13}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Attributed Node Embedding}{13}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{SINE}{13}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{MUSAE}{13}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{FEATHER-N}{13}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Feature Matching}{13}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Navigable volume}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.1}Convolution}{6}{}\protected@file@percent }
+\newlabel{fig:map_extract_steps}{{2.1}{7}}
+\newlabel{fig:stick_kernel}{{2.2.1}{8}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.2}Dilation}{9}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.3}Connected components}{9}{}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Region growing connected components}}{9}{}\protected@file@percent }
+\newlabel{alg:cap}{{1}{9}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Maximum visibility estimation}{10}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.3.1}Horizontal distance field}{10}{}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces Horizontal distance field}}{10}{}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {3}{\ignorespaces Horizontal Distance Field Maxima}}{11}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4}Visibility}{11}{}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {4}{\ignorespaces Visibility}}{12}{}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {5}{\ignorespaces DDA (Digital Differential Analyzer)}}{12}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.5}Room segmentation}{13}{}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {6}{\ignorespaces Label propagation}}{14}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.6}Topometric map extraction}{14}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Map Matching}{14}{}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {7}{\ignorespaces Topology extraction}}{15}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Geometrical Feature Embedding}{16}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.1}Engineered Features}{16}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Volume}{16}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Height}{16}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Horizontal Area}{16}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Mean distance to centroid}{16}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Number of points}{16}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Quotient of eigenvalues}{16}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Ratio of smallest eigenvalue to sum of two largest eigenvalues}{17}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Verticality of largest eigenvector}{17}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Roughness}{17}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.2}ShapeDNA}{17}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.3}Deep Learning}{17}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{PointNet}{17}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{DGCNN}{17}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Attributed Node Embedding}{17}{}\protected@file@percent }
 \bibstyle{apacite}
 \bibdata{bibliography}
-\gdef \@abspage@last{16}
+\@writefile{toc}{\contentsline {paragraph}{SINE}{18}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{MUSAE}{18}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{FEATHER-N}{18}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Feature Matching}{18}{}\protected@file@percent }
+\gdef \@abspage@last{20}

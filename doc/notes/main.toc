@@ -14,35 +14,33 @@
 \contentsline {paragraph}{Topological-Metric Map}{5}{}%
 \contentsline {section}{\numberline {2}Map Extraction}{6}{}%
 \contentsline {subsection}{\numberline {2.1}Overview}{6}{}%
-\contentsline {subsection}{\numberline {2.2}Voxel representation}{6}{}%
-\contentsline {subsubsection}{\numberline {2.2.1}Sparse Voxel Octree}{6}{}%
-\contentsline {subsection}{\numberline {2.3}Navigable volume}{7}{}%
-\contentsline {subsubsection}{\numberline {2.3.1}Voxel convolution}{7}{}%
-\contentsline {subsubsection}{\numberline {2.3.2}Dilation}{8}{}%
-\contentsline {subsubsection}{\numberline {2.3.3}Connected components}{8}{}%
-\contentsline {subsection}{\numberline {2.4}Maximum visibility estimation}{8}{}%
-\contentsline {subsubsection}{\numberline {2.4.1}Horizontal distance field}{8}{}%
-\contentsline {subsection}{\numberline {2.5}Visibility}{9}{}%
-\contentsline {subsection}{\numberline {2.6}Room segmentation}{9}{}%
-\contentsline {subsection}{\numberline {2.7}Topometric map extraction}{10}{}%
-\contentsline {section}{\numberline {3}Map Matching}{11}{}%
-\contentsline {subsection}{\numberline {3.1}Geometrical Feature Embedding}{11}{}%
-\contentsline {subsubsection}{\numberline {3.1.1}Engineered Features}{11}{}%
-\contentsline {paragraph}{Volume}{12}{}%
-\contentsline {paragraph}{Height}{12}{}%
-\contentsline {paragraph}{Horizontal Area}{12}{}%
-\contentsline {paragraph}{Mean distance to centroid}{12}{}%
-\contentsline {paragraph}{Number of points}{12}{}%
-\contentsline {paragraph}{Quotient of eigenvalues}{12}{}%
-\contentsline {paragraph}{Ratio of smallest eigenvalue to sum of two largest eigenvalues}{12}{}%
-\contentsline {paragraph}{Verticality of largest eigenvector}{12}{}%
-\contentsline {paragraph}{Roughness}{12}{}%
-\contentsline {subsubsection}{\numberline {3.1.2}ShapeDNA}{13}{}%
-\contentsline {subsubsection}{\numberline {3.1.3}Deep Learning}{13}{}%
-\contentsline {paragraph}{PointNet}{13}{}%
-\contentsline {paragraph}{DGCNN}{13}{}%
-\contentsline {subsection}{\numberline {3.2}Attributed Node Embedding}{13}{}%
-\contentsline {paragraph}{SINE}{13}{}%
-\contentsline {paragraph}{MUSAE}{13}{}%
-\contentsline {paragraph}{FEATHER-N}{13}{}%
-\contentsline {subsection}{\numberline {3.3}Feature Matching}{13}{}%
+\contentsline {subsection}{\numberline {2.2}Navigable volume}{6}{}%
+\contentsline {subsubsection}{\numberline {2.2.1}Convolution}{6}{}%
+\contentsline {subsubsection}{\numberline {2.2.2}Dilation}{9}{}%
+\contentsline {subsubsection}{\numberline {2.2.3}Connected components}{9}{}%
+\contentsline {subsection}{\numberline {2.3}Maximum visibility estimation}{10}{}%
+\contentsline {subsubsection}{\numberline {2.3.1}Horizontal distance field}{10}{}%
+\contentsline {subsection}{\numberline {2.4}Visibility}{11}{}%
+\contentsline {subsection}{\numberline {2.5}Room segmentation}{13}{}%
+\contentsline {subsection}{\numberline {2.6}Topometric map extraction}{14}{}%
+\contentsline {section}{\numberline {3}Map Matching}{14}{}%
+\contentsline {subsection}{\numberline {3.1}Geometrical Feature Embedding}{16}{}%
+\contentsline {subsubsection}{\numberline {3.1.1}Engineered Features}{16}{}%
+\contentsline {paragraph}{Volume}{16}{}%
+\contentsline {paragraph}{Height}{16}{}%
+\contentsline {paragraph}{Horizontal Area}{16}{}%
+\contentsline {paragraph}{Mean distance to centroid}{16}{}%
+\contentsline {paragraph}{Number of points}{16}{}%
+\contentsline {paragraph}{Quotient of eigenvalues}{16}{}%
+\contentsline {paragraph}{Ratio of smallest eigenvalue to sum of two largest eigenvalues}{17}{}%
+\contentsline {paragraph}{Verticality of largest eigenvector}{17}{}%
+\contentsline {paragraph}{Roughness}{17}{}%
+\contentsline {subsubsection}{\numberline {3.1.2}ShapeDNA}{17}{}%
+\contentsline {subsubsection}{\numberline {3.1.3}Deep Learning}{17}{}%
+\contentsline {paragraph}{PointNet}{17}{}%
+\contentsline {paragraph}{DGCNN}{17}{}%
+\contentsline {subsection}{\numberline {3.2}Attributed Node Embedding}{17}{}%
+\contentsline {paragraph}{SINE}{18}{}%
+\contentsline {paragraph}{MUSAE}{18}{}%
+\contentsline {paragraph}{FEATHER-N}{18}{}%
+\contentsline {subsection}{\numberline {3.3}Feature Matching}{18}{}%
