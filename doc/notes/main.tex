@@ -9,8 +9,12 @@
 \usepackage{bm} 
 \usepackage{algpseudocode}
 \usepackage{algorithm}
+\usepackage[acronym,nomain]{glossaries}
 
-\title{Map Merging of Heterogeneous Topometric Maps Using Attributed Node Embedding}
+\makenoidxglossaries
+\loadglsentries{glossary}
+
+\title{Map Merging of Heterogeneous Topometric Maps Using Attributed Graph Embedding}
 
 \author{
   Maximiliaan van Schendel\\
@@ -33,17 +37,28 @@
 
 \pagenumbering{arabic}
 
-\input{introduction}
-\input{definitions}
-\input{related_work}
-\input{research_questions}
-\input{methodology}                                                     
-\input{implementation_details}
-\input{results}
-\input{discussion}
-\input{future_work}
+% abstract
+\include{introduction}
+% research background
+\include{research_questions}
+\pagebreak
+\include{related_work}
+\pagebreak
+\include{methodology}
+\pagebreak                                                     
+\include{implementation_details}
+\pagebreak
+\include{results}
+\pagebreak
+\include{discussion}
+
 
 \bibliographystyle{apacite}
 \bibliography{bibliography}
+
+
+\glossarystyle{list}
+\printnoidxglossaries
+
 
 \end{document}

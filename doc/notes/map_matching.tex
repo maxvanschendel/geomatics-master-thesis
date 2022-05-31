@@ -1,7 +1,7 @@
-\section{Map Matching}
-The process of identifying overlapping areas between partial maps is called map matching. In the case of topometric map matching, this refers to identifying which nodes represent the same rooms between two partial maps. We denote our two partial topometric maps as \(\topometricmap_A = (\mathcal{G}_A,\ \voxelgrid_A)\) and \(\topometricmap_B = (\mathcal{G}_B,\ \voxelgrid_B)\). The goal of map matching is to find a mapping \(match: v_A \mapsto v_B,\ v_A \in \mathcal{G}_A,\ v_B \in \mathcal{G}_B\) which corresponds to the real world and is robust to differences in coordinate system, resolution and quality between partial maps. To identify matches between nodes we need to be able to compute the similarity between them. To do so, we must first transform each node into a feature vector which represents both the node itself and its relationship to its neighbourhood. The feature vectors of two nodes with similar geometry and a similar neighbourhood should be close to eachother, meaning their Minkowski distance is small. Conversely, the feature vectors of two dissimilar nodes should be far away from eachother. The first step of this process, encoding the node's geometry into a feature vector, is called geometrical feature embedding. The second step, encoding both the geometrical feature embedding of the node itself and of its neighbourhood into a new feature vector is called attributed node embedding. We hypothesize that the attributed node embedding will have better performance for map matching, especially when differences between partial maps are large, because it involves not just the node itself but also its neighbourhood in the similarity measure. This can be compared to human place recognition, where places are identified not just by their appearance but also by their relationship to their context. In this section we will discuss multiple algorithms used for geometrical feature embedding and attributed node embedding. We will also discuss how we identify matches between nodes based on their feature vectors.
+\subsection{Map Matching}
+The process of identifying overlapping areas between partial maps is called map matching. In the case of topometric map matching, this refers to identifying which nodes represent the same rooms between two partial maps. We denote our two partial topometric maps as \(\topometricmap_A = (\mathcal{G}_A,\ \voxelgrid_A)\) and \(\topometricmap_B = (\mathcal{G}_B,\ \voxelgrid_B)\). The goal of map matching is to find a mapping \(match: v_A \mapsto v_B,\ v_A \in \mathcal{G}_A,\ v_B \in \mathcal{G}_B\) which corresponds to the real world and is robust to differences in coordinate system, resolution and quality between partial maps. To identify matches between nodes we need to be able to compute the similarity between them. To do so, we must first transform each node into a feature vector which represents both the node itself and its relationship to its neighbourhood. The feature vectors of two nodes with similar geometry and a similar neighbourhood should be close to eachother, meaning their Minkowski distance is small. Conversely, the feature vectors of two dissimilar nodes should be far away from eachother. The first step of this process, encoding the node's geometry into a feature vector, is called geometrical feature embedding. The second step, encoding both the geometrical feature embedding of the node itself and of its neighbourhood into a new feature vector is called attributed node embedding. We hypothesize that the attributed node embedding will have better performance for map matching, especially when differences between partial maps are large, because it involves not just the node itself but also its neighbourhood in the similarity measure. This can be compared to human place recognition, where places are identified not just by their appearance but also by their relationship to their context. In this subsection we will discuss multiple algorithms used for geometrical feature embedding and attributed node embedding. We will also discuss how we identify matches between nodes based on their feature vectors.
 
-\subsection{Geometrical Feature Embedding}
+\subsubsection{Geometrical Feature Embedding}
 Geometrical feature embedding means transforming a geometric object into a feature vector \(f \in \mathbb{R}^m\), where \(m\) is the dimensionality of the vector. We denote the function that embeds a set of voxels into a feature vector as \(embed_{geometry}: \voxelset \mapsto \mathbb{R}^m\). We implement this function using three different approaches, which we discuss below.
 
 \subsubsection{Engineered Features}
@@ -42,7 +42,7 @@ Another approach to geometrical feature embedding uses deep learning. This works
 \paragraph{PointNet}
 \paragraph{DGCNN}
 
-\subsection{Attributed Node Embedding}
+\subsubsection{Attributed Node Embedding}
 %TODO: FIX MATHEMATICAL DESCRIPTION OF ATTR NODE EMBEDDING
 
 Attributed node embedding aims to find a feature embedding for each node in a graph that uses both an attribute of the node, in our case a geometrical feature embedding, and the node's relationship to the rest of the graph. We denote the function that embeds a node's attribute \(f_{attr}\) and its graph into a feature vector as \(embed_{node}: \mathbb{R}^m,\ \graph \mapsto \mathbb{R}^m\), such that \(embed_{node}(f_{attr},\ \graph_{attr}) = f_{node}\). Finding the attributed node embedding of a node \(n\) in the topometric map \(\topometricmap\) with topological graph \(\graph_{T}\) is then equal to computing \(f_{node}=embed_{node}(embed_{geometry}(n),\ \graph_{T})\).
@@ -53,9 +53,16 @@ We use a number of different algorithms to solve this problem in our research, w
 \paragraph{MUSAE}
 \paragraph{FEATHER-N}
 
-\subsection{Feature Matching}
+\subsubsection{Map Matching}
 %TODO: EXPLAIN WHAT AN INJECTION IS
 
 The above steps are applied to both partial maps. This gives us two sets of feature vectors \(\mathcal{E}_A,\ \mathcal{E}_B\) that represent the partial maps' attributed node embedding. Our goal is to find a injection between the elements of both sets. To do so, we first find the Cartesian product \(\mathcal{E}_{AB} = \mathcal{E}_A \times \mathcal{E}_B = \{(a,b) \mid a \in \mathcal{E}_A,\ b \in \mathcal{E}_B\}\). We then compute the Euclidean distance between every element in \(\mathcal{E}_{AB}\), such that \(\mathcal{D}_{AB} = \{\sqrt{(a - b)^2} \mid (a, b) \in \mathcal{E}_{AB}\}\). \(\mathcal{D}_{AB}\) describes the pairwise distance between each combination of nodes in the partial maps. To extract an injection between the two sets of nodes from this we use the following algorithm:
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/injunction.png}
+    \caption{Conversion of similarity between all pairs of rooms to injective non-surjective mapping between rooms.}
+    \label{fig:injunction}
+\end{figure}
 
 %TODO: PSEUDOCODE FOR INJECTION FROM PAIRWISE DISTANCE

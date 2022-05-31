@@ -2,79 +2,38 @@
 \providecommand\babel@aux[2]{}
 \@nameuse{bbl@beforestart}
 \@input{commands.aux}
+\providecommand\@newglossary[4]{}
+\@newglossary{acronym}{alg}{acr}{acn}
 \babel@aux{english}{}
-\citation{andersone_heterogeneous_2019}
-\citation{hermann_design_2016}
-\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {1.1}Definitions}{1}{}\protected@file@percent }
-\citation{russell_artificial_2010}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Partial maps (1) captured by three different agents and resultant global map (2) after map merging.}}{2}{}\protected@file@percent }
-\newlabel{fig:map_merging}{{1}{2}}
-\@writefile{toc}{\contentsline {paragraph}{Map}{2}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Map Representation}{2}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Agent}{2}{}\protected@file@percent }
-\citation{carpin_map_2005}
-\citation{carpin_map_2005}
-\citation{andersone_heterogeneous_2019}
-\citation{thrun_learning_1998,kuipers_robust_1988}
-\citation{kuipers_robust_1988,kuipers_modeling_1978}
-\citation{kobayashi_spatial_1994}
-\@writefile{toc}{\contentsline {paragraph}{Partial Maps}{3}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Global Map}{3}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Map Merging}{3}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Metric Map}{3}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Topological Map}{3}{}\protected@file@percent }
-\citation{volodine_point_2007}
-\citation{elfes_occupancy_1990}
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Diagram showing the topological map of a building with four rooms connected by doors or stairs.}}{4}{}\protected@file@percent }
-\newlabel{fig:topo_ex}{{2}{4}}
-\@writefile{toc}{\contentsline {paragraph}{Point Cloud}{4}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Occupancy Grid}{4}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Example of an occupancy grid (right) derived from a point cloud (left).}}{5}{}\protected@file@percent }
-\newlabel{fig:voxel_example}{{3}{5}}
-\@writefile{toc}{\contentsline {paragraph}{Topological-Metric Map}{5}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {2}Map Extraction}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Overview}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Navigable volume}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.1}Convolution}{6}{}\protected@file@percent }
-\newlabel{fig:map_extract_steps}{{2.1}{7}}
-\newlabel{fig:stick_kernel}{{2.2.1}{8}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.2}Dilation}{9}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.3}Connected components}{9}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Region growing connected components}}{9}{}\protected@file@percent }
-\newlabel{alg:cap}{{1}{9}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Maximum visibility estimation}{10}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.3.1}Horizontal distance field}{10}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces Horizontal distance field}}{10}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {3}{\ignorespaces Horizontal Distance Field Maxima}}{11}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.4}Visibility}{11}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {4}{\ignorespaces Visibility}}{12}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {5}{\ignorespaces DDA (Digital Differential Analyzer)}}{12}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.5}Room segmentation}{13}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {6}{\ignorespaces Label propagation}}{14}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.6}Topometric map extraction}{14}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {3}Map Matching}{14}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {7}{\ignorespaces Topology extraction}}{15}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Geometrical Feature Embedding}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.1}Engineered Features}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Volume}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Height}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Horizontal Area}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Mean distance to centroid}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Number of points}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Quotient of eigenvalues}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Ratio of smallest eigenvalue to sum of two largest eigenvalues}{17}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Verticality of largest eigenvector}{17}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Roughness}{17}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.2}ShapeDNA}{17}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.1.3}Deep Learning}{17}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{PointNet}{17}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{DGCNN}{17}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Attributed Node Embedding}{17}{}\protected@file@percent }
+\providecommand\@gls@reference[3]{}
+\@input{introduction.aux}
+\@input{research_questions.aux}
+\@input{related_work.aux}
+\@input{methodology.aux}
+\@input{implementation_details.aux}
+\@input{results.aux}
+\@input{discussion.aux}
 \bibstyle{apacite}
 \bibdata{bibliography}
-\@writefile{toc}{\contentsline {paragraph}{SINE}{18}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{MUSAE}{18}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{FEATHER-N}{18}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Feature Matching}{18}{}\protected@file@percent }
-\gdef \@abspage@last{20}
+\bibcite{andersone_heterogeneous_2019}{{1}{{\APACyear {2019}}}{{{Andersone}}}{{{Andersone}}}}
+\bibcite{bonanni_3-d_2017}{{2}{{\APACyear {2017}}}{{Bonanni\ \BOthers {.}}}{{Bonanni, Della~Corte,{}\ \&{} Grisetti}}}
+\bibcite{dudek_topological_1998}{{3}{{\APACyear {1998}}}{{Dudek\ \BOthers {.}}}{{Dudek, Jenkin, Milios,{}\ \&{} Wilkes}}}
+\bibcite{gholamishahbandi_2d_2019}{{4}{{\APACyear {2019}}}{{Gholami\IeC {\nobreakspace  }Shahbandi\ \&{} Magnusson}}{{Gholami\IeC {\nobreakspace  }Shahbandi\ \&{} Magnusson}}}
+\bibcite{gorte_navigation_2019}{{5}{{\APACyear {2019}}}{{Gorte\ \BOthers {.}}}{{Gorte, Zlatanova,{}\ \&{} Fadli}}}
+\bibcite{he_hierarchical_2021}{{6}{{\APACyear {2021}}}{{He\ \BOthers {.}}}{{He, Sun, Hou, Ha,{}\ \&{} Schwertfeger}}}
+\bibcite{hermann_design_2016}{{7}{{\APACyear {2016}}}{{Hermann\ \BOthers {.}}}{{Hermann, Pentek,{}\ \&{} Otto}}}
+\bibcite{huang_topological_2005}{{8}{{\APACyear {2005}}}{{Huang\ \&{} Beevers}}{{Huang\ \&{} Beevers}}}
+\bibcite{kobayashi_spatial_1994}{{9}{{\APACyear {1994}}}{{Kobayashi}}{{Kobayashi}}}
+\bibcite{kuipers_modeling_1978}{{10}{{\APACyear {1978}}}{{Kuipers}}{{Kuipers}}}
+\bibcite{kuipers_robust_1988}{{11}{{\APACyear {1988}}}{{Kuipers\ \&{} Byun}}{{Kuipers\ \&{} Byun}}}
+\bibcite{kuipers_robot_1991}{{12}{{\APACyear {1991}}}{{Kuipers\ \&{} Byun}}{{Kuipers\ \&{} Byun}}}
+\bibcite{li_general_2010}{{13}{{\APACyear {2010}}}{{Li\ \&{} Olson}}{{Li\ \&{} Olson}}}
+\bibcite{ochmann_towards_2014}{{14}{{\APACyear {2014}}}{{Ochmann\ \BOthers {.}}}{{Ochmann, Vock, Wessel,{}\ \&{} Klein}}}
+\bibcite{rusinkiewicz_efficient_2001}{{15}{{\APACyear {2001}}}{{Rusinkiewicz\ \&{} Levoy}}{{Rusinkiewicz\ \&{} Levoy}}}
+\bibcite{serafin_nicp_2015}{{16}{{\APACyear {2015}}}{{Serafin\ \&{} Grisetti}}{{Serafin\ \&{} Grisetti}}}
+\bibcite{thrun_learning_1998}{{17}{{\APACyear {1998}}}{{Thrun}}{{Thrun}}}
+\bibcite{tomatis_hybrid_2003}{{18}{{\APACyear {2003}}}{{Tomatis\ \BOthers {.}}}{{Tomatis, Nourbakhsh,{}\ \&{} Siegwart}}}
+\bibcite{volodine_point_2007}{{19}{{\APACyear {2007}}}{{Volodine}}{{Volodine}}}
+\bibcite{yang_fast_2016}{{20}{{\APACyear {2016}}}{{Yang\ \BOthers {.}}}{{Yang, Cao,{}\ \&{} Zhang}}}
+\bibcite{yu_review_2020}{{21}{{\APACyear {2020}}}{{Yu\ \BOthers {.}}}{{Yu, Fu, Gostar,{}\ \&{} Hu}}}
+\gdef \@abspage@last{35}

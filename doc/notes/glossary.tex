@@ -1,0 +1,69 @@
+% TODO: FIX DEFINITIONS TO MATCH CHANGE OF NOMENCLATURE AND NOTATION
+
+
+\newglossaryentry{map}
+{
+    name=map,
+    description={A symbolic representation of an environment which contains information about its characteristics.}
+}
+
+\newglossaryentry{maprepresentation}
+{
+    name=map representation,
+    description={The choice of characteristics of the environment that a map shows. Hybrid map representations are representations that shows a combination of multiple characteristics of the environment, e.g. a hybrid topological-metric map containing both the environment's large-scale structure and small-scale geometry.}
+}
+
+\newglossaryentry{agent}
+{
+    name=agent,
+    description={According to \citet{russell_artificial_2010} "An agent is anything that can be viewed as perceiving its environment through sensors and
+    acting upon that environment through actuators.". In the context of this thesis an agent specifically refers to any human or robot that is capable of perceiving its environment by means of a monocular camera, stereo camera or lidar and is capable of exploring their environment. We further define heterogeneous agents as having different sensing capabilities and being unable to communicate or position themselves relative to eachother.}
+}
+
+\newglossaryentry{partialmap}
+{
+    name=partial map,
+    description={A collection of maps without a common coordinate frame that each represent a part of the environment. We denote the set of all partials maps as \(I = \{m_i\}_{i=1}^n\), where \(n\) is the number of partial maps. We define heterogeneous partial maps as partial maps captured by heterogeneous agents, thus having different scale, resolution, accuracy or precision.}
+}
+
+\newglossaryentry{globalmap}
+{
+    name=global map,
+    description={A single, more complete map constructed by merging multiple partial maps. To do so, a coordinate transformation \(T\) must be applied to the partial maps to bring them into a common coordinate frame. We denote the global map constructed by merging a subset of partial maps \(J \subset I\) using coordinate transformations \(\{T_i\}_{i=1}^{|J|}\) as \(G_J\), such that \(G_J=\{T_i(m_i)\}_{i=1}^{|J|}\).}
+}
+
+\newglossaryentry{mapmerging}
+{
+    name=map merging,
+    description={The map merging problem can be stated as follows: given two partial maps \(m_1\in I, m_2\in I\), find the coordinate transformation \(T\) that minimizes a dissimilarity function \(\psi(m_1,T(m_2))\) \citep{carpin_map_2005}. The goal of this is to "maximize the overlap of regions that appear in two or more partial maps" \citep{carpin_map_2005}. Depending on the approach, the coordinate transformation, dissimilarity function or optimization method differ.}
+}
+
+\newglossaryentry{metricmap}
+{
+    name=metric map,
+    description={Metric maps represent the geometry of an environment. They are usually derived from sensor range measurements, either directly or by using structure from motion or simultaneous localization and mapping algorithms. A common metric map representation is the occupancy grid \citep{andersone_heterogeneous_2019}. Another common metric map representation is the point cloud, which represents the surface of the environment as a collection of points. Both map representations are shown in figure \ref{fig:voxel_example}.}
+}
+
+\newglossaryentry{topologicalmap}
+{
+    name=topological map,
+    description={Topological maps are a qualitative graph representation of an environment's structure, where vertices represent locally distinctive places, often rooms, and edges represent traversable paths between them  (see figure \ref{fig:topo_ex}) \citep{thrun_learning_1998,kuipers_robust_1988}. Topological maps are inspired by the fact that humans are capable of spatial learning despite limited sensory and processing capability and only having partial knowledge of the environment. This is based on observations that cognitive maps, the mental maps used by humans to navigate within an environment, consist of multiple layers with a topological description of the environment being a fundamental component \citep{kuipers_robust_1988,kuipers_modeling_1978}. We denote the topology of an environment as a graph \(G\), where vertices \(V\) represent \(n\) distinctive places \(v_i\) and edges \(E\) represent the presence of \(m\) traversable paths between neighbouring pairs of places \(\{v_j,v_k\}\), such that \(G=(V, E)\), \(V=\{v_i\}_{i=1}^n, E=\{\{v_j,v_k\}_i\}_{i=1}^m, v_j \in V, v_k \in V\). In the context of indoor mapping the graph is often embedded in 2D or 3D euclidean space as a spatial graph. Given the embedding \(f : G \rightarrow R^n\), \( \widetilde{G}:=f(G)\), we denote \(\widetilde{G}\) as the spatial graph of \(G\) \citep{kobayashi_spatial_1994}. Each vertex in \(\widetilde{G}\) has an associated 3D coordinate describing its position in the coordinate frame of the map. If the specific paths between vertices are known they can be associated with the edges in \(\widetilde{G}\), otherwise an edge only represents a possible path between two points in space.}
+}
+
+\newglossaryentry{pointcloud}
+{
+    name=point cloud,
+    description={An unordered collection of points representing the geometry of an object or environment in 3D euclidean space, defined as \(\mathcal{P}=\{p_i\}_{i=1}^n, p_i \in \mathbb{R}^3\), where \(n\) denotes the number of points \citep{volodine_point_2007}.}
+}
+
+\newglossaryentry{voxelgrid}
+{
+    name=voxel grid,
+    description={Also known as an occupancy grid, a voxel grid is a "multi-dimensional (typically 2D or 3D) tesselation of space into cells, where each cell stores a probabilistic estimate of its state." \citep{elfes_occupancy_1990}. A voxel grid with a number of cells along each dimension, \(O_{dim} \in \mathbb{Z}^3_{\geq0}\) can be represented by a collection of positive integer cell indices that have a non-zero chance of being occupied \(O=\{c_i\}_{i=1}^{n}\), \(n \in \mathbb{R}\), \(n \in [1, \prod_{i=1}^{3}O_{dim,i}], c \in \mathbb{Z}^3_{\geq 0} \). The probability of a cell being occupied is given by a cell's associated state variable \(s(c) \in \mathbb{R}\), \(s(c) \in [0,1]\). Cells that are within the extent of the grid that are not stored have zero chance of being occupied, such that \(\forall c \in \{c \notin O | c_i \in [0, O_{dim,i}]\} \Rightarrow s(c)=0\). In the case of a binary occupancy grid a cell can either be occupied or not, such that \(s(c) \in \{0,1\}\). In this case, explicitly storing a state variable is not necessary as only the cells in \(O\) are occupied, as given by \(\forall c \in O \Rightarrow s(c)=1\). }
+}
+
+\newglossaryentry{topometricmap}
+{
+    name=topometric map,
+    description={A hybrid map representation combining both the topological and metric characteristics of the environment. This map representation allows the end-user to use either topological or metric information depending on the needs of the situation, e.g. the topological layer can be used for large-scale navigation and abstract reasoning while the metric layer can be used for landmark detection or obstacle avoidance. In the context of this thesis a topological-metric map refers to a 3D representation of an environment containing both a metric occupancy grid map \(\mathbb{M}_M\) representing its geometry and a spatial graph \(\widetilde{\mathbb{M}_T}=(V, E)\) representing its topology. Each vertex \(v \in V\) has an associated variable \(m(v)\) representing a subset of the full metric map describing that place, such that \(m(v) \subset \mathbb{M}_M\). }
+}
