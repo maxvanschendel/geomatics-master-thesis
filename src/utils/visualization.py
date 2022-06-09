@@ -159,12 +159,12 @@ def visualize_matches(map_a, map_b, matches):
 
 
 if __name__ == '__main__':
-    from model.topometric_map import HierarchicalTopometricMap
+    from model.topometric_map import TopometricMap
 
     map = load_pickle(select_file())
     map_type = type(map)
 
-    if map_type == HierarchicalTopometricMap:
+    if map_type == TopometricMap:
         visualize_htmap(map)
     elif map_type == PointCloud:
         visualize_point_cloud(map)
