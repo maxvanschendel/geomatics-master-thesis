@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import Tuple
 
+
 import networkx
-import numpy as np
 import open3d as o3d
 from utils.visualization import random_color
-from numba import cuda
 from model.sparse_voxel_octree import *
 from model.voxel_grid import *
-
-warnings.filterwarnings('ignore')
 
 
 class Hierarchy(Enum):
@@ -35,7 +31,7 @@ class EdgeType(Enum):
     HIERARCHY = 1
 
 
-class HierarchicalTopometricMap():
+class TopometricMap():
     def __init__(self):
         self.graph = networkx.DiGraph()
 
@@ -49,12 +45,14 @@ class HierarchicalTopometricMap():
         for n in nodes:
             self.add_node(n)
 
-    def add_edge(self, node_a: TopometricNode, node_b: TopometricNode, edge_type: EdgeType):
+    def add_edge(self, node_a: TopometricNode, node_b: TopometricNode, edge_type: EdgeType, directed=True):
         self.graph.add_edge(node_a, node_b, edge_type=edge_type)
+        if not directed:
+            self.graph.add_edge(node_b, node_a, edge_type=edge_type)
 
-    def add_edges(self, edges, edge_type):
+    def add_edges(self, edges, edge_type, directed=True):
         for node_a, node_b in edges:
-            self.add_edge(node_a, node_b, edge_type)
+            self.add_edge(node_a, node_b, edge_type, directed)
 
     def traversability_edges(self) -> List[Tuple[int, int]]:
         return self.get_edge_type(EdgeType.TRAVERSABILITY)
@@ -105,16 +103,18 @@ class HierarchicalTopometricMap():
             spheres.append(sphere)
 
         return nodes_o3d, line_set, spheres
+    
+    def to_voxel_grid(self):
+        return sum([node.geometry for node in self.nodes()])
 
     def transform(self, transformation):
         # The topometric map after applying the transformation
-        map_transformed = HierarchicalTopometricMap()
+        map_transformed = TopometricMap()
 
         # Apply coordinate transformation to the geometry of every node in the map
         # and add them to the new, transformed map
         nodes_t = {n: TopometricNode(n.level, n.geometry.transform(
             transformation)) for n in self.nodes()}
-        print(nodes_t)
         map_transformed.add_nodes(nodes_t.values())
 
         # Get incident edges for every node in the map and add them to the
@@ -145,7 +145,39 @@ class HierarchicalTopometricMap():
                       labels=hier_labels,
                       node_size=1)
         plt.savefig(fn)
+        
+    @staticmethod
+    def from_segmented_point_cloud(geometry_fn: str, topology_fn: str, room_attr: str, voxel_size: float) -> TopometricMap:
+        from model.point_cloud import PointCloud
+        
+        # Output topometric map that file data will be added to
+        topometric_map = TopometricMap()
+        
+        # Load point cloud from ply file and voxelize with given voxel size
+        point_cloud = PointCloud.read_ply(geometry_fn)
+        voxel_grid = point_cloud.voxelize(voxel_size)
+        
+        # Split voxel grid by room attribute and create nodes from them, store a mapping from attribute value to node index
+        # to create the edges later
+        split_voxel_grid = voxel_grid.split_by_attr(room_attr)
+        index_to_node = {list(vg.list_attr(room_attr))[0]: TopometricNode(Hierarchy.ROOM, vg) for vg in split_voxel_grid}
+        for node in index_to_node.values():
+            topometric_map.add_node(node)
 
+        # Read topological graph stored as edge list in CSV file
+        with open(topology_fn) as topology_file:
+            edges_str = [line.split(' ') for line in topology_file.readlines()]
+        edges_int = [[int(n) for n in edge_str] for edge_str in edges_str]
+        
+        # Add an edge between room nodes that have a traversable relationship
+        for a, b in edges_int:
+            topometric_map.add_edge(index_to_node[a], index_to_node[b], 
+                                    EdgeType.TRAVERSABILITY,
+                                    directed=False)
+            
+        return topometric_map
+            
+        
     def write(self, fn):
         import pickle as pickle
         with open(fn, 'wb') as write_file:

@@ -9,11 +9,13 @@ import numpy as np
 import open3d as o3d
 from plyfile import PlyData
 from scipy.spatial.transform import Rotation as R
-
+from sklearn.neighbors import KDTree
 from model.voxel_grid import *
 
 
 class PointCloud:
+    leaf_size: float = 16
+    
     def __init__(self, points: np.array = None, colors: np.array = None, attributes: Dict[str, np.array] = None):
         if points is None:
             self.points = np.empty((0, 3))
@@ -35,8 +37,10 @@ class PointCloud:
         else:
             self.colors = colors
 
-        self.colors = attributes if attributes else np.empty((0,3))
         self.attributes = attributes if attributes else {}
+        
+        # Used for fast nearest neighbour operations
+        self.kdt = KDTree(self.points, PointCloud.leaf_size)
 
     def __str__(self) -> str:
         '''Get point cloud in human-readable format.'''
@@ -83,6 +87,11 @@ class PointCloud:
         pts_t = pts_t[:, :3]
 
         return PointCloud(pts_t, self.colors)
+    
+    def subset(self, points: List[int]) -> PointCloud:
+        return PointCloud(points=self.points[points], 
+                          colors=self.colors[points], 
+                          attributes={k: v[self.points] for (k,v) in self.attributes.items()})
 
     def merge(self, other: PointCloud) -> PointCloud:
         """Takes two point clouds and creates a new one containing the points of both.
@@ -105,6 +114,7 @@ class PointCloud:
         else:
             merged_colors = np.concatenate((self.colors, other.colors), axis=0)
 
+        #TODO: CLEAN THIS UP, ADD COMMENTS
         merged_attributes = {}
         for attr in list(self.attributes.keys()) + list(other.attributes.keys()):
             if attr in self.attributes and attr in other.attributes:
@@ -126,11 +136,36 @@ class PointCloud:
 
         result_voxels = ((self.points - aabb_min) // cell_size).astype(int)
 
-        voxels = {tuple(cell): {attr: self.attributes[attr][index][0] for attr in self.attributes} for index, cell in enumerate(result_voxels)}
+        voxels = {tuple(cell): {attr: self.attributes[attr][index] for attr in self.attributes} for index, cell in enumerate(result_voxels)}
         voxel_model = VoxelGrid(cell_size, aabb_min, voxels)
 
         return voxel_model
+    
+    def radius_search(self, p, r) -> List[int]:
+        '''Get all points within r radius of point p.'''
 
+        return self.kdt.query_radius(p.reshape(1,-1), r)
+    
+    def region_grow(self, start: int, max_pt_dist: float, max_region_size: float = math.inf) -> List[int]:
+        start_pt = self.points[start]
+        unvisited, visited = set([start]), set()
+        
+        while len(unvisited):
+            cur_idx = unvisited.pop()
+            cur_pt = self.points[cur_idx]
+            visited.add(cur_idx)
+            
+            cur_nbs_idx = self.radius_search(cur_pt, max_pt_dist)      
+            for nb_idx in cur_nbs_idx:
+                nb_pt = self.points[nb_idx]
+                
+                if nb_idx not in visited and \
+                    np.linalg.norm(nb_pt - start_pt) <= max_region_size:
+                    unvisited.add(nb_idx)
+                    
+        return list(visited)
+            
+        
     def random_reduce(self, keep_fraction: float) -> PointCloud:
         """Randomly remove a fraction of the point cloud's points.
 
@@ -155,7 +190,7 @@ class PointCloud:
             PointCloud: Original point cloud with added Gaussian noise.
         """
 
-        noise = np.random.normal(center, scale, self.size())
+        noise = [np.random.normal(center, scale, self.size())]*3
         noisy_points = self.points + noise
 
         return PointCloud(noisy_points)
@@ -175,7 +210,7 @@ class PointCloud:
         """
 
         if not exists(fn):
-            raise ArgumentError(fn, f'File {fn} does not exist.')
+            raise ValueError(f'File {fn} does not exist.')
 
         # Read ply file from disk
         with open(fn, 'rb') as f:
@@ -200,7 +235,9 @@ class PointCloud:
         except ValueError:
             colors = np.zeros(shape=[num_points, 3], dtype=np.float32)
 
-        return PointCloud(points, colors)
+        rooms = plydata['vertex'].data['scalar_Original_cloud_index'].astype(np.int32)
+        
+        return PointCloud(points, colors, {'room': rooms})
 
     def read_xyz(fn: str, separator: str) -> PointCloud:
         """Read XYZ file from disk.
@@ -217,7 +254,7 @@ class PointCloud:
         """
 
         if not exists(fn):
-            raise ArgumentError(fn, f'File {fn} does not exist.')
+            raise ValueError(f'File {fn} does not exist.')
 
         # Read file from disk and extract point cloud.
         with open(fn, 'r') as f:
