@@ -1,12 +1,14 @@
 from processing.parameters import MapExtractionParameters
 from itertools import product
 from typing import Dict
-from model.topometric_map import HierarchicalTopometricMap, Hierarchy, TopometricNode
+from model.topometric_map import TopometricMap, Hierarchy, TopometricNode
 from model.voxel_grid import VoxelGrid
 from utils.array import mean_dict_value, sort_dict_by_value
 
 
-def analyse_extract_performance(ground_truth: VoxelGrid, topometric_map: HierarchicalTopometricMap):
+def analyse_extract_performance(ground_truth: TopometricMap, topometric_map: TopometricMap):
+    ground_truth = ground_truth.to_voxel_grid()
+    
     # Compute the overlap between the voxels of every segmented room
     # and every ground truth label.
     rooms = topometric_map.get_node_level(Hierarchy.ROOM)
