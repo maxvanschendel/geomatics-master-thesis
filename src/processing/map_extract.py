@@ -13,15 +13,15 @@ import skopt
 
 from model.point_cloud import PointCloud
 from model.spatial_graph import SpatialGraph
-from model.topometric_map import EdgeType, Hierarchy, HierarchicalTopometricMap, TopometricNode
+from model.topometric_map import EdgeType, Hierarchy, TopometricMap, TopometricNode
 from model.voxel_grid import Kernel, VoxelGrid
 
 from processing.parameters import MapExtractionParameters
 
 
-def extract_topometric_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> HierarchicalTopometricMap:
+def extract_topometric_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> TopometricMap:
     # Map representation that is result of map extraction
-    topometric_map = HierarchicalTopometricMap()
+    topometric_map = TopometricMap()
 
     print('- Voxelizing point cloud')
     # Voxelize point cloud partial map at high resolution

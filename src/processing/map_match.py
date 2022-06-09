@@ -19,7 +19,7 @@ def dgcnn(pcd, dim):
     return dgcnn_embed
 
 
-def attributed_graph_embedding(map: HierarchicalTopometricMap, node_model, embed_dim=256, pca_dim=256) -> np.array:
+def attributed_graph_embedding(map: TopometricMap, node_model, embed_dim=256, pca_dim=256) -> np.array:
     rooms = map.get_node_level(Hierarchy.ROOM)
     raw_embed = [dgcnn(r.geometry.to_pcd().points, embed_dim) for r in rooms]
 
@@ -35,7 +35,7 @@ def attributed_graph_embedding(map: HierarchicalTopometricMap, node_model, embed
     return node_embedding
 
 
-def match_maps(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap, draw_matches: bool = True, m: int = 10):
+def match_maps(map_a: TopometricMap, map_b: TopometricMap, draw_matches: bool = True, m: int = 10):
     node_model = None
 
     rooms_a = map_a.get_node_level(Hierarchy.ROOM)

@@ -35,18 +35,18 @@ def cluster_transformations(transforms: List[np.array], algorithm: str = 'optics
     return labels
 
 
-def fuse_topology(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap,
-                  matches: List[Tuple[TopometricNode, TopometricNode]]) -> HierarchicalTopometricMap:
+def fuse_topology(map_a: TopometricMap, map_b: TopometricMap,
+                  matches: List[Tuple[TopometricNode, TopometricNode]]) -> TopometricMap:
     pass
 
 
-def fuse_geometry(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap,
-                  transform: np.array) -> HierarchicalTopometricMap:
+def fuse_geometry(map_a: TopometricMap, map_b: TopometricMap,
+                  transform: np.array) -> TopometricMap:
     pass
 
 
-def fuse(map_a: HierarchicalTopometricMap, map_b: HierarchicalTopometricMap,
-         matches: List[Tuple[TopometricNode, TopometricNode]], draw_result: bool = True) -> Tuple[HierarchicalTopometricMap, np.array]:
+def fuse(map_a: TopometricMap, map_b: TopometricMap,
+         matches: List[Tuple[TopometricNode, TopometricNode]], draw_result: bool = True) -> Tuple[TopometricMap, np.array]:
     """
     From a set of matches between nodes in topometric maps,
     identify best transform to bring maps into alignment and fuse them at topological level.
