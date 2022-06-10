@@ -1,4 +1,4 @@
-!!python/object:processing.pre_process.PreProcessingParameters
+!!python/object:processing.parameters.PreProcessingParameters
 reduce: 1
 scale:
 - 1

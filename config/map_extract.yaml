@@ -1,7 +1,7 @@
-!!python/object:processing.map_extract.MapExtractionParameters
+!!python/object:processing.parameters.MapExtractionParameters
 
 # Visibility
-isovist_height: !!python/tuple
+isovist_height:
 - 1.5
 - 1.8
 isovist_range: 5
@@ -20,6 +20,6 @@ min_voxels: 100
 kernel_scale: 0.05
 
 # Resolution
-leaf_voxel_size: 0.05
+leaf_voxel_size: 0.1
 traversability_lod: 0
 segmentation_lod: 2

@@ -8,7 +8,7 @@ __pycache__/
 
 # C extensions
 *.so
-
+/src/.newenv
 # Distribution / packaging
 .Python
 data/
@@ -33,6 +33,10 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+*.toc
+*.aux
+*.dtmp
+*.bkp
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -133,3 +137,32 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+doc/final_report/main.aux~b3e6b339dcfe4c8a8fe507dd59941b8bb7632043
+doc/final_report/main.fdb_latexmk~b3e6b339dcfe4c8a8fe507dd59941b8bb7632043
+doc/final_report/main.fls~b3e6b339dcfe4c8a8fe507dd59941b8bb7632043
+doc/final_report/main.synctex.gz~b3e6b339dcfe4c8a8fe507dd59941b8bb7632043
+doc/notes/commands.aux
+doc/notes/discussion.aux
+doc/notes/implementation_details.aux
+doc/notes/introduction.aux
+doc/notes/main.aux
+doc/notes/main.blg
+doc/notes/main.fdb_latexmk
+doc/notes/main.fls
+doc/notes/commands.aux
+doc/notes/discussion.aux
+doc/notes/implementation_details.aux
+doc/notes/introduction.aux
+doc/notes/main.aux
+doc/notes/main.blg
+doc/notes/main.fdb_latexmk
+doc/notes/main.fls
+doc/notes/introduction.aux
+doc/notes/commands.aux
+doc/notes/discussion.aux
+doc/notes/implementation_details.aux
+doc/notes/introduction.aux
+doc/notes/main.aux
+doc/notes/main.blg
+doc/notes/main.fdb_latexmk
+doc/notes/main.fls
