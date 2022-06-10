@@ -241,3 +241,8 @@ class SVO:
                          if child is not None]
 
         return np.array([decode_morton(z.morton) for z in cur_level])
+    
+    @staticmethod
+    def max_centroid_in_radius_distance(cell_size):
+        # Voxel centroids can be at most half the voxel's diagonal outside the radius
+        return (cell_size**2 + (2*(cell_size**2)**(1/2))**(1/2))/2

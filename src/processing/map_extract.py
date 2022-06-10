@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from copy import deepcopy
 from itertools import combinations
+import math
 from random import random
 from typing import List, Tuple
 
@@ -19,13 +20,9 @@ from model.voxel_grid import Kernel, VoxelGrid
 from processing.parameters import MapExtractionParameters
 
 
-def extract_topometric_map(partial_map_pcd: PointCloud, p: MapExtractionParameters) -> TopometricMap:
+def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters) -> TopometricMap:
     # Map representation that is result of map extraction
     topometric_map = TopometricMap()
-
-    print('- Voxelizing point cloud')
-    # Voxelize point cloud partial map at high resolution
-    leaf_voxels = partial_map_pcd.voxelize(p.leaf_voxel_size)
     traversability_lod = leaf_voxels.level_of_detail(p.traversability_lod)
 
     print('- Extracting traversable volume')
@@ -76,8 +73,8 @@ def extract_topometric_map(partial_map_pcd: PointCloud, p: MapExtractionParamete
 
     connection_kernel = Kernel.sphere(r=2)
     connected_clusters = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
+    
     n_cluster = 0
-
     for room in map_rooms_split:
         room_components = room.connected_components(connection_kernel)
 
@@ -141,41 +138,6 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
     return traversable_manifold, traversable_voxels
 
 
-def segment_storeys(floor_voxel_grid: VoxelGrid, voxel_grid: VoxelGrid, buffer: int, height: int = 500):
-    height_peaks = floor_voxel_grid.detect_peaks(axis=1, height=height)
-
-    for i, peak in enumerate(height_peaks):
-        next_i = i + 1
-        next_peak = height_peaks[next_i] if next_i < len(
-            height_peaks) else math.inf
-        storey_voxels = voxel_grid.filter(
-            lambda v: peak-buffer <= v[1] < next_peak+buffer)
-
-        for vox in storey_voxels:
-            voxel_grid[vox]['storey'] = i
-            if vox in floor_voxel_grid:
-                voxel_is_stair = abs(vox[1] - (peak - buffer)) > 5
-                voxel_grid[vox]['stairs'] = voxel_is_stair
-
-    storeys = voxel_grid.split_by_attr('storey')
-    stairs = [storey.get_attr('stairs', True) for storey in storeys]
-
-    connections = set()
-    connectivity_kernel = Kernel.nb6()
-
-    for stair in stairs:
-        for vox in stair:
-            nbs = voxel_grid.get_kernel(vox, connectivity_kernel)
-            for nb in nbs:
-                if voxel_grid[nb]['storey'] != voxel_grid[vox]['storey']:
-                    connections.add(
-                        (voxel_grid[nb]['storey'], voxel_grid[vox]['storey']))
-                    connections.add(
-                        (voxel_grid[vox]['storey'], voxel_grid[nb]['storey']))
-
-    return storeys, connections
-
-
 def local_distance_field_maxima(vg, radius, min=0) -> VoxelGrid:
     distance_field = vg.distance_field()
 
@@ -202,8 +164,7 @@ def optimal_isovist_voxels(floor: VoxelGrid, height: Tuple[float, float], radius
 
 
 def cast_isovists(origins: List[Tuple], map_grid: VoxelGrid, subsample: float, max_dist: float):
-    isovists = [map_grid.visibility(o, max_dist) for o in origins
-                if random() < subsample]
+    isovists = [map_grid.visibility(o, max_dist) for o in origins if random() < subsample]
 
     return isovists
 
@@ -279,7 +240,7 @@ def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clusterin
 
 
 def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_voxels: float = 100) -> SpatialGraph:
-    G = networkx.Graph()
+    G = nx.Graph()
     cluster_attr = VoxelGrid.cluster_attr
 
     unique_clusters = np.unique(list(map_segments.list_attr(cluster_attr)))

@@ -176,7 +176,8 @@ class PointCloud:
             PointCloud: Randomly reduced point cloud.
         """
 
-        reduced_points = self.points[random() < keep_fraction]
+        reduced_points = self.points[random() < keep_fraction].squeeze()
+
         return PointCloud(reduced_points)
 
     def add_noise(self, scale: float, center: float = 0) -> PointCloud:
@@ -190,8 +191,8 @@ class PointCloud:
             PointCloud: Original point cloud with added Gaussian noise.
         """
 
-        noise = [np.random.normal(center, scale, self.size())]*3
-        noisy_points = self.points + noise
+        noise = np.array([np.random.normal(center, scale, self.size)]*3)
+        noisy_points = self.points + noise.T
 
         return PointCloud(noisy_points)
 

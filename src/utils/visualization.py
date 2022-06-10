@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from random import random
+import numpy as np
 import open3d as o3d
 from typing import List
 from model.point_cloud import PointCloud
+from model.voxel_grid import VoxelGrid
 
 from utils.io import load_pickle, select_file
 
@@ -14,10 +16,10 @@ class MapVisualization:
 
 
 class Visualization:
-    def pcd_mat(pt_size=7):
+    def pcd_mat(pt_size=7, base_color = [1,1,1,1]):
         mat = o3d.visualization.rendering.MaterialRecord()
         mat.point_size = pt_size
-        mat.base_color = [1, 1, 1, 1]
+        mat.base_color = base_color
         mat.shader = 'defaultLit'
 
         return mat
@@ -93,6 +95,29 @@ def visualize_point_clouds(point_clouds: List[PointCloud]):
         [[MapVisualization(point_cloud.to_o3d(), Visualization.pcd_mat(pt_size=6))] for point_cloud in point_clouds])
 
 
+def visualize_voxel_grid(map: VoxelGrid):
+    from model.topometric_map import Hierarchy
+
+    pcd_map = map.to_pcd(color=False).to_o3d()
+    vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd_map, map.cell_size)
+    
+    Visualization([
+        [MapVisualization(vg_map, Visualization.pcd_mat(pt_size=6))]
+    ])
+    
+def visualize_visibility(map: VoxelGrid, origins):
+    from model.topometric_map import Hierarchy
+
+    pcd_map = map.to_pcd(color=False).to_o3d()
+    vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd_map, map.cell_size)
+    
+    origin_map = o3d.geometry.PointCloud()
+    origin_map.points = o3d.utility.Vector3dVector(origins)
+    
+    Visualization([
+        [MapVisualization(vg_map, Visualization.pcd_mat(pt_size=6)), MapVisualization(origin_map, Visualization.pcd_mat(pt_size=24, base_color=[1,0,0,1]))]
+    ])
+    
 def visualize_htmap(map):
     from model.topometric_map import Hierarchy
 

@@ -3,6 +3,7 @@ from itertools import product
 from statistics import mean
 from typing import Iterable
 import numpy as np
+from random import randint
 
 def most_common(elements):
     if elements:
@@ -57,3 +58,6 @@ def sort_dict_by_value(d, reverse=False):
 
 def mean_dict_value(d):
     return mean(d.values())
+
+def random_select(array):
+    return array[randint(0, len(array))]
