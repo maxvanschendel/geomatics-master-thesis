@@ -8,7 +8,7 @@ from utils.linalg import random_transform
 
 def simulate_partial_maps(pcd, trajectories, vis_range, voxel_size):
     # Apply a random transformation to the ground truth map for each voxel grid
-    transforms = [random_transform() for _ in trajectories]
+    transforms = [random_transform(10, 360) for _ in trajectories]
     
     transformed_ground_truth = [pcd.transform(t) for t in transforms]
     transformed_trajectories = [trajectories[i].transform(t) for i, t in enumerate(transforms)]
