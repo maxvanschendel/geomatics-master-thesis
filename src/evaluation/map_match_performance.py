@@ -35,7 +35,7 @@ if __name__ == '__main__':
     map_a = load_pickle(map_a_fn)
     map_b = load_pickle(map_b_fn)
 
-    result_matches = match_maps(map_a, map_b, False, m)
+    result_matches = match(map_a, map_b, False, m)
     match_performance = (target_matches, result_matches)
 
     print(match_performance)

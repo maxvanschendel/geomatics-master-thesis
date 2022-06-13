@@ -11,6 +11,7 @@ class PipelineParameters:
     ground_truth_graph: str = "../data/cslam/flat/flat_graph.csv"
     simulated_trajectories: str = ("../data/cslam/flat/flat_trajectory_01.csv", 
                                    "../data/cslam/flat/flat_trajectory_02.csv")
+    analyse_performance: bool = True
 
 
 class PreProcessingParametersException(Exception):

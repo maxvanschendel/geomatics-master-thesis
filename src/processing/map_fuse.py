@@ -4,7 +4,6 @@ from argparse import ArgumentError
 from karateclub import (AE, BANE, FGSD, FSCNMF, IGE, LDP, MUSAE, SINE,
                         FeatherGraph, FeatherNode, GeoScattering, GL2Vec,
                         Graph2Vec, NetLSD, WaveletCharacteristic)
-from learning3d.models import DGCNN, PointNet, PPFNet
 
 from sklearn import cluster
 from model.topometric_map import *

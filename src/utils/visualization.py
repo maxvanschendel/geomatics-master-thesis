@@ -95,10 +95,8 @@ def visualize_point_clouds(point_clouds: List[PointCloud]):
         [[MapVisualization(point_cloud.to_o3d(), Visualization.pcd_mat(pt_size=6))] for point_cloud in point_clouds])
 
 
-def visualize_voxel_grid(map: VoxelGrid):
-    from model.topometric_map import Hierarchy
-
-    pcd_map = map.to_pcd(color=False).to_o3d()
+def visualize_voxel_grid(map: VoxelGrid, color=True):
+    pcd_map = map.to_pcd(color=color).to_o3d()
     vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd_map, map.cell_size)
     
     Visualization([
@@ -106,8 +104,6 @@ def visualize_voxel_grid(map: VoxelGrid):
     ])
     
 def visualize_visibility(map: VoxelGrid, origins):
-    from model.topometric_map import Hierarchy
-
     pcd_map = map.to_pcd(color=False).to_o3d()
     vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd_map, map.cell_size)
     

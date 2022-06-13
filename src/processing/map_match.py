@@ -1,16 +1,19 @@
 from __future__ import annotations
+from itertools import combinations
 
 import torch
 from karateclub import (AE, BANE, FGSD, FSCNMF, IGE, LDP, MUSAE, SINE,
                         FeatherGraph, FeatherNode, GeoScattering, GL2Vec,
                         Graph2Vec, NetLSD, WaveletCharacteristic)
-from learning3d.models import DGCNN
+
 from model.topometric_map import *
 from sklearn.metrics.pairwise import euclidean_distances
 from utils.visualization import visualize_matches
 
 
 def dgcnn(pcd, dim):
+    from learning3d.models import DGCNN
+    
     dgcnn = DGCNN(emb_dims=dim, input_shape='bnc')
     dgcnn_embed = dgcnn(torch.from_numpy(
         pcd.reshape((1, pcd.shape[0], pcd.shape[1]))).float())
@@ -19,45 +22,41 @@ def dgcnn(pcd, dim):
     return dgcnn_embed
 
 
-def attributed_graph_embedding(map: TopometricMap, node_model, embed_dim=256, pca_dim=256) -> np.array:
+def feature_embedding(map: TopometricMap, node_model, embed_dim=256) -> np.array:
     rooms = map.get_node_level(Hierarchy.ROOM)
-    raw_embed = [dgcnn(r.geometry.to_pcd().points, embed_dim) for r in rooms]
+    geometry_embedding = {r: dgcnn(r.geometry.to_pcd().points, embed_dim) for r in rooms}
+    geometry_embedding = {r: np.linalg.eigvals(p[:embed_dim]) for r, p in geometry_embedding.items()}
 
-    node_embedding = [r[:pca_dim] for r in raw_embed]
-    node_embedding = np.vstack([np.sort(np.real(np.linalg.eigvals(e))) for e in node_embedding])
+    # node_embedding = [r[:embed_dim] for r in geometry_embedding]
 
-    if node_model is not None:
-        node_model = node_model()
-        room_subgraph = networkx.convert_node_labels_to_integers(map.graph.subgraph(rooms))
-        node_model.fit(room_subgraph, torch.from_numpy(node_embedding))
-        node_embedding = node_model.get_embedding()
+    # if node_model is not None:
+    #     node_model = node_model()
+    #     room_subgraph = networkx.convert_node_labels_to_integers(map.graph.subgraph(rooms))
+    #     node_model.fit(room_subgraph, torch.from_numpy(node_embedding))
+    #     node_embedding = node_model.get_embedding()
 
-    return node_embedding
+    return geometry_embedding
 
 
-def match_maps(map_a: TopometricMap, map_b: TopometricMap, draw_matches: bool = True, m: int = 10):
-    node_model = None
-
-    rooms_a = map_a.get_node_level(Hierarchy.ROOM)
-    rooms_b = map_b.get_node_level(Hierarchy.ROOM)
-
-    # Attributed graph embedding
-    a_embed = attributed_graph_embedding(map_a, node_model)
-    b_embed = attributed_graph_embedding(map_b, node_model)
-
-    # Find n room pairs with highest similarity
-    distance_matrix = euclidean_distances(a_embed, b_embed)
-    matches = [(x, y) for x in range(distance_matrix.shape[0])
-                for y in range(distance_matrix.shape[1])]
-
-    embedding_dist = [distance_matrix[i] for i in matches]
-    fitness_sorted_matches = sorted(zip(embedding_dist, matches))
-    m_best_matches = [match for _, match in fitness_sorted_matches[:m]]
-
-    print(f'Attributed graph distance: {list(zip(embedding_dist, matches))}')
-    print(f'Sorted combined matches: {fitness_sorted_matches}')
-    print(f'Best {m} matches: {m_best_matches}')
-
-    if draw_matches:
-        visualize_matches(map_a, map_b, m_best_matches)
-    return [(rooms_a[a], rooms_b[b]) for a, b in m_best_matches]
+def match(maps: List[TopometricMap], node_model=None, **kwargs):
+    features = {map: feature_embedding(map, node_model) for map in maps}
+        
+    node_matches = dict()
+    for map_a, map_b in combinations(maps, 2):
+        if map_a != map_b:
+            f_a, f_b = features[map_a], features[map_b]
+            
+            print(f_a, f_b)
+            print(f_a.shape, f_b.shape)
+            
+            # Find n room pairs with highest similarity
+            distance_matrix = euclidean_distances(np.array(f_a.values()), np.array(f_b.values()))
+            matches = [(x, y) for x in range(distance_matrix.shape[0]) for y in range(distance_matrix.shape[1])]
+            embedding_dist = [distance_matrix[i] for i in matches]
+            
+            node_matches[(map_a, map_b)] = sorted(zip(embedding_dist, matches))[:3]
+            
+            # if kwargs['visualize']:
+            visualize_matches(map_a, map_b, matches)
+        
+    return node_matches

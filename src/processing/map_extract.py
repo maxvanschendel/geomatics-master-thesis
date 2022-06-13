@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections import Counter
 from copy import deepcopy
 from itertools import combinations
-import math
 from random import random
 from typing import List, Tuple
 
@@ -12,15 +11,16 @@ import networkx as nx
 import numpy as np
 import skopt
 
-from model.point_cloud import PointCloud
 from model.spatial_graph import SpatialGraph
-from model.topometric_map import EdgeType, Hierarchy, TopometricMap, TopometricNode
+from model.topometric_map import (EdgeType, Hierarchy, TopometricMap,
+                                  TopometricNode)
 from model.voxel_grid import Kernel, VoxelGrid
+from utils.visualization import visualize_htmap, visualize_voxel_grid
 
 from processing.parameters import MapExtractionParameters
 
 
-def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters) -> TopometricMap:
+def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> TopometricMap:
     # Map representation that is result of map extraction
     topometric_map = TopometricMap()
     traversability_lod = leaf_voxels.level_of_detail(p.traversability_lod)
@@ -38,7 +38,8 @@ def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters) -
         floor_voxel, p.isovist_height, p.isovist_spacing)
     isovist_centroids = isovist_voxels.voxel_centroids()
 
-    print(f'- Voxelizing partial map at LoD{p.segmentation_lod} for room segmentation')
+    print(
+        f'- Voxelizing partial map at LoD{p.segmentation_lod} for room segmentation')
     segmentation_lod = leaf_voxels.level_of_detail(p.segmentation_lod)
 
     print(f'- Casting isovists')
@@ -73,7 +74,7 @@ def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters) -
 
     connection_kernel = Kernel.sphere(r=2)
     connected_clusters = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
-    
+
     n_cluster = 0
     for room in map_rooms_split:
         room_components = room.connected_components(connection_kernel)
@@ -102,6 +103,9 @@ def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters) -
                 topometric_map.add_edge(
                     node_dict[a], node_dict[b], EdgeType.TRAVERSABILITY)
 
+    # if kwargs['visualize']:
+    #     visualize_htmap(topometric_map)
+
     return topometric_map
 
 
@@ -128,14 +132,13 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
     nav_volume = candidate_voxels.dilate(dilation_kernel)
 
     # Find the largest connected component that is traversable
-    traversability_kernel = Kernel.nb6()
-    traversable_components = nav_volume.connected_components(
-        traversability_kernel)
-    traversable_manifold = traversable_components[0]
+    nav_kernel = Kernel.nb6()
+    nav_components = nav_volume.connected_components(nav_kernel)
+    nav_manifold = nav_components[0]
 
-    traversable_voxels = candidate_voxels.subset(
-        lambda v: v in traversable_manifold)
-    return traversable_manifold, traversable_voxels
+    nav_voxels = candidate_voxels.subset(
+        lambda v: v in nav_manifold)
+    return nav_manifold, nav_voxels
 
 
 def local_distance_field_maxima(vg, radius, min=0) -> VoxelGrid:
@@ -164,7 +167,8 @@ def optimal_isovist_voxels(floor: VoxelGrid, height: Tuple[float, float], radius
 
 
 def cast_isovists(origins: List[Tuple], map_grid: VoxelGrid, subsample: float, max_dist: float):
-    isovists = [map_grid.visibility(o, max_dist) for o in origins if random() < subsample]
+    isovists = [map_grid.visibility(o, max_dist)
+                for o in origins if random() < subsample]
 
     return isovists
 
@@ -285,23 +289,3 @@ def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_v
                                         G.subgraph(connected_nodes))
 
     return traversability_graph
-
-
-if __name__ == '__main__':
-    from utils.io import (load_pickle, save_file_dialog, select_file,
-                          write_pickle)
-
-    print('Loading parameters...')
-    parameters_path = './config/map_extract.yaml'
-    parameters = MapExtractionParameters.read(parameters_path)
-
-    print('Select input point cloud...')
-    fn = select_file()
-    point_cloud = load_pickle(fn)
-    print(f'Selected {fn}')
-
-    print('Extracting topometric map from point cloud...')
-    topometric_map = extract_topometric_map(point_cloud, parameters)
-
-    print('Select output path...')
-    write_pickle(save_file_dialog(), topometric_map)

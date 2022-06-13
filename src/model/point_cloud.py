@@ -47,7 +47,7 @@ class PointCloud:
 
         return f"Point cloud with {self.size} points\n"
 
-    def to_o3d(self) -> o3d.geometry.PointCloud:
+    def to_o3d(self, color_from_attr: str = False, cmap = None) -> o3d.geometry.PointCloud:
         """Creates Open3D point cloud for visualisation purposes.
 
         Returns:
@@ -57,8 +57,10 @@ class PointCloud:
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(self.points)
 
-        if self.colors is not None:
+
+        if self.colors is not None and not color_from_attr:
             pcd.colors = o3d.utility.Vector3dVector(self.colors)
+        
         return pcd
 
     def translate(self, translation: np.array) -> PointCloud:
@@ -74,9 +76,8 @@ class PointCloud:
         return PointCloud(self.points*scale, self.colors, self.attributes)
 
     def transform(self, transformation: np.array) -> PointCloud:
-        if transformation.shape() != (4, 4):
-            # TODO: IMPLEMENT
-            pass
+        if transformation.shape != (4, 4):
+            raise ValueError("Transformation must be 4x4 matrix")
 
         # Add column of 1s to allow for multiplication with 4x4 transformation matrix
         pts = np.hstack((self.points, np.ones((self.points.shape[0], 1))))
@@ -86,7 +87,7 @@ class PointCloud:
         pts_t = np.array([transformation.reshape(4, 4).dot(pt) for pt in pts])
         pts_t = pts_t[:, :3]
 
-        return PointCloud(pts_t, self.colors)
+        return PointCloud(pts_t, self.colors, self.attributes)
     
     def subset(self, points: List[int]) -> PointCloud:
         return PointCloud(points=self.points[points], 
@@ -240,7 +241,7 @@ class PointCloud:
         
         return PointCloud(points, colors, {'room': rooms})
 
-    def read_xyz(fn: str, separator: str) -> PointCloud:
+    def read_xyz(fn: str, separator: str = ' ') -> PointCloud:
         """Read XYZ file from disk.
 
         Args:
@@ -273,3 +274,6 @@ class PointCloud:
         # Create point cloud object from point matrix.
         pcd = PointCloud(pt_pos, pt_color)
         return pcd
+
+class Trajectory(PointCloud):
+    pass

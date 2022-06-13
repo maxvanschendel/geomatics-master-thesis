@@ -12,7 +12,8 @@ from utils.datasets import simulate_scan
 from utils.visualization import visualize_visibility
 
 @parameterized_class([
-   { "ply_file": "../data/cslam/flat/flat.ply", "trajectory_file": "../data/cslam/flat/flat_trajectory_01.csv", "voxel_size": 0.2, "interior_point": np.array([-1.665, 0.1014, 4.934])},
+   { "ply_file": "../data/cslam/flat/flat.ply", "trajectory_file": "../data/cslam/flat/flat_trajectory_01.csv", "voxel_size": 0.2, "interior_point": np.array([-1.665, 0.1014, 4.934]), "visualize": False},
+   { "ply_file": "../data/cslam/flat/flat.ply", "trajectory_file": "../data/cslam/flat/flat_trajectory_02.csv", "voxel_size": 0.2, "interior_point": np.array([-1.665, 0.1014, 4.934]), "visualize": False},
 ])
 class VoxelGridTest(unittest.TestCase):
     @classmethod
@@ -21,7 +22,7 @@ class VoxelGridTest(unittest.TestCase):
     
     @classmethod
     def load_trajectory(self):
-        return np.genfromtxt(self.trajectory_file)
+        return PointCloud.read_xyz(self.trajectory_file)
 
     def test_visibility(self):
         pass
@@ -50,9 +51,13 @@ class VoxelGridTest(unittest.TestCase):
         trajectory = self.load_trajectory()
 
         scan = simulate_scan(grid, trajectory, radius)
-        scan_radius = set(flatten_list([grid.radius_search(p, radius) for p in trajectory]))
+        scan_radius = set(flatten_list([grid.radius_search(p, radius) for p in trajectory.points]))
 
+        self.assertTrue(type(scan) == VoxelGrid, "Scan output must be voxel grid.")
         self.assertTrue(scan.get_voxels().issubset(grid.get_voxels()), 
                         "All voxels in simulated scan must also be in voxel grid")
         self.assertTrue(scan.get_voxels().issubset(scan_radius), 
                         "Some voxels in simulated scan are outside trajectory radius")
+        
+        if self.visualize:
+            visualize_visibility(scan, trajectory.points)

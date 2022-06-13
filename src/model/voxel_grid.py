@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 from numba import cuda
 
 import math
@@ -12,7 +13,7 @@ from warnings import filterwarnings
 import networkx
 import numpy as np
 
-from utils.array import most_common
+from utils.array import all_same, most_common
 
 import model.point_cloud
 from model.sparse_voxel_octree import *
@@ -42,17 +43,54 @@ class VoxelGrid:
 
         if self.voxels:
             self.size: int = len(voxels)
-            self.svo: SVO = SVO.from_voxels(
-                self.voxels.keys(), self.cell_size/2)
+            self.svo: SVO = self.generate_svo()
         else:
             self.size, self.svo = 0, None
 
         # Easy lookup from Morton code to voxel index
         self.morton_index = {morton_code(
             v): i for i, v in enumerate(self.voxels)}
+        
 
     def clone(self) -> VoxelGrid:
         return deepcopy(self)
+    
+    def generate_svo(self):
+        return SVO.from_voxels(self.voxels.keys(), self.cell_size/2)
+    
+    @staticmethod
+    def merge(voxel_grids: List[VoxelGrid]) -> VoxelGrid:
+        """Takes a list of voxels and merges them into a single voxel grid containing all voxels
+
+        Args:
+            voxel_grids (List[VoxelGrid]): _description_
+
+        Raises:
+            ValueError: _description_
+            ValueError: _description_
+
+        Returns:
+            VoxelGrid: _description_
+        """
+        
+        if len(voxel_grids) == 0:
+            raise ValueError("Can't merge 0 voxel grids.")
+        
+        # check if voxel grids can be merged, voxel grids with differing voxel sizes or origins cannot be merged
+        cell_sizes = [vg.cell_size for vg in voxel_grids]
+        origins = [tuple(vg.origin) for vg in voxel_grids] 
+        
+        if not all_same(cell_sizes) or not all_same(origins):
+            raise ValueError("All input voxel grids must have same origin and voxel size when  merging.")
+        
+        # sum up the voxels of each voxel grid
+        voxel_grid = VoxelGrid(cell_sizes[0], origins[0])
+        for vg in voxel_grids:
+            voxel_grid += vg
+            
+        # after merging all voxel grids compute a new sparse voxel octree
+        voxel_grid.svo = voxel_grid.generate_svo()
+        return voxel_grid
 
     def level_of_detail(self, level: int) -> VoxelGrid:
         """
@@ -138,7 +176,10 @@ class VoxelGrid:
     def for_each(self, func: Lambda, **kwargs) -> None:
         for voxel in self.voxels:
             func(voxel, **kwargs)
-
+            
+    def color_by_attr(self, attr: str):
+        unique_values = self.unique_attr(attr)
+        
     def set_attr(self, voxel, attr, val):
         self.voxels[voxel][attr] = val
 
@@ -446,6 +487,10 @@ class VoxelGrid:
         # For each voxel within range, get a vector pointing from origin to the voxel
         radius_voxels = set(self.radius_search(origin, max_dist))
         directions = np.array([normalize(self.voxel_centroid(v) - origin) for v in radius_voxels])
+        
+        if len(directions) == 0:
+            logging.warning(f"No voxels within radius {max_dist}")
+            return self.mutate({})
 
         # This matrix is used by the GPU to quickly find occupied voxels at the cost of memory
         voxel_matrix = self.voxel_subset(radius_voxels).to_3d_array()
@@ -556,9 +601,12 @@ class VoxelGrid:
 
     def to_pcd(self, color=False) -> model.point_cloud.PointCloud:
         points = [self.voxel_centroid(v) for v in self.voxels]
+        attributes = {attr: np.array(self.list_attr(attr)) for attr in self.attributes()}
         colors = list(self.list_attr(VoxelGrid.color_attr)) if color else []
 
-        return model.point_cloud.PointCloud(np.array(points), colors=colors)
+        return model.point_cloud.PointCloud(np.array(points), 
+                                            colors=colors, 
+                                            attributes=attributes)
 
     def to_graph(self, kernel: Kernel = None) -> SpatialGraph:
         from model.spatial_graph import SpatialGraph

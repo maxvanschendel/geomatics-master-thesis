@@ -3,46 +3,54 @@ from processing.pre_process import *
 from processing.map_extract import *
 from processing.map_match import *
 from processing.map_fuse import *
-from utils.datasets import simulate_scan
+from evaluation.map_extract_performance import *
+from evaluation.map_match_performance import *
+from evaluation.map_fuse_performance import *
+from utils.datasets import simulate_partial_maps, read_trajectory
 
 import logging
+import multiprocessing
 
-def simulate_partial_maps(pcd_fn, trajectory_fns, voxel_size):
-    trajectories = map(lambda fn: np.genfromtxt(fn), trajectory_fns)
-    ground_truth = PointCloud.read_ply(pcd_fn)
-    
-    ground_truth_grid = ground_truth.voxelize(voxel_size)
-    partial_maps = [simulate_scan(ground_truth_grid, t, map_extract_config.isovist_range) for t in trajectories]
-    
-    return partial_maps
-    
+cpu_count = multiprocessing.cpu_count()
 
-def run(preprocess_config: PreProcessingParameters, map_extract_config: MapExtractionParameters,
-        map_merge_config: MapMergeParameters, pipeline_config: PipelineParameters):
+def run():
     """ 
     Pipeline entrypoint, executes steps in order using the provided configuration. 
-    Processing steps can optionally be skipped using pipeline config, in which case
-    intermediate data from previous runs is substituted.
     """
     
-    
     logging.info(f'Simulating scans')
-    partial_maps = simulate_partial_maps(pipeline_config.ground_truth_pcd,
-                                         pipeline_config.simulated_trajectories, 
-                                         map_extract_config.leaf_voxel_size,)
+    ground_truth = TopometricMap.from_segmented_point_cloud(pipeline_config.ground_truth_pcd, 
+                                                            pipeline_config.ground_truth_graph, 
+                                                            'room', 
+                                                            map_extract_config.leaf_voxel_size)
+    
+    trajectories = read_trajectory(pipeline_config.simulated_trajectories)
+    partial_maps, ground_truth_transforms = simulate_partial_maps(PointCloud.read_ply(pipeline_config.ground_truth_pcd), 
+                                                                  trajectories, 
+                                                                  map_extract_config.isovist_range,
+                                                                  map_extract_config.leaf_voxel_size)
     
     logging.info(f'Extracting {len(partial_maps)} partial topometric maps')
-    partial_topometric_maps = [extract_topometric_map(m, map_extract_config) for m in partial_maps]
+    p = multiprocessing.Pool(cpu_count) 
+    partial_topometric_maps = p.starmap(extract_topometric_map, 
+                                        zip(partial_maps, [map_extract_config]*len(partial_maps)))
     
     logging.info('Matching partial maps')
-    matches = match_maps(partial_topometric_maps, map_merge_config)
+    matches = match(partial_topometric_maps, map_merge_config)
     
     logging.info('Fusing partial maps')
-    global_map = fuse(partial_topometric_maps, matches, map_merge_config)
+    global_map, result_transforms = fuse(partial_topometric_maps, matches, map_merge_config)
     
+    if pipeline_config.analyse_performance:
+        map_extract_perf = analyse_extract_performance(ground_truth, global_map)
+        map_match_perf = analyse_match_performance(ground_truth, partial_topometric_maps, matches)
+        map_fuse_perf = analyse_fusion_performance(global_map, ground_truth, result_transforms, ground_truth_transforms)
+        
+        map_extract_perf.pretty_print()
+        map_match_perf.pretty_print()
+        map_fuse_perf.pretty_print()
+        
     
-
-
 if __name__ == "__main__":
     # Read configuration from YAML files in config directory
     preprocess_config = PreProcessingParameters.read('../config/pre_process.yaml')
@@ -50,4 +58,4 @@ if __name__ == "__main__":
     map_merge_config = MapMergeParameters.read('../config/map_merge.yaml')
     pipeline_config = PipelineParameters()
 
-    run(preprocess_config, map_extract_config, map_merge_config, pipeline_config)
+    run()

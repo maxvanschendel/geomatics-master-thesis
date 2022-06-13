@@ -105,7 +105,7 @@ class TopometricMap():
         return nodes_o3d, line_set, spheres
     
     def to_voxel_grid(self):
-        return sum([node.geometry for node in self.nodes()])
+        return VoxelGrid.merge([node.geometry for node in self.nodes()])
 
     def transform(self, transformation):
         # The topometric map after applying the transformation

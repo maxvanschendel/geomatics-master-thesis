@@ -61,3 +61,6 @@ def mean_dict_value(d):
 
 def random_select(array):
     return array[randint(0, len(array))]
+
+def all_same(array) -> bool:
+    return all(p == array[0] for p in array)

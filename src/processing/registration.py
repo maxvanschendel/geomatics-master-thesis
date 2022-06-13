@@ -1,6 +1,6 @@
 from argparse import ArgumentError
 from model.point_cloud import PointCloud
-from learning3d.models import PointNet, PointNetLK, DCP, iPCRNet, PRNet, PPFNet, RPMNet
+
 import numpy as np
 from torch import from_numpy as as_tensor
 
@@ -25,6 +25,8 @@ def deep_closest_point(source: PointCloud, target: PointCloud, iterations: int =
         raise ArgumentError(
             'Missing required keyword arguments for Deep Closest Point registration.')
 
+    from learning3d.models import PointNet, PointNetLK, DCP, iPCRNet, PRNet, PPFNet, RPMNet
+    
     # Number of points must be equal for both point clouds
     # so we remove the additional points from the larger point cloud
     n_points = min([len(source.points), len(target.points)])
