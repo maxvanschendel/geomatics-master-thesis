@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import  List
 import numpy as np
 
@@ -5,6 +6,22 @@ from model.point_cloud import Trajectory
 from model.voxel_grid import VoxelGrid
 from utils.io import *
 from utils.linalg import random_transform
+
+
+@dataclass
+class Dataset:
+    point_cloud: str = "../data/cslam/flat/flat.ply"
+    graph: str = "../data/cslam/flat/flat_graph.csv"
+    trajectories: str = ("../data/cslam/flat/flat_trajectory_01.csv", 
+                                   "../data/cslam/flat/flat_trajectory_02.csv")
+    
+cslam_flat_dataset = Dataset(
+    point_cloud = "../data/cslam/flat/flat.ply",
+    graph = "../data/cslam/flat/flat_graph.csv",
+    trajectories = (  "../data/cslam/flat/flat_trajectory_01.csv", 
+                                "../data/cslam/flat/flat_trajectory_02.csv")
+)
+
 
 def simulate_partial_maps(pcd, trajectories, vis_range, voxel_size):
     # Apply a random transformation to the ground truth map for each voxel grid

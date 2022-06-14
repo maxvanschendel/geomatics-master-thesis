@@ -1,18 +1,16 @@
 from __future__ import annotations
 
 from argparse import ArgumentError
-from karateclub import (AE, BANE, FGSD, FSCNMF, IGE, LDP, MUSAE, SINE,
-                        FeatherGraph, FeatherNode, GeoScattering, GL2Vec,
-                        Graph2Vec, NetLSD, WaveletCharacteristic)
 
-from sklearn import cluster
 from model.topometric_map import *
+from sklearn import cluster
 from utils.array import euclidean_distance_matrix, replace_with_unique
 from utils.visualization import visualize_map_merge
+
 from processing.registration import registration
 
 
-def cluster_transformations(transforms: List[np.array], algorithm: str = 'optics', **kwargs) -> np.array:
+def cluster_transform(transforms: List[np.array], algorithm: str = 'optics', **kwargs) -> np.array:
     # Only these algorithms are currently supported
     if algorithm not in ['dbscan', 'optics']:
         raise ArgumentError(
@@ -44,32 +42,45 @@ def fuse_geometry(map_a: TopometricMap, map_b: TopometricMap,
     pass
 
 
-def fuse(matches: List[Tuple[TopometricNode, TopometricNode]], draw_result: bool = True) -> Tuple[TopometricMap, np.array]:
+def fuse(matches, draw_result: bool = True) -> Dict[Tuple[TopometricMap, TopometricMap], np.array]:
     """
     From a set of matches between nodes in topometric maps,
     identify best transform to bring maps into alignment and fuse them at topological level.
     """
 
-    for map_a, map_b in matches:
+    transforms = {}
+    for map_a, map_b in matches.keys():
+        node_matches: Dict[Tuple[TopometricNode, TopometricNode], float] = matches[(map_a, map_b)]
         
         # Find transform between both maps based on ICP registration between matched spaces
         match_transforms = [registration(
-            source=a.geometry.to_pcd(),
-            target=b.geometry.to_pcd(),
-            voxel_size=a.cell_size)
-            for a, b in matches]
+                                source=a.geometry.to_pcd(),
+                                target=b.geometry.to_pcd(),
+                                algo='dcp',
+                                voxel_size=a.geometry.cell_size,
+                                pointer='transformer', head='svd')
+                            for a, b in node_matches.keys()]
 
         # Cluster similar transforms into transform hypotheses
         # Assign unclustered transforms (label=-1) their own unique cluster
-        transformation_clusters = cluster_transformations(match_transforms)
+        transformation_clusters = cluster_transform(match_transforms, max_eps=np.inf, min_samples=1)
         transformation_clusters = replace_with_unique(transformation_clusters, -1)
 
         for cluster in np.unique(transformation_clusters):
             # For every transformation cluster, compute the mean transformation
             # then apply this transformation to the partial maps.
             transform_indices = np.argwhere(transformation_clusters == cluster)
-            cluster_transform = np.mean(match_transforms)[transform_indices]
-            map_b_transformed = map_b.transform(cluster_transform)
+            
+            mean_transform = np.mean(np.array(match_transforms)[transform_indices.T.flatten()])
+            
+            print(mean_transform)
+            print(mean_transform.shape)
+            
+            transforms[(map_a, map_b)] = mean_transform
+            
+            map_b_transformed = map_b.transform(mean_transform)
 
             if draw_result:
                 visualize_map_merge(map_a, map_b_transformed)
+                
+    return 

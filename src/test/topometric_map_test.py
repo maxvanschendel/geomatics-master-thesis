@@ -37,5 +37,5 @@ class TopometricMapTest(unittest.TestCase):
             node_voxels = n.geometry.get_voxels()
             self.assertTrue(node_voxels.issubset(voxel_grid))
             
-        self.assertTrue(sum([len(n.geometry.voxels) for n in tmap.nodes]) == len(voxel_grid.voxels))
+        self.assertTrue(sum([len(n.geometry.voxels) for n in tmap.nodes()]) == len(voxel_grid.voxels))
         self.assertTrue(tmap.cell_size == voxel_size) 

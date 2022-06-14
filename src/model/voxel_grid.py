@@ -29,7 +29,7 @@ filterwarnings('ignore')
 class VoxelGrid:
     cluster_attr: str = 'cluster'
     color_attr: str = 'color'
-    ground_truth_attr = 'ground_truth'
+    ground_truth_attr = 'room'
 
     def __init__(self,
                  cell_size: float = 1,
@@ -177,8 +177,10 @@ class VoxelGrid:
         for voxel in self.voxels:
             func(voxel, **kwargs)
             
-    def color_by_attr(self, attr: str):
+    def color_by_attr(self, attr: str, cmap):
         unique_values = self.unique_attr(attr)
+        
+        coloured_voxel_grid = self.clone()
         
     def set_attr(self, voxel, attr, val):
         self.voxels[voxel][attr] = val

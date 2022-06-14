@@ -6,7 +6,7 @@ from processing.map_fuse import *
 from evaluation.map_extract_performance import *
 from evaluation.map_match_performance import *
 from evaluation.map_fuse_performance import *
-from utils.datasets import simulate_partial_maps, read_trajectory
+from utils.datasets import *
 
 import logging
 import multiprocessing
@@ -19,13 +19,13 @@ def run():
     """
     
     logging.info(f'Simulating scans')
-    ground_truth = TopometricMap.from_segmented_point_cloud(pipeline_config.ground_truth_pcd, 
-                                                            pipeline_config.ground_truth_graph, 
-                                                            'room', 
+    ground_truth = TopometricMap.from_segmented_point_cloud(pipeline_config.ground_truth.point_cloud, 
+                                                            pipeline_config.ground_truth.graph, 
+                                                            VoxelGrid.ground_truth_attr, 
                                                             map_extract_config.leaf_voxel_size)
     
-    trajectories = read_trajectory(pipeline_config.simulated_trajectories)
-    partial_maps, ground_truth_transforms = simulate_partial_maps(PointCloud.read_ply(pipeline_config.ground_truth_pcd), 
+    trajectories = read_trajectory(pipeline_config.ground_truth.trajectories)
+    partial_maps, ground_truth_transforms = simulate_partial_maps(PointCloud.read_ply(pipeline_config.ground_truth.point_cloud), 
                                                                   trajectories, 
                                                                   map_extract_config.isovist_range,
                                                                   map_extract_config.leaf_voxel_size)
@@ -39,23 +39,19 @@ def run():
     matches = match(partial_topometric_maps, map_merge_config)
     
     logging.info('Fusing partial maps')
-    global_map, result_transforms = fuse(partial_topometric_maps, matches, map_merge_config)
+    global_map, result_transforms = fuse(matches, map_merge_config)
     
     if pipeline_config.analyse_performance:
         map_extract_perf = analyse_extract_performance(ground_truth, global_map)
         map_match_perf = analyse_match_performance(ground_truth, partial_topometric_maps, matches)
         map_fuse_perf = analyse_fusion_performance(global_map, ground_truth, result_transforms, ground_truth_transforms)
-        
-        map_extract_perf.pretty_print()
-        map_match_perf.pretty_print()
-        map_fuse_perf.pretty_print()
-        
+       
     
 if __name__ == "__main__":
     # Read configuration from YAML files in config directory
-    preprocess_config = PreProcessingParameters.read('../config/pre_process.yaml')
-    map_extract_config = MapExtractionParameters.read('../config/map_extract.yaml')
-    map_merge_config = MapMergeParameters.read('../config/map_merge.yaml')
-    pipeline_config = PipelineParameters()
+    preprocess_config = PreProcessingParameters.read('./config/pre_process.yaml')
+    map_extract_config = MapExtractionParameters.read('./config/map_extract.yaml')
+    map_merge_config = MapMergeParameters.read('./config/map_merge.yaml')
+    pipeline_config = PipelineParameters(cslam_flat_dataset, True)
 
     run()

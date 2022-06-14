@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from utils.datasets import Dataset
 from typing import Tuple
 from yaml import load, Loader, dump
 
 
+
+    
 @dataclass
 class PipelineParameters:
-    ground_truth_pcd: str = "../data/cslam/flat/flat.ply"
-    ground_truth_graph: str = "../data/cslam/flat/flat_graph.csv"
-    simulated_trajectories: str = ("../data/cslam/flat/flat_trajectory_01.csv", 
-                                   "../data/cslam/flat/flat_trajectory_02.csv")
-    analyse_performance: bool = True
+    ground_truth: Dataset
+    analyse_performance: bool
 
 
 class PreProcessingParametersException(Exception):

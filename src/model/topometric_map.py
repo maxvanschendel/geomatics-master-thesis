@@ -161,8 +161,8 @@ class TopometricMap():
         # to create the edges later
         split_voxel_grid = voxel_grid.split_by_attr(room_attr)
         index_to_node = {list(vg.list_attr(room_attr))[0]: TopometricNode(Hierarchy.ROOM, vg) for vg in split_voxel_grid}
-        for node in index_to_node.values():
-            topometric_map.add_node(node)
+        
+        topometric_map.add_nodes(index_to_node.values())            
 
         # Read topological graph stored as edge list in CSV file
         with open(topology_fn) as topology_file:
@@ -174,7 +174,6 @@ class TopometricMap():
             topometric_map.add_edge(index_to_node[a], index_to_node[b], 
                                     EdgeType.TRAVERSABILITY,
                                     directed=False)
-            
         return topometric_map
             
         

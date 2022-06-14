@@ -31,22 +31,26 @@ def feature_embedding(map: TopometricMap, node_model, embed_dim=1024) -> np.arra
     room_subgraph = networkx.convert_node_labels_to_integers(map.graph.subgraph(rooms))
     
     room_geometry = [r.geometry.to_pcd().points for r in rooms]
-    geometry_embedding = [pointnet(g, embed_dim) for g in room_geometry]   
+    embedding = [pointnet(g, embed_dim) for g in room_geometry]   
     
-    node_model = node_model()
-    node_model.fit(room_subgraph, torch.from_numpy(np.array(geometry_embedding)))
-    node_embedding = node_model.get_embedding()
+    if node_model:
+        node_model = node_model()
+        node_model.fit(room_subgraph, torch.from_numpy(np.array(embedding)))
+        embedding = node_model.get_embedding()
 
-    return node_embedding
+    return embedding
 
 
 def match(maps: List[TopometricMap], node_model=FeatherNode, **kwargs):
-    features = {map: feature_embedding(map, FeatherNode, 1024) for map in maps}
+    features = {map: feature_embedding(map, None, 1024) for map in maps}
         
     node_matches = dict()
     for map_a, map_b in combinations(maps, 2):
+        node_matches[(map_a, map_b)] = {}
+        
         if map_a != map_b:
             f_a, f_b = features[map_a], features[map_b]
+            rooms_a, rooms_b = map_a.get_node_level(Hierarchy.ROOM), map_b.get_node_level(Hierarchy.ROOM)
             
             # Find n room pairs with highest similarity
             distance_matrix = euclidean_distances(f_a, f_b)
@@ -54,11 +58,15 @@ def match(maps: List[TopometricMap], node_model=FeatherNode, **kwargs):
             embedding_dist = [distance_matrix[i] for i in matches]
             
             sorted_matches = sorted(zip(embedding_dist, matches))
-            node_matches[(map_a, map_b)] = sorted_matches
+            best_matches = sorted_matches[:3]
             
-            print(sorted_matches)
+            for d, m in best_matches:
+                node_a = rooms_a[m[0]]
+                node_b = rooms_b[m[1]]
+                
+                node_matches[(map_a, map_b)][(node_a, node_b)] = d
             
             # if kwargs['visualize']:
-            visualize_matches(map_a, map_b, [m for _, m in sorted_matches[:1]])
+            visualize_matches(map_a, map_b, [m for _, m in best_matches])
         
     return node_matches
