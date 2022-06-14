@@ -306,6 +306,8 @@ class VoxelGrid:
         return split
 
     def extents(self):
+        if len(self.voxels) == 0:
+            raise ValueError("No voxels in voxel grid")
         return np.max(self.to_2d_array(), axis=0)
 
     def voxel_centroid(self, voxel: Tuple[int, int, int]) -> np.array:
@@ -603,7 +605,7 @@ class VoxelGrid:
 
     def to_pcd(self, color=False) -> model.point_cloud.PointCloud:
         points = [self.voxel_centroid(v) for v in self.voxels]
-        attributes = {attr: np.array(self.list_attr(attr)) for attr in self.attributes()}
+        attributes = {attr: np.array(list(self.list_attr(attr))) for attr in self.attributes()}
         colors = list(self.list_attr(VoxelGrid.color_attr)) if color else []
 
         return model.point_cloud.PointCloud(np.array(points), 

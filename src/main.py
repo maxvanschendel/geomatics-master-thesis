@@ -24,9 +24,8 @@ def run():
                                                             VoxelGrid.ground_truth_attr, 
                                                             map_extract_config.leaf_voxel_size)
     
-    trajectories = read_trajectory(pipeline_config.ground_truth.trajectories)
     partial_maps, ground_truth_transforms = simulate_partial_maps(PointCloud.read_ply(pipeline_config.ground_truth.point_cloud), 
-                                                                  trajectories, 
+                                                                  read_trajectory(pipeline_config.ground_truth.trajectories), 
                                                                   map_extract_config.isovist_range,
                                                                   map_extract_config.leaf_voxel_size)
     
@@ -52,6 +51,6 @@ if __name__ == "__main__":
     preprocess_config = PreProcessingParameters.read('./config/pre_process.yaml')
     map_extract_config = MapExtractionParameters.read('./config/map_extract.yaml')
     map_merge_config = MapMergeParameters.read('./config/map_merge.yaml')
-    pipeline_config = PipelineParameters(cslam_flat_dataset, True)
+    pipeline_config = PipelineParameters(s3dis_area_3_dataset, True)
 
     run()

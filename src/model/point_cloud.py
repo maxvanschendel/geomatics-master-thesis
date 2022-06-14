@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from argparse import ArgumentError
-from os import sep
 from os.path import exists
 from random import random
 
@@ -17,10 +15,11 @@ class PointCloud:
     leaf_size: float = 16
     
     def __init__(self, points: np.array = None, colors: np.array = None, attributes: Dict[str, np.array] = None):
-        if points is None:
+        if points is None or len(points) == 0:
             self.points = np.empty((0, 3))
             self.size = 0
             self.aabb = None
+            self.kdt = None
         else:
             self.points = points
 
@@ -31,23 +30,24 @@ class PointCloud:
                 [np.min(points[:, 1]), np.max(points[:, 1])],
                 [np.min(points[:, 2]), np.max(points[:, 2])]
             ])
+            
+            # Used for fast nearest neighbour operations
+            self.kdt = KDTree(self.points, PointCloud.leaf_size)
 
-        if colors is None:
+        if colors is None or len(colors) == 0:
             self.colors = np.empty((0,3))
         else:
             self.colors = colors
 
         self.attributes = attributes if attributes else {}
         
-        # Used for fast nearest neighbour operations
-        self.kdt = KDTree(self.points, PointCloud.leaf_size)
-
+        
     def __str__(self) -> str:
         '''Get point cloud in human-readable format.'''
 
         return f"Point cloud with {self.size} points\n"
 
-    def to_o3d(self, color_from_attr: str = False, cmap = None) -> o3d.geometry.PointCloud:
+    def to_o3d(self) -> o3d.geometry.PointCloud:
         """Creates Open3D point cloud for visualisation purposes.
 
         Returns:
@@ -57,23 +57,10 @@ class PointCloud:
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(self.points)
 
-
-        if self.colors is not None and not color_from_attr:
+        if self.colors is not None:
             pcd.colors = o3d.utility.Vector3dVector(self.colors)
         
         return pcd
-
-    def translate(self, translation: np.array) -> PointCloud:
-        return PointCloud(self.points + translation, self.colors, self.attributes)
-
-    def rotate(self, angle: float, axis: np.array) -> PointCloud:
-        r = R.from_rotvec(angle * np.array(axis), degrees=True)
-        rotated = r.apply(self.points)
-
-        return PointCloud(rotated, self.colors, self.attributes)
-
-    def scale(self, scale: np.array):
-        return PointCloud(self.points*scale, self.colors, self.attributes)
 
     def transform(self, transformation: np.array) -> PointCloud:
         if transformation.shape != (4, 4):
@@ -88,11 +75,6 @@ class PointCloud:
         pts_t = pts_t[:, :3]
 
         return PointCloud(pts_t, self.colors, self.attributes)
-    
-    def subset(self, points: List[int]) -> PointCloud:
-        return PointCloud(points=self.points[points], 
-                          colors=self.colors[points], 
-                          attributes={k: v[self.points] for (k,v) in self.attributes.items()})
 
     def merge(self, other: PointCloud) -> PointCloud:
         """Takes two point clouds and creates a new one containing the points of both.
@@ -137,7 +119,10 @@ class PointCloud:
 
         result_voxels = ((self.points - aabb_min) // cell_size).astype(int)
 
-        voxels = {tuple(cell): {attr: self.attributes[attr][index] for attr in self.attributes} for index, cell in enumerate(result_voxels)}
+        voxels = {tuple(cell): {attr: self.attributes[attr][index] for attr in self.attributes} 
+                  if len(self.attributes) else {} 
+                  for index, cell in enumerate(result_voxels)}
+        
         voxel_model = VoxelGrid(cell_size, aabb_min, voxels)
 
         return voxel_model
@@ -165,8 +150,7 @@ class PointCloud:
                     unvisited.add(nb_idx)
                     
         return list(visited)
-            
-        
+                
     def random_reduce(self, keep_fraction: float) -> PointCloud:
         """Randomly remove a fraction of the point cloud's points.
 

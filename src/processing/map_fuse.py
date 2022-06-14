@@ -63,24 +63,20 @@ def fuse(matches, draw_result: bool = True) -> Dict[Tuple[TopometricMap, Topomet
 
         # Cluster similar transforms into transform hypotheses
         # Assign unclustered transforms (label=-1) their own unique cluster
-        transformation_clusters = cluster_transform(match_transforms, max_eps=np.inf, min_samples=1)
+        transformation_clusters = cluster_transform(match_transforms, max_eps=.1, min_samples=1)
         transformation_clusters = replace_with_unique(transformation_clusters, -1)
 
         for cluster in np.unique(transformation_clusters):
             # For every transformation cluster, compute the mean transformation
             # then apply this transformation to the partial maps.
             transform_indices = np.argwhere(transformation_clusters == cluster)
+            cluster_transforms = np.array(match_transforms)[transform_indices.T.flatten()].squeeze()
             
-            mean_transform = np.mean(np.array(match_transforms)[transform_indices.T.flatten()])
-            
-            print(mean_transform)
-            print(mean_transform.shape)
-            
+            mean_transform = np.mean(cluster_transforms, axis=2).squeeze() if len(cluster_transforms.shape) == 3 else cluster_transforms
             transforms[(map_a, map_b)] = mean_transform
             
             map_b_transformed = map_b.transform(mean_transform)
 
-            if draw_result:
-                visualize_map_merge(map_a, map_b_transformed)
+            visualize_map_merge(map_a, map_b_transformed)
                 
-    return 
+    return transforms

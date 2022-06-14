@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from copy import deepcopy
 from itertools import combinations
+import logging
 from random import random
 from typing import List, Tuple
 
@@ -15,98 +16,109 @@ from model.spatial_graph import SpatialGraph
 from model.topometric_map import (EdgeType, Hierarchy, TopometricMap,
                                   TopometricNode)
 from model.voxel_grid import Kernel, VoxelGrid
+from utils.array import replace_with_unique
 from utils.visualization import visualize_htmap, visualize_voxel_grid
 
 from processing.parameters import MapExtractionParameters
 
 
 def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> TopometricMap:
-    # Map representation that is result of map extraction
-    topometric_map = TopometricMap()
-    traversability_lod = leaf_voxels.level_of_detail(p.traversability_lod)
+    try:
+        # Map representation that is result of map extraction
+        topometric_map = TopometricMap()
+        traversability_lod = leaf_voxels.level_of_detail(p.traversability_lod)
 
-    print('- Extracting traversable volume')
-    # Extract the traversable volume and get building voxels at its bottom (the floor)
-    nav_volume_voxel, floor_voxel = segment_floor_area(
-        traversability_lod, p.kernel_scale, p.leaf_voxel_size)
-    floor_voxel = deepcopy(floor_voxel)
+        print('- Extracting traversable volume')
+        # Extract the traversable volume and get building voxels at its bottom (the floor)
+        nav_volume_voxel, floor_voxel = segment_floor_area(
+            traversability_lod, p.kernel_scale, p.leaf_voxel_size)
+        floor_voxel = deepcopy(floor_voxel)
 
-    print('- Estimating optimal isovist positions')
-    # Attempt to find the positions in the map from which as much of the
-    # the map is visible as possible.
-    isovist_voxels = optimal_isovist_voxels(
-        floor_voxel, p.isovist_height, p.isovist_spacing)
-    isovist_centroids = isovist_voxels.voxel_centroids()
+        print('- Estimating optimal isovist positions')
+        # Attempt to find the positions in the map from which as much of the
+        # the map is visible as possible.
+        isovist_voxels = optimal_isovist_voxels(
+            floor_voxel, p.isovist_height, p.isovist_spacing)
+        isovist_centroids = isovist_voxels.voxel_centroids()
 
-    print(
-        f'- Voxelizing partial map at LoD{p.segmentation_lod} for room segmentation')
-    segmentation_lod = leaf_voxels.level_of_detail(p.segmentation_lod)
+        print(
+            f'- Voxelizing partial map at LoD{p.segmentation_lod} for room segmentation')
+        segmentation_lod = leaf_voxels.level_of_detail(p.segmentation_lod)
 
-    print(f'- Casting isovists')
-    isovists = cast_isovists(
-        origins=isovist_centroids,
-        map_grid=segmentation_lod,
-        subsample=p.isovist_subsample,
-        max_dist=p.isovist_range)
+        print(f'- Casting isovists')
+        visibilities = cast_visibilities(
+            origins=isovist_centroids,
+            map_grid=segmentation_lod,
+            subsample=p.isovist_subsample,
+            max_dist=p.isovist_range
+        )
 
-    print(f'- Clustering {len(isovists)} isovists')
-    mutual_visibility = mutual_visibility_graph(isovists)
-    clustering = cluster_graph_mcl(
-        distance_matrix=mutual_visibility,
-        weight_threshold=p.weight_threshold,
-        min_inflation=p.min_inflation,
-        max_inflation=p.max_inflation
-    )
+        print(f'- Clustering {len(visibilities)} isovists')
+        visibility_graph = mutual_visibility_graph(visibilities)
+        visibility_clustering = cluster_graph_mcl(
+            distance_matrix=visibility_graph,
+            weight_threshold=p.weight_threshold,
+            min_inflation=p.min_inflation,
+            max_inflation=p.max_inflation
+        )
+        
+        # visibility_clustering = replace_with_unique(visibility_clustering, -1)
 
-    print(f'- Segmenting rooms')
-    map_rooms = room_segmentation(
-        isovists=isovists,
-        map_voxel=segmentation_lod,
-        clustering=clustering)
+        print(f'- Segmenting rooms')
+        map_rooms = room_segmentation(
+            isovists=visibilities,
+            map_voxel=segmentation_lod,
+            clustering=visibility_clustering
+        )
 
-    print(f'- Propagating labels')
-    map_rooms = map_rooms.propagate_attr(
-        attr=VoxelGrid.cluster_attr,
-        prop_kernel=Kernel.sphere(r=2), max_its=10)
+        if len(map_rooms.voxels) == 0:
+            raise Exception('Room segmentation is empty')
 
-    print(f'- Finding connected clusters')
-    map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
+        print(f'- Propagating labels')
+        map_rooms = map_rooms.propagate_attr(
+            attr=VoxelGrid.cluster_attr,
+            prop_kernel=Kernel.sphere(r=2), max_its=10)
 
-    connection_kernel = Kernel.sphere(r=2)
-    connected_clusters = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
+        print(f'- Finding connected clusters')
+        map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
 
-    n_cluster = 0
-    for room in map_rooms_split:
-        room_components = room.connected_components(connection_kernel)
+        connection_kernel = Kernel.sphere(r=2)
+        connected_clusters = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
 
-        for c in room_components:
-            c.set_attr_uniform(attr=VoxelGrid.cluster_attr, val=n_cluster)
-            n_cluster += 1
-            connected_clusters += c
+        n_cluster = 0
+        for room in map_rooms_split:
+            room_components = room.connected_components(connection_kernel)
 
-    print(f'- Extracting topometric map')
-    topological_map = traversability_graph(
-        map_segments=connected_clusters,
-        floor_voxels=nav_volume_voxel,
-        min_voxels=p.min_voxels)
+            for c in room_components:
+                c.set_attr_uniform(attr=VoxelGrid.cluster_attr, val=n_cluster)
+                n_cluster += 1
+                connected_clusters += c
 
-    node_dict = {n: TopometricNode(
-        Hierarchy.ROOM, topological_map.graph.nodes[n]['geometry']) for n in topological_map.graph.nodes}
+        print(f'- Extracting topometric map')
+        topological_map = traversability_graph(
+            map_segments=connected_clusters,
+            floor_voxels=nav_volume_voxel,
+            min_voxels=p.min_voxels)
 
-    for node in node_dict:
-        topometric_map.add_node(node_dict[node])
+        node_dict = {n: TopometricNode(
+            Hierarchy.ROOM, topological_map.graph.nodes[n]['geometry']) for n in topological_map.graph.nodes}
 
-    for node in node_dict:
-        node_edges = topological_map.graph.edges(node)
-        for a, b in node_edges:
-            if a != b:
-                topometric_map.add_edge(
-                    node_dict[a], node_dict[b], EdgeType.TRAVERSABILITY)
+        for node in node_dict:
+            topometric_map.add_node(node_dict[node])
 
-    # if kwargs['visualize']:
-    #     visualize_htmap(topometric_map)
+        for node in node_dict:
+            node_edges = topological_map.graph.edges(node)
+            for a, b in node_edges:
+                if a != b:
+                    topometric_map.add_edge(
+                        node_dict[a], node_dict[b], EdgeType.TRAVERSABILITY)
 
-    return topometric_map
+        visualize_htmap(topometric_map)
+        
+        return topometric_map
+    except Exception as e:
+        logging.error(f"Failed to extract topometric map: {e}")
+        raise e
 
 
 def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_size: float = 0.1) -> SpatialGraph:
@@ -166,7 +178,7 @@ def optimal_isovist_voxels(floor: VoxelGrid, height: Tuple[float, float], radius
     return df_maxima
 
 
-def cast_isovists(origins: List[Tuple], map_grid: VoxelGrid, subsample: float, max_dist: float):
+def cast_visibilities(origins: List[Tuple], map_grid: VoxelGrid, subsample: float, max_dist: float):
     isovists = [map_grid.visibility(o, max_dist)
                 for o in origins if random() < subsample]
 
@@ -233,8 +245,7 @@ def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clusterin
 
     for v in map_segmented.voxels:
         if map_segmented[v]['clusters']:
-            most_common_cluster = map_segmented[v]['clusters'].most_common(1)[
-                0]
+            most_common_cluster = map_segmented[v]['clusters'].most_common(1)[0]
             if most_common_cluster[1] > min_observations:
                 map_segmented[v][VoxelGrid.cluster_attr] = most_common_cluster[0]
 

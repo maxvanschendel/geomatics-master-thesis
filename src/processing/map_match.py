@@ -10,20 +10,24 @@ from model.topometric_map import *
 from sklearn.metrics.pairwise import euclidean_distances
 from utils.visualization import visualize_matches
 
+ptnet_model_fn = './learning3d/pretrained/exp_classifier/models/best_ptnet_model.t7'
 
 def pointnet(pcd, dim):
     from learning3d.models import PointNet
 
     model = PointNet(emb_dims=dim, input_shape='bnc', use_bn=True)
-    model.load_state_dict(torch.load('./learning3d/pretrained/exp_classifier/models/best_ptnet_model.t7', map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load(ptnet_model_fn, map_location=torch.device('cpu')))
     
+    # reshape to bnc format and create torch tensor
     pcd_reshape = pcd.reshape((1, pcd.shape[0], pcd.shape[1]))
     pcd_torch = torch.from_numpy(pcd_reshape).float()
     
-    embed = model(pcd_torch)
-    embed = embed.detach().numpy()
+    # get global feature as 1D numpy array
+    embed = model(pcd_torch).detach() \
+                            .numpy() \
+                            .squeeze()
     
-    return embed.squeeze()
+    return embed
 
 
 def feature_embedding(map: TopometricMap, node_model, embed_dim=1024) -> np.array:

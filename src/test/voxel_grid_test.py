@@ -14,7 +14,7 @@ from utils.visualization import visualize_visibility
 @parameterized_class([
    { "ply_file": "../data/cslam/flat/flat.ply", "trajectory_file": "../data/cslam/flat/flat_trajectory_01.csv", "voxel_size": 0.2, "interior_point": np.array([-1.665, 0.1014, 4.934]), "visualize": False},
    { "ply_file": "../data/cslam/flat/flat.ply", "trajectory_file": "../data/cslam/flat/flat_trajectory_02.csv", "voxel_size": 0.2, "interior_point": np.array([-1.665, 0.1014, 4.934]), "visualize": False},
-   { "ply_file": "../data/s3dis/area_3/area_3.ply", "trajectory_file": "../data/s3dis/area_3/area_3_trajectory_01.csv", "voxel_size": 0.2, "interior_point": np.array([5.68, -4.43, 3.016]), "visualize": True},
+   { "ply_file": "../data/s3dis/area_3/area_3.ply", "trajectory_file": "../data/s3dis/area_3/area_3_trajectory_01.csv", "voxel_size": 0.1, "interior_point": np.array([5.68, -4.43, 3.016]), "visualize": True},
 ])
 class VoxelGridTest(unittest.TestCase):
     @classmethod
