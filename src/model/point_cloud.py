@@ -258,6 +258,136 @@ class PointCloud:
         # Create point cloud object from point matrix.
         pcd = PointCloud(pt_pos, pt_color)
         return pcd
+    def svd(self):
+        pca = PCA(n_components=3)
+        components = pca.fit(self.points)
+
+        return components.singular_values_
+
+    def pca(self):
+        pca = PCA(n_components=3)
+        components = pca.fit(self.points)
+
+        return components.components_
+
+    def explained_variance(self):
+        pca = PCA(n_components=3)
+        components = pca.fit(self.points)
+
+        return components.explained_variance_
+
+    def explained_variance_ratio(self):
+        pca = PCA(n_components=3)
+        components = pca.fit(self.points)
+
+        return components.explained_variance_ratio_
+
+    def fit_plane(self):
+        nbs_eig = self.pca()
+        nbs_normal = nbs_eig[2]
+        best_fit_plane = Plane(self.centroid(), nbs_normal)
+
+        return best_fit_plane
+
+    def fit_sphere(self):
+        # fit sphere to points using least squares
+        # f = Ac (estimate c' which minimizes ||f-Ac'||
+
+        pts = self.points
+        row_num = pts.shape[0]
+        A = np.ones((row_num, 4))
+        A[:, :3] = pts
+
+        f = np.sum(np.multiply(pts, pts), axis=1)
+
+        c = np.linalg.lstsq(A, f, rcond=None)[0]
+        r = math.sqrt(((c[0]**2) / 4) + ((c[1]**2) / 4) + ((c[2]**2) / 4) + c[3])
+
+        return r, c[:3]/2
+
+    def mean_dist_to_point(self, p_other):
+        sum_dist = 0
+        for p_self in self.points:
+            sum_dist += minkowski_distance(p_self, p_other, 2)
+        return sum_dist / len(self.points)
+
+    def density(self, k):
+        sum_dist = 0
+        for p in self.points:
+            nbs_i = self.sindex.query(p, k)[1]
+            nbs = self.points[nbs_i]
+            nbs_pcd = PointCloud(nbs + p)
+
+            sum_dist += abs(nbs_pcd.mean_dist_to_point(p))
+
+        return sum_dist / len(self.points)
+
+    def planarity(self):
+        best_fit_plane = self.fit_plane()
+
+        sum_plane_distance = 0
+        for p in self.points:
+            plane_dist = best_fit_plane.distance(p)
+            sum_plane_distance += abs(plane_dist)
+
+        return sum_plane_distance / len(self.points)
+
+
+    def roughness(self, k):
+        sum_plane_distance = 0
+        for p in self.points:
+            nbs_i = self.sindex.query(p, k)[1]
+            
+            if len(nbs_i) >= 3:
+                nbs = self.points[nbs_i]
+                nbs_pcd = PointCloud(nbs + p)
+                best_fit_plane = nbs_pcd.fit_plane()
+                plane_dist = best_fit_plane.distance(p)
+                sum_plane_distance += abs(plane_dist)
+            
+        return sum_plane_distance / len(self.points)
+
+    def linearity(self, radius):
+        sum_plane_distance = 0
+        for p in self.points:
+            nbs_i = self.sindex.query_ball_point(p, radius)
+            
+            if len(nbs_i) >= 3:
+                nbs = self.points[nbs_i]
+                nbs_pcd = PointCloud(nbs + p)
+                nba_pcd_gradient = nbs_pcd.explained_variance_ratio()[0]
+
+                sum_plane_distance += np.linalg.norm(nba_pcd_gradient)
+            
+        return sum_plane_distance / len(self.points)
+        
+    def centroid(self):
+        return np.mean(self.points, axis=0)
+
+    def quotient_of_eigenvalues(self):
+        variance = self.explained_variance_ratio()
+        return variance[0] / variance[1] / variance[2]
+
+    def volume(self) -> float:
+        min_corner, max_corner = column_extrema(self.points)
+        axis_lengths = max_corner - min_corner
+        volume = vector_element_product(axis_lengths)
+
+        return volume
+
+    def height(self) -> float:
+        return max(self.points[:, 2]) - min(self.points[:, 2])
+
+    def projected_area(self) -> float:
+        projected_points = self.points[:, :2]
+        min_corner, max_corner = column_extrema(projected_points)
+        horizontal_axis_lengths = max_corner - min_corner
+        area = vector_element_product(horizontal_axis_lengths)
+
+        return area
+
+    def mean_distance_to_centroid(self):
+        return self.mean_dist_to_point(self.centroid())
 
 class Trajectory(PointCloud):
     pass

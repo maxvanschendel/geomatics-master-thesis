@@ -45,7 +45,8 @@ class TopometricMap():
         for n in nodes:
             self.add_node(n)
 
-    def add_edge(self, node_a: TopometricNode, node_b: TopometricNode, edge_type: EdgeType, directed=True):
+    def add_edge(self, node_a: TopometricNode, node_b: TopometricNode, 
+                 edge_type: EdgeType = EdgeType.TRAVERSABILITY, directed=True):
         self.graph.add_edge(node_a, node_b, edge_type=edge_type)
         if not directed:
             self.graph.add_edge(node_b, node_a, edge_type=edge_type)
@@ -69,7 +70,7 @@ class TopometricMap():
     def incident_edges(self, node):
         return self.graph.edges(node, data=True)
 
-    def to_o3d(self, level):
+    def to_o3d(self, level=Hierarchy.ROOM):
         nodes = self.get_node_level(level)
         nodes_geometry = [node.geometry for node in nodes]
         nodes_o3d = [geometry.to_pcd(color=True).to_o3d()

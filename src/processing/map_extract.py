@@ -20,7 +20,7 @@ from utils.array import replace_with_unique
 from utils.visualization import visualize_htmap, visualize_voxel_grid
 
 from processing.parameters import MapExtractionParameters
-
+import logging
 
 def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> TopometricMap:
     try:
@@ -28,24 +28,24 @@ def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters, *
         topometric_map = TopometricMap()
         traversability_lod = leaf_voxels.level_of_detail(p.traversability_lod)
 
-        print('- Extracting traversable volume')
+        logging.info('Extracting traversable volume')
         # Extract the traversable volume and get building voxels at its bottom (the floor)
         nav_volume_voxel, floor_voxel = segment_floor_area(
             traversability_lod, p.kernel_scale, p.leaf_voxel_size)
         floor_voxel = deepcopy(floor_voxel)
 
-        print('- Estimating optimal isovist positions')
+        logging.info('Estimating optimal isovist positions')
         # Attempt to find the positions in the map from which as much of the
         # the map is visible as possible.
         isovist_voxels = optimal_isovist_voxels(
             floor_voxel, p.isovist_height, p.isovist_spacing)
         isovist_centroids = isovist_voxels.voxel_centroids()
 
-        print(
-            f'- Voxelizing partial map at LoD{p.segmentation_lod} for room segmentation')
+        logging.info(
+            f'Voxelizing partial map at LoD{p.segmentation_lod} for room segmentation')
         segmentation_lod = leaf_voxels.level_of_detail(p.segmentation_lod)
 
-        print(f'- Casting isovists')
+        logging.info(f'Casting {len(isovist_centroids)} isovists')
         visibilities = cast_visibilities(
             origins=isovist_centroids,
             map_grid=segmentation_lod,
@@ -53,7 +53,7 @@ def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters, *
             max_dist=p.isovist_range
         )
 
-        print(f'- Clustering {len(visibilities)} isovists')
+        logging.info(f'Clustering {len(visibilities)} isovists')
         visibility_graph = mutual_visibility_graph(visibilities)
         visibility_clustering = cluster_graph_mcl(
             distance_matrix=visibility_graph,
@@ -62,9 +62,7 @@ def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters, *
             max_inflation=p.max_inflation
         )
         
-        # visibility_clustering = replace_with_unique(visibility_clustering, -1)
-
-        print(f'- Segmenting rooms')
+        logging.info(f'Segmenting rooms')
         map_rooms = room_segmentation(
             isovists=visibilities,
             map_voxel=segmentation_lod,
@@ -74,12 +72,12 @@ def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters, *
         if len(map_rooms.voxels) == 0:
             raise Exception('Room segmentation is empty')
 
-        print(f'- Propagating labels')
+        logging.info(f'Propagating labels')
         map_rooms = map_rooms.propagate_attr(
             attr=VoxelGrid.cluster_attr,
             prop_kernel=Kernel.sphere(r=2), max_its=10)
 
-        print(f'- Finding connected clusters')
+        logging.info(f'Finding connected clusters')
         map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
 
         connection_kernel = Kernel.sphere(r=2)
@@ -94,7 +92,7 @@ def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters, *
                 n_cluster += 1
                 connected_clusters += c
 
-        print(f'- Extracting topometric map')
+        logging.info(f'Extracting topometric map')
         topological_map = traversability_graph(
             map_segments=connected_clusters,
             floor_voxels=nav_volume_voxel,
@@ -111,9 +109,9 @@ def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters, *
             for a, b in node_edges:
                 if a != b:
                     topometric_map.add_edge(
-                        node_dict[a], node_dict[b], EdgeType.TRAVERSABILITY)
+                        node_dict[a], node_dict[b])
 
-        visualize_htmap(topometric_map)
+        # visualize_htmap(topometric_map)
         
         return topometric_map
     except Exception as e:

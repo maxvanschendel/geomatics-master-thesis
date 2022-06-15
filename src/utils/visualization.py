@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from random import random
-import numpy as np
 import open3d as o3d
 from typing import List
 from model.point_cloud import PointCloud
@@ -10,13 +9,13 @@ from utils.io import load_pickle, select_file
 
 
 @dataclass
-class MapVisualization:
+class SceneObject:
     geometry: o3d.geometry
     material: o3d.visualization.rendering.MaterialRecord
 
 
-class Visualization:
-    def pcd_mat(pt_size=7, base_color = [1,1,1,1]):
+class MultiViewScene:
+    def pcd_mat(pt_size=7, base_color=[1, 1, 1, 1]):
         mat = o3d.visualization.rendering.MaterialRecord()
         mat.point_size = pt_size
         mat.base_color = base_color
@@ -32,13 +31,13 @@ class Visualization:
 
         return mat
 
-    def __init__(self, maps: List[List[MapVisualization]]):
+    def __init__(self, maps: List[List[SceneObject]], name: str = ""):
         app = o3d.visualization.gui.Application.instance
         app.initialize()
 
         gui = o3d.visualization.gui
         window = gui.Application.instance.create_window(
-            "Two scenes", 1025, 512)
+            name, 1025, 512)
         widgets = []
 
         def on_mouse(m):
@@ -87,38 +86,44 @@ def random_color(alpha: bool = False) -> List[float]:
 
 
 def visualize_point_cloud(point_cloud: PointCloud):
-    Visualization(
-        [[MapVisualization(point_cloud.to_o3d(), Visualization.pcd_mat(pt_size=6))]])
+    MultiViewScene(
+        [[SceneObject(point_cloud.to_o3d(), MultiViewScene.pcd_mat(pt_size=6))]])
+
 
 def visualize_point_clouds(point_clouds: List[PointCloud]):
-    Visualization(
-        [[MapVisualization(point_cloud.to_o3d(), Visualization.pcd_mat(pt_size=6))] for point_cloud in point_clouds])
+    MultiViewScene(
+        [[SceneObject(point_cloud.to_o3d(), MultiViewScene.pcd_mat(pt_size=6))] for point_cloud in point_clouds])
 
 
 def visualize_voxel_grid(map: VoxelGrid, color=True):
     pcd_map = map.to_pcd(color=color).to_o3d()
-    vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd_map, map.cell_size)
-    
-    Visualization([
-        [MapVisualization(vg_map, Visualization.pcd_mat(pt_size=6))]
+    vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(
+        pcd_map, map.cell_size)
+
+    MultiViewScene([
+        [SceneObject(vg_map, MultiViewScene.pcd_mat(pt_size=6))]
     ])
-    
+
+
 def visualize_visibility(map: VoxelGrid, origins):
     pcd_map = map.to_pcd(color=False).to_o3d()
-    vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd_map, map.cell_size)
-    
+    vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(
+        pcd_map, map.cell_size)
+
     origin_map = o3d.geometry.PointCloud()
     origin_map.points = o3d.utility.Vector3dVector(origins)
-    
-    Visualization([
-        [MapVisualization(vg_map, Visualization.pcd_mat(pt_size=6)), MapVisualization(origin_map, Visualization.pcd_mat(pt_size=24, base_color=[1,0,0,1]))]
+
+    MultiViewScene([
+        [SceneObject(vg_map, MultiViewScene.pcd_mat(pt_size=6)),
+         SceneObject(origin_map, MultiViewScene.pcd_mat(pt_size=24, base_color=[1, 0, 0, 1]))]
     ])
-    
+
+
 def visualize_htmap(map):
     from model.topometric_map import Hierarchy
 
-    Visualization([
-        [MapVisualization(o, Visualization.pcd_mat(pt_size=6))
+    MultiViewScene([
+        [SceneObject(o, MultiViewScene.pcd_mat(pt_size=6))
          for o in map.to_o3d(Hierarchy.ROOM)[0]]
     ])
 
@@ -126,30 +131,26 @@ def visualize_htmap(map):
 def visualize_map_merge(map_a, map_b):
     from model.topometric_map import Hierarchy
 
-    rooms_a = map_a.get_node_level(Hierarchy.ROOM)
-    rooms_b = map_b.get_node_level(Hierarchy.ROOM)
-
-    visualization = Visualization([
+    MultiViewScene([
         # Topometric map A visualization at room level
-        [MapVisualization(o, Visualization.pcd_mat(pt_size=6)) for o in map_a.to_o3d(Hierarchy.ROOM)[0]] +
-        [MapVisualization(o, Visualization.pcd_mat()) for o in map_a.to_o3d(Hierarchy.ROOM)[2]] +
+        [SceneObject(o, MultiViewScene.pcd_mat(pt_size=6)) for o in map_a.to_o3d()[0]] +
+        [SceneObject(o, MultiViewScene.pcd_mat()) for o in map_a.to_o3d()[2]] +
 
         # Topometric map B visualization at room level
-        [MapVisualization(o, Visualization.pcd_mat(pt_size=6)) for o in map_b.to_o3d(Hierarchy.ROOM)[0]] +
-        [MapVisualization(o, Visualization.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
+        [SceneObject(o, MultiViewScene.pcd_mat(pt_size=6)) for o in map_b.to_o3d()[0]] +
+        [SceneObject(o, MultiViewScene.pcd_mat()) for o in map_b.to_o3d()[2]
          ],
     ])
 
 
-def visualize_matches(map_a, map_b, matches):
+def visualize_matches(map_a, map_b, matches, colors=None):
     from model.topometric_map import Hierarchy
 
     rooms_a = map_a.get_node_level(Hierarchy.ROOM)
     rooms_b = map_b.get_node_level(Hierarchy.ROOM)
 
-    print("Visualizing matches")
     line_set = o3d.geometry.LineSet()
-    points, lines = [], []
+    points, lines, line_colors = [], [], []
 
     for i, n in enumerate(matches):
         room_a, room_b = n
@@ -160,21 +161,27 @@ def visualize_matches(map_a, map_b, matches):
         points.append(m_b.geometry.centroid())
         lines.append((i*2, i*2 + 1))
 
+        if colors:
+            line_colors.append(colors[i])
+
     line_set.points = o3d.utility.Vector3dVector(points)
     line_set.lines = o3d.utility.Vector2iVector(lines)
 
-    viz = Visualization([
-        # Topometric map A visualization at room level
-        [MapVisualization(o, Visualization.pcd_mat(pt_size=6)) for o in map_a.to_o3d(Hierarchy.ROOM)[0]] +
-        # [MapViz(map_a.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
-        [MapVisualization(o, Visualization.pcd_mat()) for o in map_a.to_o3d(Hierarchy.ROOM)[2]] +
+    if colors:
+        line_set.colors = o3d.utility.Vector3dVector(line_colors)
 
-        [MapVisualization(line_set, Visualization.graph_mat(color=[0, 0, 1, 1]))] +
+    MultiViewScene([
+        # Topometric map A visualization at room level
+        [SceneObject(o, MultiViewScene.pcd_mat(pt_size=6, base_color=[1, 1, 1, 0.5])) for o in map_a.to_o3d()[0]] +
+        # [MapViz(map_a.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
+        [SceneObject(o, MultiViewScene.pcd_mat(base_color=[1, 1, 1, 0.5])) for o in map_a.to_o3d()[2]] +
+
+        [SceneObject(line_set, MultiViewScene.graph_mat(color=[0, 0, 1, 1]))] +
 
         # Topometric map B visualization at room level
-        [MapVisualization(o, Visualization.pcd_mat(pt_size=6)) for o in map_b.to_o3d(Hierarchy.ROOM)[0]] +
+        [SceneObject(o, MultiViewScene.pcd_mat(pt_size=6, base_color=[1, 1, 1, 0.5])) for o in map_b.to_o3d()[0]] +
         # [MapViz(map_b.to_o3d(Hierarchy.ROOM)[1], Viz.graph_mat())] +
-        [MapVisualization(o, Visualization.pcd_mat()) for o in map_b.to_o3d(Hierarchy.ROOM)[2]
+        [SceneObject(o, MultiViewScene.pcd_mat(base_color=[1, 1, 1, 0.5])) for o in map_b.to_o3d()[2]
          ],
     ])
 

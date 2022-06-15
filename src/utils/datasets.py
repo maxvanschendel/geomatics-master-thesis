@@ -27,7 +27,7 @@ s3dis_area_3_dataset = Dataset(
     point_cloud="../data/s3dis/area_3/area_3.ply",
     graph="../data/s3dis/area_3/area_3_graph.csv",
     trajectories=("../data/s3dis/area_3/area_3_trajectory_01.csv",
-                #   "../data/s3dis/area_3/area_3_trajectory_02.csv",
+                  "../data/s3dis/area_3/area_3_trajectory_02.csv",
                 #   "../data/s3dis/area_3/area_3_trajectory_03.csv",
                 #   "../data/s3dis/area_3/area_3_trajectory_04.csv"
                 )

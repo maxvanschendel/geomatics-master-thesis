@@ -1,7 +1,7 @@
 from processing.parameters import *
 from processing.pre_process import *
 from processing.map_extract import *
-from processing.map_match import *
+from processing.map_match import match
 from processing.map_fuse import *
 from evaluation.map_extract_performance import *
 from evaluation.map_match_performance import *
@@ -12,18 +12,20 @@ import logging
 import multiprocessing
 
 cpu_count = multiprocessing.cpu_count()
+logging.getLogger().setLevel(logging.INFO)
 
-def run():
+def run(**kwargs):
     """ 
     Pipeline entrypoint, executes steps in order using the provided configuration. 
     """
     
-    logging.info(f'Simulating scans')
+    logging.info(f'Reading ground truth data from {pipeline_config.ground_truth.point_cloud}')
     ground_truth = TopometricMap.from_segmented_point_cloud(pipeline_config.ground_truth.point_cloud, 
                                                             pipeline_config.ground_truth.graph, 
                                                             VoxelGrid.ground_truth_attr, 
                                                             map_extract_config.leaf_voxel_size)
     
+    logging.info(f'Simulating scans')
     partial_maps, ground_truth_transforms = simulate_partial_maps(PointCloud.read_ply(pipeline_config.ground_truth.point_cloud), 
                                                                   read_trajectory(pipeline_config.ground_truth.trajectories), 
                                                                   map_extract_config.isovist_range,

@@ -63,7 +63,7 @@ def fuse(matches, draw_result: bool = True) -> Dict[Tuple[TopometricMap, Topomet
 
         # Cluster similar transforms into transform hypotheses
         # Assign unclustered transforms (label=-1) their own unique cluster
-        transformation_clusters = cluster_transform(match_transforms, max_eps=.1, min_samples=1)
+        transformation_clusters = cluster_transform(match_transforms, max_eps=5, min_samples=1)
         transformation_clusters = replace_with_unique(transformation_clusters, -1)
 
         for cluster in np.unique(transformation_clusters):

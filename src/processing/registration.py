@@ -1,8 +1,7 @@
 from model.point_cloud import PointCloud
 
 import numpy as np
-import torch
-from torch import from_numpy as as_tensor
+
 
 from utils.validation import kwargs_valid
 
@@ -22,11 +21,12 @@ def deep_closest_point(source: PointCloud, target: PointCloud, iterations: int =
 		np.array: 4x4 transformation matrix which aligns the source with the target point cloud.
 	"""
 
-	if not kwargs_valid(['pointer', 'head'], kwargs):
-		raise ValueError(
-			'Missing required keyword arguments for Deep Closest Point registration.')
-
+	import torch
+	from torch import from_numpy as as_tensor
 	from learning3d.models import DCP, DGCNN
+ 
+	torch.cuda.empty_cache()
+	device = torch.device("cuda")
 	
 	# Number of points must be equal for both point clouds
 	# so we remove the additional points from the larger point cloud
@@ -34,14 +34,14 @@ def deep_closest_point(source: PointCloud, target: PointCloud, iterations: int =
 
 	# Convert numpy array point clouds to Torch tensor
 	pts_source = as_tensor(
-		source.points[:n_pts, :][np.newaxis, ...]).float()
+		source.points[:n_pts, :][np.newaxis, ...]).float().to(device)
 	pts_target = as_tensor(
-		target.points[:n_pts, :][np.newaxis, ...]).float()
-
+		target.points[:n_pts, :][np.newaxis, ...]).float().to(device)
+ 
 	# load DCP model
-	dgcnn = DGCNN(emb_dims=512)
-	dcp = DCP(feature_model=dgcnn, cycle=False)
-	dcp.load_state_dict(torch.load(dcp_model, map_location=torch.device('cpu')), strict=False)
+	dgcnn = DGCNN(emb_dims=512).to(device)
+	dcp = DCP(feature_model=dgcnn, cycle=True).to(device)
+	dcp.load_state_dict(torch.load(dcp_model), strict=False)
 
 	# iteratively refine registration.
 	for _ in range(iterations):
@@ -49,7 +49,7 @@ def deep_closest_point(source: PointCloud, target: PointCloud, iterations: int =
 		pts_source = dcp_registration['transformed_source']
 
 	# Get 4x4 transformation matrix from results
-	estimated_transformation = dcp_registration['est_T'].detach().numpy()
+	estimated_transformation = dcp_registration['est_T'].cpu().detach().numpy()
 	return estimated_transformation
 
 
@@ -61,7 +61,7 @@ def normal_iterative_closest_point(source: PointCloud, target: PointCloud, itera
 	raise NotImplementedError()
 
 
-def registration(source: PointCloud, target: PointCloud, iterations: int = 5, algo: str = 'dcp', **kwargs) -> np.array:
+def registration(source: PointCloud, target: PointCloud, iterations: int = 1, algo: str = 'dcp', **kwargs) -> np.array:
 	"""Register two point clouds (find 4x4 transformation matrix that brings them into alignment) using various existing methods.
 
 	Args:
