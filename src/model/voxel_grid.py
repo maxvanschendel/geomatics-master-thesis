@@ -50,14 +50,13 @@ class VoxelGrid:
         # Easy lookup from Morton code to voxel index
         self.morton_index = {morton_code(
             v): i for i, v in enumerate(self.voxels)}
-        
 
     def clone(self) -> VoxelGrid:
         return deepcopy(self)
-    
+
     def generate_svo(self):
         return SVO.from_voxels(self.voxels.keys(), self.cell_size/2)
-    
+
     @staticmethod
     def merge(voxel_grids: List[VoxelGrid]) -> VoxelGrid:
         """Takes a list of voxels and merges them into a single voxel grid containing all voxels
@@ -72,22 +71,23 @@ class VoxelGrid:
         Returns:
             VoxelGrid: _description_
         """
-        
+
         if len(voxel_grids) == 0:
             raise ValueError("Can't merge 0 voxel grids.")
-        
+
         # check if voxel grids can be merged, voxel grids with differing voxel sizes or origins cannot be merged
         cell_sizes = [vg.cell_size for vg in voxel_grids]
-        origins = [tuple(vg.origin) for vg in voxel_grids] 
-        
+        origins = [tuple(vg.origin) for vg in voxel_grids]
+
         if not all_same(cell_sizes) or not all_same(origins):
-            raise ValueError("All input voxel grids must have same origin and voxel size when  merging.")
-        
+            raise ValueError(
+                "All input voxel grids must have same origin and voxel size when  merging.")
+
         # sum up the voxels of each voxel grid
         voxel_grid = VoxelGrid(cell_sizes[0], origins[0])
         for vg in voxel_grids:
             voxel_grid += vg
-            
+
         # after merging all voxel grids compute a new sparse voxel octree
         voxel_grid.svo = voxel_grid.generate_svo()
         return voxel_grid
@@ -162,12 +162,15 @@ class VoxelGrid:
     def intersect(self, other: VoxelGrid) -> Set[Tuple[int, int, int]]:
         return self.voxels.keys() & other.voxels.keys()
 
+    def union(self, other: VoxelGrid) -> Set[Tuple[int, int, int]]:
+        return self.voxels.keys() | other.voxels.keys()
+
     def subset(self, func: Lambda, **kwargs) -> VoxelGrid:
         filtered_voxels = self.filter(func, **kwargs)
         voxel_dict = {voxel: self.voxels[voxel] for voxel in filtered_voxels}
 
         return VoxelGrid(deepcopy(self.cell_size), deepcopy(self.origin), voxel_dict)
-    
+
     def voxel_subset(self, voxels):
         return VoxelGrid(deepcopy(self.cell_size),
                          deepcopy(self.origin),
@@ -176,12 +179,7 @@ class VoxelGrid:
     def for_each(self, func: Lambda, **kwargs) -> None:
         for voxel in self.voxels:
             func(voxel, **kwargs)
-            
-    def color_by_attr(self, attr: str, cmap):
-        unique_values = self.unique_attr(attr)
-        
-        coloured_voxel_grid = self.clone()
-        
+
     def set_attr(self, voxel, attr, val):
         self.voxels[voxel][attr] = val
 
@@ -296,12 +294,14 @@ class VoxelGrid:
         border_voxel_grid = self.subset(lambda v: v in border_voxels)
         return border_voxel_grid
 
-    def split_by_attr(self, attr) -> List[VoxelGrid]:
+    def split_by_attr(self, attr, get_attr=False) -> List[VoxelGrid]:
         split = []
         for unique_attr in self.unique_attr(attr):
             attr_subset = self.subset(
                 lambda v: attr in self[v] and self[v][attr] == unique_attr)
-            split.append(attr_subset)
+
+            split.append(
+                (attr_subset, unique_attr) if get_attr else attr_subset)
 
         return split
 
@@ -322,7 +322,7 @@ class VoxelGrid:
     def bbox(self) -> np.array:
         centroids = self.voxel_centroids()
         min_bbox, max_bbox = centroids.min(axis=0), centroids.max(axis=0)
-        
+
         return np.array([min_bbox, max_bbox])
 
     def get_kernel(self, voxel: Tuple[int, int, int], kernel: VoxelGrid) -> List[Tuple[int, int, int]]:
@@ -345,7 +345,7 @@ class VoxelGrid:
         Returns:
             List[Tuple[int, int, int]]: voxels within sphere
         """
-        
+
         radius_morton = self.svo.radius_search(p - self.origin, r)
         return [tuple(v) for v in radius_morton]
 
@@ -358,7 +358,7 @@ class VoxelGrid:
         Returns:
             List[Tuple[int, int, int]]: voxels within bounding box
         """
-        
+
         range_morton = self.svo.range_search(aabb - self.origin)
         return [tuple(v) for v in range_morton]
 
@@ -373,7 +373,7 @@ class VoxelGrid:
         Returns:
             List[VoxelGrid]: connected components
         """
-        
+
         graph_representation = self.to_graph(kernel)
         components = graph_representation.connected_components()
         components_voxel = [self.subset(lambda v: v in c) for c in components]
@@ -437,10 +437,9 @@ class VoxelGrid:
                     occurances = val
 
             max_occurences[pos] = occurances
-            
-    def jaccard_index(self):
-        # TODO: IMPLEMENTATION
-        pass
+
+    def jaccard_index(self, other):
+        return len(self.intersect(other)) / len(self.union(other))
 
     def symmetric_overlap(self, other):
         if len(self.voxels) and len(other.voxels):
@@ -473,7 +472,8 @@ class VoxelGrid:
     def dilate(self, kernel) -> VoxelGrid:
         dilated_voxels = set(self.voxels.keys())
         for v in self.voxels:
-            kernel_voxels = {tuple(v + (k - kernel.origin)) for k in kernel.voxels}
+            kernel_voxels = {tuple(v + (k - kernel.origin))
+                             for k in kernel.voxels}
             dilated_voxels.update(kernel_voxels)
 
         return self.mutate({v: {} for v in dilated_voxels})
@@ -490,8 +490,9 @@ class VoxelGrid:
         # Get all voxels within range (max_dist) of the isovist
         # For each voxel within range, get a vector pointing from origin to the voxel
         radius_voxels = set(self.radius_search(origin, max_dist))
-        directions = np.array([normalize(self.voxel_centroid(v) - origin) for v in radius_voxels])
-        
+        directions = np.array(
+            [normalize(self.voxel_centroid(v) - origin) for v in radius_voxels])
+
         if len(directions) == 0:
             logging.warning(f"No voxels within radius {max_dist}")
             return self.mutate({})
@@ -506,12 +507,14 @@ class VoxelGrid:
         # This is done in the coordinate system of the voxel grid, so ray origin must
         # be transformed first.
         threadsperblock = 512
-        blockspergrid = (len(directions) + (threadsperblock - 1)) // threadsperblock
+        blockspergrid = (len(directions) +
+                         (threadsperblock - 1)) // threadsperblock
         VoxelGrid.fast_voxel_traversal[blockspergrid, threadsperblock](
             origin - self.origin, directions, self.cell_size, voxel_matrix, intersections)
 
         visible_voxels = set([tuple(i) for i in intersections])
-        visible_voxel_grid = self.subset(lambda v: v in visible_voxels and v != (0, 0, 0))
+        visible_voxel_grid = self.subset(
+            lambda v: v in visible_voxels and v != (0, 0, 0))
         return visible_voxel_grid
 
     @cuda.jit
@@ -560,7 +563,7 @@ class VoxelGrid:
             t_delta_y = cell_size/m*step_y
             t_delta_z = cell_size/n*step_z
 
-            while   x_size > cur_vox_x >= 0 and \
+            while x_size > cur_vox_x >= 0 and \
                     y_size > cur_vox_y >= 0 and \
                     z_size > cur_vox_z >= 0:
 
@@ -605,11 +608,12 @@ class VoxelGrid:
 
     def to_pcd(self, color=False) -> model.point_cloud.PointCloud:
         points = [self.voxel_centroid(v) for v in self.voxels]
-        attributes = {attr: np.array(list(self.list_attr(attr))) for attr in self.attributes()}
+        attributes = {attr: np.array(list(self.list_attr(attr)))
+                      for attr in self.attributes()}
         colors = list(self.list_attr(VoxelGrid.color_attr)) if color else []
 
-        return model.point_cloud.PointCloud(np.array(points), 
-                                            colors=colors, 
+        return model.point_cloud.PointCloud(np.array(points),
+                                            colors=colors,
                                             attributes=attributes)
 
     def to_graph(self, kernel: Kernel = None) -> SpatialGraph:
@@ -654,7 +658,7 @@ class Kernel(VoxelGrid):
         r = d/2
         cylinder_voxels = set()
         for x, y, z in product(range(d), range(h), range(d)):
-            
+
             dist = np.linalg.norm([x+0.5-r, z+0.5-r])
             if dist <= r:
                 cylinder_voxels.add((x, y, z))

@@ -189,7 +189,7 @@ def mutual_visibility_graph(isovists) -> np.array:
 
     pairs = combinations(range(n_isovist), r=2)
     for i, j in pairs:
-        overlap = isovists[i].symmetric_overlap(isovists[j])
+        overlap = isovists[i].jaccard_index(isovists[j])
 
         # Mutual visibility is symmetric between isovists
         distance_matrix[i][j] = 1 - overlap

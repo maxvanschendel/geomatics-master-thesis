@@ -263,7 +263,7 @@ class PointCloud:
     def to_tensor(self):
         from torch import as_tensor
         
-        as_tensor(self.points[:, :][np.newaxis, ...]).float()
+        return as_tensor(self.points[:, :][np.newaxis, ...]).float()
 
 class Trajectory(PointCloud):
     pass

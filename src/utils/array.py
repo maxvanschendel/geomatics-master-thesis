@@ -64,3 +64,20 @@ def random_select(array):
 
 def all_same(array) -> bool:
     return all(p == array[0] for p in array)
+
+def one_to_one(distance: np.array):
+    matches = [(distance[x, y], (x, y)) for x, y in np.ndindex((distance.shape))]
+
+    one_to_one = []
+    matched = set()
+
+    for d, m in sorted(matches):
+        node_a, node_b = m
+
+        if node_a not in matched and node_b not in matched:
+            one_to_one.append((d, m))
+
+            matched.add(node_a)
+            matched.add(node_b)
+
+    return one_to_one

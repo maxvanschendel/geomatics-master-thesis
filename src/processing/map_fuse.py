@@ -42,7 +42,7 @@ def fuse_geometry(map_a: TopometricMap, map_b: TopometricMap,
     pass
 
 
-def fuse(matches, draw_result: bool = True) -> Dict[Tuple[TopometricMap, TopometricMap], np.array]:
+def fuse(matches, draw_result: bool = True, registration_method: str = 'pnlk') -> Dict[Tuple[TopometricMap, TopometricMap], np.array]:
     """
     From a set of matches between nodes in topometric maps,
     identify best transform to bring maps into alignment and fuse them at topological level.
@@ -56,16 +56,20 @@ def fuse(matches, draw_result: bool = True) -> Dict[Tuple[TopometricMap, Topomet
         match_transforms = [registration(
                                 source=a.geometry.to_pcd(),
                                 target=b.geometry.to_pcd(),
-                                algo='dcp',
+                                algo=registration_method,
                                 voxel_size=a.geometry.cell_size,
                                 pointer='transformer', head='svd')
                             for a, b in node_matches.keys()]
-
-        # Cluster similar transforms into transform hypotheses
-        # Assign unclustered transforms (label=-1) their own unique cluster
-        transformation_clusters = cluster_transform(match_transforms, max_eps=5, min_samples=1)
-        transformation_clusters = replace_with_unique(transformation_clusters, -1)
-
+        
+        
+        if len(match_transforms) > 1:
+            # Cluster similar transforms into transform hypotheses
+            # Assign unclustered transforms (label=-1) their own unique cluster
+            transformation_clusters = cluster_transform(match_transforms, max_eps=5, min_samples=1)
+            transformation_clusters = replace_with_unique(transformation_clusters, -1)
+        else:
+            transformation_clusters = np.zeros((1))
+            
         for cluster in np.unique(transformation_clusters):
             # For every transformation cluster, compute the mean transformation
             # then apply this transformation to the partial maps.
@@ -78,5 +82,6 @@ def fuse(matches, draw_result: bool = True) -> Dict[Tuple[TopometricMap, Topomet
             map_b_transformed = map_b.transform(mean_transform)
 
             visualize_map_merge(map_a, map_b_transformed)
+            
                 
     return transforms
