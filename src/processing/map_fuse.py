@@ -42,7 +42,7 @@ def fuse_geometry(map_a: TopometricMap, map_b: TopometricMap,
     pass
 
 
-def fuse(matches, draw_result: bool = True, registration_method: str = 'pnlk') -> Dict[Tuple[TopometricMap, TopometricMap], np.array]:
+def fuse(matches, registration_method: str) -> Dict[Tuple[TopometricMap, TopometricMap], np.array]:
     """
     From a set of matches between nodes in topometric maps,
     identify best transform to bring maps into alignment and fuse them at topological level.

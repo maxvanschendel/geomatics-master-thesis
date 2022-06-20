@@ -34,6 +34,8 @@ class Dataset:
                                 "../data/cslam/flat/flat_trajectory_02.csv"),
     partial_maps: Tuple[str] = ("../data/cslam/flat/flat_partial_01.pickle",
                                 "../data/cslam/flat/flat_partial_02.pickle"),
+    topometric_maps: Tuple[str] = ("../data/cslam/flat/flat_topo_01.pickle",
+                                   "../data/cslam/flat/flat_topo_02.pickle"),
 
 
 cslam_flat_dataset = Dataset(
@@ -43,21 +45,29 @@ cslam_flat_dataset = Dataset(
                   "../data/cslam/flat/flat_trajectory_02.csv"),
     partial_maps=("../data/cslam/flat/flat_partial_01.pickle",
                   "../data/cslam/flat/flat_partial_02.pickle"),
+    topometric_maps=("../data/cslam/flat/flat_topo_01.pickle",
+                     "../data/cslam/flat/flat_topo_02.pickle"),
 )
 
 s3dis_area_3_dataset = Dataset(
     point_cloud="../data/s3dis/area_3/area_3.ply",
     graph="../data/s3dis/area_3/area_3_graph.csv",
+
     trajectories=("../data/s3dis/area_3/area_3_trajectory_01.csv",
                   "../data/s3dis/area_3/area_3_trajectory_02.csv",
                   #   "../data/s3dis/area_3/area_3_trajectory_03.csv",
                   #   "../data/s3dis/area_3/area_3_trajectory_04.csv"
                   ),
     partial_maps=("../data/s3dis/area_3/area_3_partial_01.pickle",
-                "../data/s3dis/area_3/area_3_partial_02.pickle",
-                #   "../data/s3dis/area_3/area_3_partial_03.pickle",
-                #   "../data/s3dis/area_3/area_3_partial_04.pickle"
-                )
+                  "../data/s3dis/area_3/area_3_partial_02.pickle",
+                  #   "../data/s3dis/area_3/area_3_partial_03.pickle",
+                  #   "../data/s3dis/area_3/area_3_partial_04.pickle"
+                  ),
+    topometric_maps=("../data/s3dis/area_3/area_3_topo_01.pickle",
+                     "../data/s3dis/area_3/area_3_topo_02.pickle",
+                     #   "../data/s3dis/area_3/area_3_topo_03.pickle",
+                     #   "../data/s3dis/area_3/area_3_topo_04.pickle"
+                     )
 )
 
 

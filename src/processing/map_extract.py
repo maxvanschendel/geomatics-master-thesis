@@ -22,7 +22,7 @@ from utils.visualization import visualize_htmap, visualize_voxel_grid
 from processing.parameters import MapExtractionParameters
 import logging
 
-def extract_topometric_map(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> TopometricMap:
+def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> TopometricMap:
     try:
         # Map representation that is result of map extraction
         topometric_map = TopometricMap()

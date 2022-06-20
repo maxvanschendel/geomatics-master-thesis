@@ -106,6 +106,6 @@ def match(maps: List[TopometricMap], node_model=FeatherNode, **kwargs):
                 node_matches[(map_a, map_b)][(node_a, node_b)] = d
 
             # if kwargs['visualize']:
-            visualize_matches(map_a, map_b, [m for _, m in o2o_mapping])
+            # visualize_matches(map_a, map_b, [m for _, m in o2o_mapping])
 
     return node_matches
