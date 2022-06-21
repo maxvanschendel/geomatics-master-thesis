@@ -9,6 +9,7 @@ from typing import Tuple
 
 import networkx
 import open3d as o3d
+from utils.array import one_to_one
 from utils.visualization import random_color
 from model.sparse_voxel_octree import *
 from model.voxel_grid import *
@@ -183,6 +184,27 @@ class TopometricMap():
         import pickle as pickle
         with open(fn, 'wb') as write_file:
             pickle.dump(self, write_file)
+            
+    def match_nodes(self, other: TopometricMap) -> Dict[Tuple[int, int], float]:
+        # Compute the overlap between the voxels of every segmented room
+        # and every ground truth label.
+        self_nodes = self.get_node_level(Hierarchy.ROOM)
+        other_nodes = other.get_node_level(Hierarchy.ROOM)
+        
+        n_self, n_other = len(self_nodes), len(other_nodes)
+        
+        similarity = np.zeros((n_self, n_other))
+        for i, j in product(range(n_self), range(n_other)):
+            self_node, other_node = self_nodes[i], other_nodes[j]
+            
+            # Find overlap of extracted room voxels and ground truth subset
+            jaccard = self_node.geometry.jaccard_index(other_node.geometry)
+            similarity[i, j] = jaccard
+
+        o2o = one_to_one(similarity)
+        return {o: d for d, o in o2o}
+    
+    
 
     @staticmethod
     def read(fn):
