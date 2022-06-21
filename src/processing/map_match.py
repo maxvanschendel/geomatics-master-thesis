@@ -88,9 +88,9 @@ def feature_embedding(map: TopometricMap, node_model, embed_dim=1024) -> np.arra
 def match(maps: List[TopometricMap], node_model=FeatherNode, **kwargs):
     features = {map: feature_embedding(map, None, 1024) for map in maps}
 
-    node_matches = dict()
+    matches = dict()
     for map_a, map_b in combinations(maps, 2):
-        node_matches[(map_a, map_b)] = {}
+        matches[(map_a, map_b)] = {}
 
         if map_a != map_b:
             f_a, f_b = features[map_a], features[map_b]
@@ -103,9 +103,6 @@ def match(maps: List[TopometricMap], node_model=FeatherNode, **kwargs):
             for d, m in o2o_mapping:
                 node_a = rooms_a[m[0]]
                 node_b = rooms_b[m[1]]
-                node_matches[(map_a, map_b)][(node_a, node_b)] = d
+                matches[(map_a, map_b)][(node_a, node_b)] = d
 
-            # if kwargs['visualize']:
-            # visualize_matches(map_a, map_b, [m for _, m in o2o_mapping])
-
-    return node_matches
+    return matches
