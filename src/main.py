@@ -6,7 +6,6 @@ from evaluation.map_extract_performance import *
 from evaluation.map_match_performance import *
 from evaluation.map_fuse_performance import *
 from utils.datasets import *
-from typing import Callable
 
 import logging
 import multiprocessing
@@ -45,8 +44,10 @@ def run(**kwargs):
         logging.info(f'Loading partial maps')
         partial_maps = [PartialMap.read(fn) for fn in kwargs["partial_maps"]]
     
+    
     partial_maps = [p.voxel_grid for p in partial_maps]
     ground_truth_transforms = [p.transform for p in partial_maps]
+    
     
     # Either extract partial topometric maps from partial maps or load them from files
     if kwargs["extract"]:
@@ -59,27 +60,39 @@ def run(**kwargs):
             write_multiple(kwargs["topometric_maps"], topometric_maps, lambda p, fn: p.write(fn))
     else:
         topometric_maps = [TopometricMap.read(fn) for fn in kwargs["topometric_maps"]]
-    
-    
-    logging.info('Matching partial maps')
-    matches = match(topometric_maps, map_merge_config)
-    
-    
-    
-    logging.info('Fusing partial maps')
-    global_map, result_transforms = fuse(matches, 'pnlk')
-    
-    
-    
-    if kwargs["analyse_performance"]:
-        logging.info(f'Reading ground truth data from {kwargs["point_cloud"]}')
+        
+    if kwargs["analyse_extract"]:
         ground_truth = TopometricMap.from_segmented_point_cloud(kwargs["point_cloud"], 
                                                                 kwargs["graph"], 
                                                                 map_extract_config.leaf_voxel_size)
+        for t in topometric_maps:
+            map_extract_perf = mean_similarity(ground_truth, t)
+            logging.info(f"Map extract performance: {map_extract_perf}")
     
-        map_extract_perf = analyse_extract_performance(ground_truth, global_map)
-        map_match_perf = analyse_match_performance(ground_truth, topometric_maps, matches)
+    
+    # Map matching
+    if kwargs["match"]:
+        logging.info('Matching partial maps')
+        matches = match(topometric_maps, map_merge_config)
+    else:
+        raise NotImplementedError("Not implemented")
+    
+    if kwargs["analyse_match"]:
+        for a, b in matches.keys():
+            map_match_perf = analyse_match_performance(a, b, ground_truth, matches[(a,b)])
+            logging.info(f'Map match performance for partial maps {a} and {b}: {map_match_perf}')
+    
+    
+    # Map fusion
+    if kwargs["fuse"]:
+        logging.info('Fusing partial maps')
+        global_map, result_transforms = fuse(matches, 'pnlk')
+    else:
+        raise NotImplementedError("Not implemented")
+    
+    if kwargs["analyse_fuse"]:
         map_fuse_perf = analyse_fusion_performance(global_map, ground_truth, result_transforms, ground_truth_transforms)
+        logging.info(f'Map fusion performance: {map_fuse_perf}')
        
     
 if __name__ == "__main__":
@@ -93,9 +106,20 @@ if __name__ == "__main__":
     run(
         simulate_partial_maps = False,
         write_partial_maps = True,
-        analyse_performance = True,
-        extract = True,
+        
+        extract = False,
         write_extract = True,
+        
+        match = True,
+        
+        fuse = False,
+        write_fuse = False,
+        
+        analyse_extract = True,
+        analyse_match = True,
+        analyse_fuse = True,
+        
+        analyse_performance = True,
         
         partial_maps = dataset.partial_maps,
         point_cloud = dataset.point_cloud,
