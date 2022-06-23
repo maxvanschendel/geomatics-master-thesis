@@ -1,17 +1,17 @@
 from dataclasses import dataclass
+import logging
 from typing import Dict, List, Tuple
 import numpy as np
 
 from model.point_cloud import PointCloud, Trajectory
+from model.topometric_map import TopometricMap
 from model.voxel_grid import VoxelGrid
 from utils.io import *
 from utils.linalg import random_transform
 
 
-@dataclass
 class PartialMap():
     voxel_grid: VoxelGrid
-    transform: np.array
 
     def write(self, fn):
         import pickle as pickle
@@ -24,6 +24,14 @@ class PartialMap():
         with open(fn, 'rb') as read_file:
             vg = pickle.load(read_file)
         return vg
+
+
+@dataclass
+class SimulatedPartialMap(PartialMap):
+    voxel_grid: VoxelGrid
+    transform: np.array
+    point_cloud: PointCloud
+    trajectory: Trajectory
 
 
 @dataclass
@@ -81,7 +89,7 @@ def read_point_cloud(fn: str) -> PointCloud:
                                     file extension for file {fn} is not supported.")
 
 
-def simulate_partial_maps(pcd, trajectories, vis_range, voxel_size) -> List[PartialMap]:
+def simulate_partial_maps(pcd, trajectories, vis_range, voxel_size) -> List[SimulatedPartialMap]:
     # Apply a random transformation to the ground truth map for each voxel grid
     transforms = [random_transform(10, 360) for _ in trajectories]
 
@@ -97,7 +105,7 @@ def simulate_partial_maps(pcd, trajectories, vis_range, voxel_size) -> List[Part
         vis_range)
         for i, _ in enumerate(transforms)]
 
-    partial_maps = [PartialMap(simulated_scans[i], transforms[i])
+    partial_maps = [SimulatedPartialMap(simulated_scans[i], transforms[i], transformed_ground_truth[i], transformed_trajectories[i])
                     for i, _ in enumerate(transforms)]
     return partial_maps
 
@@ -114,3 +122,49 @@ def simulate_scan(voxel_grid: VoxelGrid, trajectory: Trajectory, scan_range: flo
 
 def read_trajectory(fns: List[str]) -> List[np.array]:
     return list(map(lambda fn: Trajectory.read_xyz(fn), fns))
+
+
+def simulate_create(config, kwargs):
+    logging.info(f'Simulating partial maps')
+
+    point_cloud = read_point_cloud(kwargs["point_cloud"])
+    trajectories = read_trajectory(kwargs["trajectories"])
+
+    partial_maps = simulate_partial_maps(
+        point_cloud,
+        trajectories,
+        config.isovist_range,
+        config.leaf_voxel_size)
+
+    return partial_maps
+
+
+def simulate_write(partial_maps, kwargs):
+    logging.info(f'Writing partial maps')
+    write_multiple(kwargs["partial_maps"], partial_maps,
+                   lambda p, fn: p.write(fn))
+
+
+def simulate_read(kwargs):
+    logging.info(f'Loading partial maps')
+    return [SimulatedPartialMap.read(fn) for fn in kwargs["partial_maps"]]
+
+
+def simulate_visualize(partial_maps, kwargs):
+    pass
+
+
+def aligned_ground_truth(partial_maps, voxel_size, graph):
+    logging.info(f"Preparing {len(partial_maps)} ground truth topometric maps")
+
+    def create_htmap(p): return TopometricMap.from_segmented_point_cloud(
+        p.point_cloud, graph, voxel_size)
+    truths = [create_htmap(p) for p in partial_maps]
+
+    return truths
+
+
+def write_multiple(fns, objs, write_func):
+    for i, p in enumerate(objs):
+        out_fn = fns[i]
+        write_func(p, out_fn)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from argparse import ArgumentError
+from evaluation.map_fuse_performance import analyse_fusion_performance
 
 from model.topometric_map import *
 from sklearn import cluster
@@ -50,38 +51,64 @@ def fuse(matches, registration_method: str) -> Dict[Tuple[TopometricMap, Topomet
 
     transforms = {}
     for map_a, map_b in matches.keys():
-        node_matches: Dict[Tuple[TopometricNode, TopometricNode], float] = matches[(map_a, map_b)]
-        
+        node_matches: Dict[Tuple[TopometricNode,
+                                 TopometricNode], float] = matches[(map_a, map_b)]
+
         # Find transform between both maps based on ICP registration between matched spaces
         match_transforms = [registration(
-                                source=a.geometry.to_pcd(),
-                                target=b.geometry.to_pcd(),
-                                algo=registration_method,
-                                voxel_size=a.geometry.cell_size,
-                                pointer='transformer', head='svd')
-                            for a, b in node_matches.keys()]
-        
-        
+            source=a.geometry.to_pcd(),
+            target=b.geometry.to_pcd(),
+            algo=registration_method,
+            voxel_size=a.geometry.cell_size,
+            pointer='transformer', head='svd')
+            for a, b in node_matches.keys()]
+
         if len(match_transforms) > 1:
             # Cluster similar transforms into transform hypotheses
             # Assign unclustered transforms (label=-1) their own unique cluster
-            transformation_clusters = cluster_transform(match_transforms, max_eps=5, min_samples=1)
-            transformation_clusters = replace_with_unique(transformation_clusters, -1)
+            transformation_clusters = cluster_transform(
+                match_transforms, max_eps=5, min_samples=1)
+            transformation_clusters = replace_with_unique(
+                transformation_clusters, -1)
         else:
             transformation_clusters = np.zeros((1))
-            
+
         for cluster in np.unique(transformation_clusters):
             # For every transformation cluster, compute the mean transformation
             # then apply this transformation to the partial maps.
             transform_indices = np.argwhere(transformation_clusters == cluster)
-            cluster_transforms = np.array(match_transforms)[transform_indices.T.flatten()].squeeze()
-            
-            mean_transform = np.mean(cluster_transforms, axis=2).squeeze() if len(cluster_transforms.shape) == 3 else cluster_transforms
+            cluster_transforms = np.array(match_transforms)[
+                transform_indices.T.flatten()].squeeze()
+
+            mean_transform = np.mean(cluster_transforms, axis=2).squeeze() if len(
+                cluster_transforms.shape) == 3 else cluster_transforms
             transforms[(map_a, map_b)] = mean_transform
-            
+
             map_b_transformed = map_b.transform(mean_transform)
 
             visualize_map_merge(map_a, map_b_transformed)
-            
-                
+
     return transforms
+
+
+def fuse_create(matches, kwargs):
+    logging.info('Fusing partial maps')
+    global_map, result_transforms = fuse(matches, 'pnlk')
+
+    return global_map, result_transforms
+
+
+def fuse_write(global_map, kwargs):
+    raise NotImplementedError("")
+
+
+def fuse_read(kwargs):
+    raise NotImplementedError("")
+
+
+def fuse_visualize(global_map, kwargs):
+    raise NotImplementedError("")
+
+
+def fuse_analyze(global_map, ground_truths, partial_maps, result_transforms, kwargs):
+    return analyse_fusion_performance(global_map, ground_truths, result_transforms, [p.transform for p in partial_maps])

@@ -1,4 +1,6 @@
 from processing.map_fuse import *
+from model.topometric_map import TopometricMap
+import numpy as np
 
 
 def analyse_fusion_performance(result_global_map: TopometricMap, target_global_map: TopometricMap,

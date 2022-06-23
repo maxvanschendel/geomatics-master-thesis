@@ -34,7 +34,7 @@ class EdgeType(Enum):
 
 class TopometricMap():
     def __init__(self):
-        self.graph = networkx.DiGraph()
+        self.graph = networkx.Graph()
 
     def nodes(self, data: bool = True):
         return self.graph.nodes(data)
@@ -62,11 +62,11 @@ class TopometricMap():
     def get_edge_type(self, edge_type) -> List[Tuple[int, int]]:
         return [(u, v) for u, v, e in self.edges() if e['edge_type'] == edge_type]
 
-    def get_node_level(self, level):
+    def get_node_level(self, level=Hierarchy.ROOM):
         return [n for n, data in self.nodes() if data['node_level'] == level]
     
     def incident_edges(self, node):
-        return self.graph.edges(node, data=True)
+        return self.edges(node, data=True)
     
     def to_voxel_grid(self):
         return VoxelGrid.merge(self.geometry())
@@ -74,17 +74,18 @@ class TopometricMap():
     def geometry(self):
         return [n.geometry for n in self.nodes(False)]
     
-    def to_o3d(self, level=Hierarchy.ROOM):
+    def to_o3d(self, level=Hierarchy.ROOM, randomize_color: bool = True, voxel: bool = True):
         nodes = self.get_node_level(level)
         nodes_geometry = [node.geometry for node in nodes]
-        nodes_o3d = [geometry.to_pcd(color=True).to_o3d()
-                     for geometry in nodes_geometry]
+        nodes_o3d = [geometry.to_pcd(color=True).to_o3d() for geometry in nodes_geometry]
 
-        for n in nodes_o3d:
-            n.paint_uniform_color(random_color())
+        if randomize_color:
+            for n in nodes_o3d:
+                n.paint_uniform_color(random_color())
             
-        nodes_o3d = [o3d.geometry.VoxelGrid.create_from_point_cloud(
-            pcd, nodes_geometry[i].cell_size) for i, pcd in enumerate(nodes_o3d)]
+        if voxel:
+            nodes_o3d = [o3d.geometry.VoxelGrid.create_from_point_cloud(
+                pcd, nodes_geometry[i].cell_size) for i, pcd in enumerate(nodes_o3d)]
 
         points, lines = [node.geometry.centroid() for node in nodes], []
         for i, n in enumerate(nodes):
@@ -149,21 +150,17 @@ class TopometricMap():
         savefig(fn)
 
     @staticmethod
-    def from_segmented_point_cloud(geometry_fn: str, topology_fn: str, voxel_size: float) -> TopometricMap:
-        from utils.datasets import read_point_cloud
-
+    def from_segmented_point_cloud(point_cloud, topology_fn: str, voxel_size: float) -> TopometricMap:
         # Output topometric map that file data will be added to
         topometric_map = TopometricMap()
 
-        # Load point cloud from ply file and voxelize with given voxel size
-        point_cloud = read_point_cloud(geometry_fn)
+        # voxelize with given voxel size
         voxel_grid = point_cloud.voxelize(voxel_size)
 
         # Split voxel grid by room attribute and create nodes from them, store a mapping from attribute value to node index
         # to create the edges later
         split_voxel_grid = voxel_grid.split_by_attr(VoxelGrid.ground_truth_attr, True)
-        attr_to_node = {attr: TopometricNode(
-            Hierarchy.ROOM, vg) for vg, attr in split_voxel_grid}
+        attr_to_node = {attr: TopometricNode(geometry=vg) for vg, attr in split_voxel_grid}
 
         nodes = attr_to_node.values()
         topometric_map.add_nodes(nodes)
@@ -186,10 +183,12 @@ class TopometricMap():
             pickle.dump(self, write_file)
             
     def match_nodes(self, other: TopometricMap) -> Dict[Tuple[int, int], float]:
+        from scipy.optimize import linear_sum_assignment
+        
         # Compute the overlap between the voxels of every segmented room
         # and every ground truth label.
-        self_nodes = self.get_node_level(Hierarchy.ROOM)
-        other_nodes = other.get_node_level(Hierarchy.ROOM)
+        self_nodes = self.get_node_level()
+        other_nodes = other.get_node_level()
         
         n_self, n_other = len(self_nodes), len(other_nodes)
         
@@ -198,11 +197,13 @@ class TopometricMap():
             self_node, other_node = self_nodes[i], other_nodes[j]
             
             # Find overlap of extracted room voxels and ground truth subset
-            jaccard = self_node.geometry.jaccard_index(other_node.geometry)
+            jaccard = self_node.geometry.symmetric_overlap(other_node.geometry)
             similarity[i, j] = jaccard
 
-        o2o = one_to_one(similarity)
-        return {o: d for d, o in o2o}
+        i, j = linear_sum_assignment(similarity, maximize=True) 
+        bipartite_matching = list(zip(list(i), list(j)))
+            
+        return {(a, b): similarity[a, b] for a, b in bipartite_matching}
     
     
 

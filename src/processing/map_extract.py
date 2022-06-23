@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import logging
+import multiprocessing
 from collections import Counter
 from copy import deepcopy
 from itertools import combinations
-import logging
 from random import random
 from typing import List, Tuple
 
@@ -11,16 +12,49 @@ import markov_clustering as mc
 import networkx as nx
 import numpy as np
 import skopt
-
+from evaluation.map_extract_performance import mean_similarity
 from model.spatial_graph import SpatialGraph
-from model.topometric_map import (EdgeType, Hierarchy, TopometricMap,
-                                  TopometricNode)
+from model.topometric_map import Hierarchy, TopometricMap, TopometricNode
 from model.voxel_grid import Kernel, VoxelGrid
-from utils.array import replace_with_unique
-from utils.visualization import visualize_htmap, visualize_voxel_grid
+from utils.datasets import write_multiple
+from utils.visualization import visualize_htmap
 
 from processing.parameters import MapExtractionParameters
-import logging
+
+
+def extract_create(partial_maps: List[VoxelGrid], config: MapExtractionParameters, kwargs):
+    logging.info(f'Extracting {len(partial_maps)} partial topometric maps')
+    
+    cpu_count = multiprocessing.cpu_count()
+    p = multiprocessing.Pool(cpu_count)
+    
+    topometric_maps = p.starmap(extract, zip(
+        partial_maps, [config]*len(partial_maps)))
+
+    return topometric_maps
+
+
+def extract_write(topometric_maps, kwargs):
+    logging.info(f'Writing topometric maps')
+    write_multiple(kwargs["topometric_maps"],
+                   topometric_maps, lambda p, fn: p.write(fn))
+
+
+def extract_read(kwargs):
+    return [TopometricMap.read(fn) for fn in kwargs["topometric_maps"]]
+
+
+def extract_visualize(topometric_maps, kwargs):
+    for t in topometric_maps:
+        visualize_htmap(t)
+
+
+def extract_analyse(truths, topometric_maps, kwargs):
+    logging.info("Analysing topometric map extraction performance")
+    for i, t in enumerate(topometric_maps):
+        map_extract_perf = mean_similarity(truths[i], t)
+        logging.info(f"Map extract performance: {map_extract_perf}")
+
 
 def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> TopometricMap:
     try:
@@ -61,7 +95,7 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
             min_inflation=p.min_inflation,
             max_inflation=p.max_inflation
         )
-        
+
         logging.info(f'Segmenting rooms')
         map_rooms = room_segmentation(
             isovists=visibilities,
@@ -109,10 +143,10 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
             for a, b in node_edges:
                 if a != b:
                     topometric_map.add_edge(
-                        node_dict[a], node_dict[b])
+                        node_dict[a], node_dict[b], directed=False)
 
         # visualize_htmap(topometric_map)
-        
+
         return topometric_map
     except Exception as e:
         logging.error(f"Failed to extract topometric map: {e}")
@@ -243,7 +277,8 @@ def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clusterin
 
     for v in map_segmented.voxels:
         if map_segmented[v]['clusters']:
-            most_common_cluster = map_segmented[v]['clusters'].most_common(1)[0]
+            most_common_cluster = map_segmented[v]['clusters'].most_common(1)[
+                0]
             if most_common_cluster[1] > min_observations:
                 map_segmented[v][VoxelGrid.cluster_attr] = most_common_cluster[0]
 
