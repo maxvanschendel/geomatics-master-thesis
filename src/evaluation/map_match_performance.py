@@ -40,19 +40,3 @@ def analyse_match_performance(partial_a, partial_b, ground_truth_a, ground_truth
         f_1 = 0
 
     return {'accuracy': accuracy, 'precision': precision, 'recall': recall, 'f_1': f_1}
-
-
-if __name__ == '__main__':
-    map_a_fn = '../data/Stanford3dDataset_v1.2/Area_1/Area_1_merged_extract.pickle'
-    map_b_fn = '../data/Stanford3dDataset_v1.2/Area_1/Area_1_merged_extract.pickle'
-    config_fn = '../config/map_merge.yaml'
-
-    target_matches: List[(TopometricNode, TopometricNode)] = []
-
-    map_a = load_pickle(map_a_fn)
-    map_b = load_pickle(map_b_fn)
-
-    result_matches = match(map_a, map_b, False, m)
-    match_performance = (target_matches, result_matches)
-
-    print(match_performance)

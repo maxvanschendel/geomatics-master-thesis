@@ -26,7 +26,7 @@ def extract_create(partial_maps: List[VoxelGrid], config: MapExtractionParameter
     logging.info(f'Extracting {len(partial_maps)} partial topometric maps')
     
     cpu_count = multiprocessing.cpu_count()
-    p = multiprocessing.Pool(cpu_count)
+    p = multiprocessing.Pool(1)
     
     topometric_maps = p.starmap(extract, zip(
         partial_maps, [config]*len(partial_maps)))

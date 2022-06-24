@@ -33,39 +33,34 @@ def process_step(create: bool, write: bool, visualize: bool, analyse: bool,
             created = create_func(kwargs)
         except Exception as e:
             step_failed = True
-            logging.error(
-                f"Error raised when calling create func {create_func} with arguments {kwargs}: {e}")
+            raise e
 
         if write:
             try:
                 write_func(created, kwargs)
             except Exception as e:
                 step_failed = True
-                logging.error(
-                    f"Error raised when calling write func {write_func} for {created} with arguments {kwargs}: {e}")
+                raise e
     else:
         try:
             created = read_func(kwargs)
         except Exception as e:
             step_failed = True
-            logging.error(
-                f"Error raised when calling read func {read_func} with arguments {kwargs}: {e}")
+            raise e
 
     if analyse:
         try:
             analyse_func(created, kwargs)
         except Exception as e:
             step_failed = True
-            logging.error(
-                f"Error raised when calling analyse func {analyse_func} for {created} with arguments {kwargs}: {e}")
+            raise e
             
     if visualize:
         try:
             visualize_func(created, kwargs)
         except Exception as e:
             step_failed = True
-            logging.error(
-                f"Error raised when calling visualize func {visualize_func} for {created} with arguments {kwargs}: {e}")
+            raise e
             
     if step_failed:
         raise PipelineException("Pipeline step failed")

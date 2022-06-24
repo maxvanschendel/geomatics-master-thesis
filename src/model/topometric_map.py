@@ -25,6 +25,12 @@ class Hierarchy(Enum):
 class TopometricNode:
     level: Hierarchy = Hierarchy.ROOM
     geometry: VoxelGrid = None
+    
+    def __gt__(self, other):
+        return self.geometry.size > other.geometry.size
+    
+    def __lt__(self, other):
+        return other.geometry.size > self.geometry.size
 
 
 class EdgeType(Enum):
@@ -35,12 +41,15 @@ class EdgeType(Enum):
 class TopometricMap():
     def __init__(self):
         self.graph = networkx.Graph()
+        
+    def node_index(self, node):
+        return list(self.nodes(data=False)).index(node)
 
     def nodes(self, data: bool = True):
         return self.graph.nodes(data)
     
-    def edges(self, data: bool = True):
-        return self.graph.edges(data)
+    def edges(self, node, data: bool = True):
+        return self.graph.edges(node, data=data)
 
     def add_node(self, node: TopometricNode):
         self.graph.add_node(node, node_level=node.level)
@@ -59,14 +68,17 @@ class TopometricMap():
         for node_a, node_b in edges:
             self.add_edge(node_a, node_b, edge_type, directed)
 
-    def get_edge_type(self, edge_type) -> List[Tuple[int, int]]:
-        return [(u, v) for u, v, e in self.edges() if e['edge_type'] == edge_type]
+    def get_edge_type(self, edge_type, data=True) -> List[Tuple[int, int]]:
+        return [(u, v) for u, v, e in self.edges(data) if e['edge_type'] == edge_type]
 
     def get_node_level(self, level=Hierarchy.ROOM):
         return [n for n, data in self.nodes() if data['node_level'] == level]
     
-    def incident_edges(self, node):
-        return self.edges(node, data=True)
+    def incident_edges(self, node, data):
+        return self.edges(node, data=data)
+    
+    def neighbours(self, node):
+        return self.graph.neighbors(node)
     
     def to_voxel_grid(self):
         return VoxelGrid.merge(self.geometry())
@@ -176,12 +188,7 @@ class TopometricMap():
             topometric_map.add_edge(node_a, node_b, directed=False)
 
         return topometric_map
-
-    def write(self, fn):
-        import pickle as pickle
-        with open(fn, 'wb') as write_file:
-            pickle.dump(self, write_file)
-            
+    
     def match_nodes(self, other: TopometricMap) -> Dict[Tuple[int, int], float]:
         from scipy.optimize import linear_sum_assignment
         
@@ -204,12 +211,34 @@ class TopometricMap():
         bipartite_matching = list(zip(list(i), list(j)))
             
         return {(a, b): similarity[a, b] for a, b in bipartite_matching}
-    
-    
 
+    def write(self, fn):
+        import pickle as pickle
+        with open(fn, 'wb') as write_file:
+            pickle.dump(self, write_file)
+    
     @staticmethod
     def read(fn):
         import pickle as pickle
         with open(fn, 'rb') as read_file:
             topo_map = pickle.load(read_file)
         return topo_map
+    
+    def breadth_first_traversal(self, origin: TopometricNode):
+        from queue import Queue
+        
+        unvisited = Queue(0)
+        unvisited.put(origin)
+        
+        visited = set()
+        
+        while unvisited.qsize():
+            cur = unvisited.get()
+            visited.add(cur)
+            
+            cur_nbs = self.neighbours(cur)
+            for nb in cur_nbs:
+                if nb not in visited:
+                    unvisited.put(nb)
+                
+            yield cur
