@@ -81,3 +81,7 @@ def one_to_one(distance: np.array, reverse: bool = False):
             matched.add(node_b)
 
     return one_to_one
+
+def unravel_to_tuple(idx, shape):
+    return tuple(np.unravel_index(idx, shape))
+    

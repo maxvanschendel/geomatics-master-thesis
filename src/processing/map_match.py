@@ -1,19 +1,20 @@
 from __future__ import annotations
+from collections import defaultdict
+
 from itertools import combinations
+from typing import Callable
 
+from karateclub import (AE, BANE, FGSD, FSCNMF, IGE, LDP, MUSAE, SINE, TADW,
+                        TENE, FeatherGraph, FeatherNode, GeoScattering, GL2Vec,
+                        Graph2Vec, NetLSD, WaveletCharacteristic)
 
-from karateclub import (AE, BANE, FGSD, FSCNMF, IGE, LDP, MUSAE, SINE,
-                        FeatherGraph, FeatherNode, GeoScattering, GL2Vec,
-                        Graph2Vec, NetLSD, WaveletCharacteristic, TENE, TADW)
-from matplotlib import backend_bases
-from torch import nonzero
-from evaluation.map_match_performance import analyse_match_performance
-
-from model.topometric_map import *
-from sklearn.metrics.pairwise import euclidean_distances
-from utils.array import one_to_one
-from utils.visualization import visualize_matches
 from scipy.optimize import linear_sum_assignment
+from sklearn.metrics.pairwise import euclidean_distances
+
+from evaluation.map_match_performance import analyse_match_performance
+from model.topometric_map import *
+from utils.visualization import visualize_matches
+
 
 ptnet_model_fn = './learning3d/pretrained/exp_classifier/models/best_ptnet_model.t7'
 dgcnn_model_fn = './dgcnn/pretrained/model.cls.2048.t7'
@@ -22,7 +23,7 @@ dgcnn_model_fn = './dgcnn/pretrained/model.cls.2048.t7'
 def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost_matrix: np.array):
     hypothesis = set()  # Q
     visited = set()
-    
+
     pairs = {(start_pair)}
     a_nodes = map_a.get_node_level()
     b_nodes = map_b.get_node_level()
@@ -30,27 +31,30 @@ def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost
     while len(pairs):
         p_a, p_b = pairs.pop()
         hypothesis.add((p_a, p_b))
-        
+
         nbs_a, nbs_b = map_a.neighbours(p_a), map_b.neighbours(p_b)
-        
+
         if nbs_a and nbs_b:
-            nbs_a_idx = [map_a.node_index(n) for n in nbs_a if n not in visited]
-            nbs_b_idx = [map_b.node_index(n) for n in nbs_b if n not in visited]
-            
-            nbs_product = list(product(nbs_a_idx, nbs_b_idx))
-            
-            nbs_cost = np.reshape([cost_matrix[m] for m in nbs_product], (len(nbs_a_idx), len(nbs_b_idx)))
-            
-            a, b = linear_sum_assignment(nbs_cost)
-            bipartite_matching = list(zip(list(a), list(b)))
-            
-            node_matching = [(a_nodes[nbs_a_idx[i]], b_nodes[nbs_b_idx[j]]) for i, j in bipartite_matching]
-            
+            nbs_a_idx = [map_a.node_index(n)
+                         for n in nbs_a if n not in visited]
+            nbs_b_idx = [map_b.node_index(n)
+                         for n in nbs_b if n not in visited]
+
+            nbs_product = product(nbs_a_idx, nbs_b_idx)
+
+            nbs_cost = np.reshape(
+                [cost_matrix[m] for m in nbs_product], (len(nbs_a_idx), len(nbs_b_idx)))
+
+            bipartite_matching = linear_assign(nbs_cost)
+            node_matching = [(a_nodes[nbs_a_idx[i]], b_nodes[nbs_b_idx[j]])
+                             for i, j in bipartite_matching]
+
             for m_a, m_b in node_matching:
                 pairs.add((m_a, m_b))
+                
                 visited.add(m_a)
                 visited.add(m_b)
-                
+
     return hypothesis
 
 
@@ -58,6 +62,7 @@ def pointnet(pcd, dim):
     import torch
     from learning3d.models import PointNet
 
+    # load pointnet model from storage
     model = PointNet(emb_dims=dim, input_shape='bnc', use_bn=True)
     model.load_state_dict(torch.load(
         ptnet_model_fn))
@@ -79,6 +84,7 @@ def dgcnn(pcd, dim, k=75, dropout=0.5):
     from dgcnn.model import DGCNN_cls
     from torch.nn import DataParallel
 
+    # load DGCNN model from storage
     device = torch.device("cuda")
     model = DGCNN_cls(k=k, emb_dims=dim, dropout=dropout).to(device)
     model = DataParallel(model)
@@ -107,8 +113,6 @@ def graph_features():
 
 def feature_embedding(map: TopometricMap, node_model, embed_dim) -> np.array:
     from scipy import sparse
-    from torch import from_numpy
-    import networkx as nx
 
     rooms = map.get_node_level()
     room_subgraph = networkx.convert_node_labels_to_integers(
@@ -129,29 +133,43 @@ def feature_embedding(map: TopometricMap, node_model, embed_dim) -> np.array:
 
     return features
 
-
-def match(maps: List[TopometricMap], node_model=None, **kwargs):
-    from networkx.algorithms import isomorphism
+def linear_assign(m):
+    a, b = linear_sum_assignment(m)
+    bipartite_matching = list(zip(list(a), list(b)))
     
+    return bipartite_matching
+    
+
+def match(maps: List[TopometricMap], node_model: Callable = None, **kwargs):
     features = {map: feature_embedding(map, node_model, 1024) for map in maps}
 
-    matches = dict()
+    matches = defaultdict(lambda: {})
+    
     for map_a, map_b in combinations(maps, 2):
         if map_a != map_b:
-            matches[(map_a, map_b)] = {}
+            nodes_a, nodes_b = map_a.get_node_level(), map_b.get_node_level()
 
+            # compute distance in feature space between every pair of nodes
             f_a, f_b = features[map_a], features[map_b]
             
-            # compute distance between node features
             cost_matrix = euclidean_distances(f_a, f_b)
+            bipartite_matching = linear_assign(cost_matrix)
             
+            hypotheses = set()
+            for a, b in bipartite_matching:
 
-            nodes_a, nodes_b = map_a.get_node_level(), map_b.get_node_level()
-            max_similar_a, max_similar_b =  tuple(np.unravel_index(np.argmin(cost_matrix, axis=None), cost_matrix.shape))
-            a_node, b_node = nodes_a[max_similar_a], nodes_b[max_similar_b]
-            
-            hypothesis = grow_hypothesis(map_a, map_b, (a_node, b_node), cost_matrix)
-            
+                # get node with maximum similarity
+                # max_similar_a, max_similar_b = tuple(np.unravel_index(np.argmin(cost_matrix, axis=None), cost_matrix.shape))
+                hypothesis = grow_hypothesis(
+                    map_a, map_b,
+                    (nodes_a[a], nodes_b[b]),
+                    cost_matrix)
+
+                hypotheses.add(frozenset(hypothesis))
+                
+            size_sorted_hypotheses = sorted([(len(h), h) for h in hypotheses], reverse=True)
+            hypothesis = list(size_sorted_hypotheses)[1][1]
+
             for node_a, node_b in hypothesis:
                 a, b = map_a.node_index(node_a), map_b.node_index(node_b)
 
