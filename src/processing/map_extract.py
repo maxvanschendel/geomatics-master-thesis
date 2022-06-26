@@ -17,7 +17,7 @@ from model.spatial_graph import SpatialGraph
 from model.topometric_map import Hierarchy, TopometricMap, TopometricNode
 from model.voxel_grid import Kernel, VoxelGrid
 from utils.datasets import write_multiple
-from utils.visualization import visualize_htmap
+from utils.visualization import visualize_htmap, visualize_voxel_grid
 
 from processing.parameters import MapExtractionParameters
 
@@ -67,6 +67,8 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
         nav_volume_voxel, floor_voxel = segment_floor_area(
             traversability_lod, p.kernel_scale, p.leaf_voxel_size)
         floor_voxel = deepcopy(floor_voxel)
+        
+        # visualize_voxel_grid(floor_voxel)
 
         logging.info('Estimating optimal isovist positions')
         # Attempt to find the positions in the map from which as much of the
@@ -176,7 +178,7 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
     nav_volume = candidate_voxels.dilate(dilation_kernel)
 
     # Find the largest connected component that is traversable
-    nav_kernel = Kernel.nb6()
+    nav_kernel = Kernel.nb26()
     nav_components = nav_volume.connected_components(nav_kernel)
     nav_manifold = nav_components[0]
 
@@ -287,7 +289,7 @@ def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clusterin
     return clustered_map
 
 
-def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_voxels: float = 100) -> SpatialGraph:
+def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_voxels: float = 100, kernel_radius: int = 5) -> SpatialGraph:
     G = nx.Graph()
     cluster_attr = VoxelGrid.cluster_attr
 
@@ -308,7 +310,7 @@ def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_v
             G.nodes[voxel_centroid_index]['geometry'] = map_segments.subset(
                 lambda v: v in cluster_voxels)
 
-    kernel = Kernel.sphere(2)
+    kernel = Kernel.sphere(kernel_radius)
     cluster_borders = map_segments.attr_borders(cluster_attr, kernel)
 
     for v in cluster_borders.voxels:

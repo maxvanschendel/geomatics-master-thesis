@@ -156,7 +156,7 @@ if __name__ == "__main__":
         visualize_partial_maps=False,
         analyse_partial_maps=False,
 
-        extract=False,
+        extract=True,
         write_extract=True,
         visualize_extract=False,
         analyse_extract=False,

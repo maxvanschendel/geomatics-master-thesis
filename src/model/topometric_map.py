@@ -107,10 +107,12 @@ class TopometricMap():
             for a, b in edges_traversability:
                 lines.append((i, nodes.index(b)))
 
-        line_set = o3d.geometry.LineSet()
-        line_set.points = o3d.utility.Vector3dVector(points)
-        line_set.lines = o3d.utility.Vector2iVector(lines)
-
+        if points:
+            line_set = o3d.geometry.LineSet()
+            line_set.points = o3d.utility.Vector3dVector(points)
+            line_set.lines = o3d.utility.Vector2iVector(lines)
+        else:
+            line_set = None
         spheres = []
         for p in points:
             sphere = o3d.geometry.TriangleMesh.create_sphere(
