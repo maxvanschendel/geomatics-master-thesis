@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-from argparse import ArgumentError
-from evaluation.map_fuse_performance import analyse_fusion_performance
-
 from model.topometric_map import *
-from sklearn import cluster
-from utils.array import euclidean_distance_matrix, replace_with_unique
-from utils.visualization import visualize_map_merge
 
+from utils.array import replace_with_unique
+from utils.visualization import visualize_map_merge
 from processing.registration import cluster_transform, registration
 
 
