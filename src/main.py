@@ -1,67 +1,20 @@
-from typing import Callable
-from processing.configuration import *
-from processing.extract import extract_analyse, extract_create, extract_read, extract_visualize, extract_write
-from processing.match import match_create, match_read, match_write, match_analyse, match_visualize
-from processing.fuse import fuse_create, fuse_read, fuse_write, fuse_analyze, fuse_visualize
-from utils.datasets import *
+
 import logging
+
+from processing.configuration import *
+from processing.extract import (extract_analyse, extract_create, extract_read,
+                                extract_visualize, extract_write)
+from processing.fuse import (fuse_analyze, fuse_create, fuse_read,
+                             fuse_visualize, fuse_write)
+from processing.match import (match_analyse, match_create, match_read,
+                              match_visualize, match_write)
+
+from utils.datasets import *
+from utils.pipeline import process_step
 
 logging.getLogger().setLevel(logging.INFO)
 numba_logger = logging.getLogger('numba')
 numba_logger.setLevel(logging.WARNING)
-
-class PipelineException(Exception):
-    pass
-
-
-def process_step(create: bool, write: bool, visualize: bool, analyse: bool,
-                 create_func: Callable, write_func: Callable, read_func: Callable, visualize_func: Callable, analyse_func: Callable,
-                 kwargs):
-
-    # Step in processing timeline, in each step either create some data and optionally write it to disk, or read the data from disk.
-    # After loading or creating data the data can be visualized and analysed. These actions are applicable to every step in the timeline
-    # processing pipeline.
-
-    step_failed = False
-
-    if create:
-        try:
-            created = create_func(kwargs)
-        except Exception as e:
-            step_failed = True
-            raise e
-
-        if write:
-            try:
-                write_func(created, kwargs)
-            except Exception as e:
-                step_failed = True
-                raise e
-    else:
-        try:
-            created = read_func(kwargs)
-        except Exception as e:
-            step_failed = True
-            raise e
-
-    if analyse:
-        try:
-            analyse_func(created, kwargs)
-        except Exception as e:
-            step_failed = True
-            raise e
-
-    if visualize:
-        try:
-            visualize_func(created, kwargs)
-        except Exception as e:
-            step_failed = True
-            raise e
-
-    if step_failed:
-        raise PipelineException("Pipeline step failed")
-    else:
-        return created
 
 
 def run(**kwargs):
