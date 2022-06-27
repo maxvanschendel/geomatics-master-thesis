@@ -18,7 +18,7 @@ from model.topometric_map import Hierarchy, TopometricMap, TopometricNode
 from model.voxel_grid import Kernel, VoxelGrid
 from processing.configuration import MapExtractionParameters
 from utils.datasets import write_multiple
-from utils.visualization import visualize_htmap
+from utils.visualization import visualize_htmap, visualize_voxel_grid
 
 
 def extract_create(partial_maps: List[VoxelGrid], config: MapExtractionParameters, kwargs):
@@ -311,6 +311,8 @@ def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_v
 
     kernel = Kernel.sphere(2)
     cluster_borders = map_segments.attr_borders(cluster_attr, kernel)
+    
+    visualize_voxel_grid(cluster_borders)
 
     for v in cluster_borders.voxels:
         if floor_voxels.contains_point(cluster_borders.voxel_centroid(v)):

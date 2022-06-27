@@ -99,7 +99,7 @@ def visualize_point_clouds(point_clouds: List[PointCloud]):
 
 
 def visualize_voxel_grid(map: VoxelGrid, color=True):
-    pcd_map = map.to_pcd(color=color).to_o3d()
+    pcd_map = map.to_pcd(has_color=color).to_o3d()
     vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(
         pcd_map, map.cell_size)
 
@@ -109,7 +109,7 @@ def visualize_voxel_grid(map: VoxelGrid, color=True):
 
 
 def visualize_visibility(map: VoxelGrid, origins):
-    pcd_map = map.to_pcd(color=False).to_o3d()
+    pcd_map = map.to_pcd(has_color=False).to_o3d()
     vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(
         pcd_map, map.cell_size)
 

@@ -59,17 +59,8 @@ class VoxelGrid:
 
     @staticmethod
     def merge(voxel_grids: List[VoxelGrid]) -> VoxelGrid:
-        """Takes a list of voxels and merges them into a single voxel grid containing all voxels
-
-        Args:
-            voxel_grids (List[VoxelGrid]): _description_
-
-        Raises:
-            ValueError: _description_
-            ValueError: _description_
-
-        Returns:
-            VoxelGrid: _description_
+        """
+        Takes a list of voxels and merges them into a single voxel grid containing all voxels
         """
 
         if len(voxel_grids) == 0:
@@ -391,10 +382,10 @@ class VoxelGrid:
                 nb_y = cur_vox[1]+nb[1]
                 nb_z = cur_vox[2]+nb[2]
 
-                if 0 < nb_x < voxels.shape[0] and \
-                        0 < nb_y < voxels.shape[1] and \
-                        0 < nb_z < voxels.shape[2] and \
-                        voxels[nb_x, nb_y, nb_z] == 1:
+                if  0 < nb_x < voxels.shape[0] and \
+                    0 < nb_y < voxels.shape[1] and \
+                    0 < nb_z < voxels.shape[2] and \
+                    voxels[nb_x, nb_y, nb_z] == 1:
 
                     conv_voxels[pos] = 1
                     break
@@ -654,7 +645,7 @@ class Kernel(VoxelGrid):
         self.size = len(voxels)
 
     @staticmethod
-    def cylinder(d, h):
+    def cylinder(d: float, h: float) -> Kernel:
         r = d/2
         cylinder_voxels = set()
         for x, y, z in product(range(d), range(h), range(d)):
@@ -666,18 +657,17 @@ class Kernel(VoxelGrid):
         return Kernel(voxels={v: {} for v in cylinder_voxels})
 
     @staticmethod
-    def sphere(r):
+    def sphere(r: float) -> Kernel:
         sphere_voxels = set()
         for x, y, z in product(range(-r, r+1), repeat=3):
             dist = np.linalg.norm([x, y, z])
             if dist <= r:
                 sphere_voxels.add((x, y, z))
 
-        print(sphere_voxels)
         return Kernel(voxels={v: None for v in sphere_voxels})
 
     @staticmethod
-    def circle(r):
+    def circle(r: float) -> Kernel:
         circle_voxels = set()
         for x, z in product(range(-r, r+1), repeat=2):
             dist = np.linalg.norm([x, z])
@@ -687,23 +677,23 @@ class Kernel(VoxelGrid):
         return Kernel(voxels={v: None for v in circle_voxels})
 
     @staticmethod
-    def nb6():
+    def nb6() -> Kernel:
         return Kernel(origin=np.array([1, 1, 1]),
                       voxels={(1, 2, 1): None,
                               (1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None,
                               (1, 0, 1): None, })
 
     @staticmethod
-    def nb26():
+    def nb26() -> Kernel:
         return Kernel(origin=np.array([1, 1, 1]),
                       voxels={v: None for v in product(range(-1, 2), range(-1, 2), range(-1, 2))})
 
     @staticmethod
-    def nb4():
-        return VoxelGrid(origin=np.array([1, 1, 1]), voxels={(1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None})
+    def nb4() -> Kernel:
+        return Kernel(origin=np.array([1, 1, 1]), voxels={(1, 1, 0): None, (0, 1, 1): None, (2, 1, 1): None, (1, 1, 2): None})
 
     @staticmethod
-    def stick_kernel(scale):
+    def stick_kernel(scale: float) -> Kernel:
         a_height, a_width = int(15 // scale), 1 + int(5 // scale)
         b_height, b_width = int(5 // scale), 1
 
