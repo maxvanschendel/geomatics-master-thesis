@@ -4,7 +4,7 @@ import numpy as np
 from model.topometric_map import *
 from model.point_cloud import *
 from model.voxel_grid import *
-from processing.parameters import PreProcessingParameters
+from processing.configuration import PreProcessingParameters
 from random import random
 
 
