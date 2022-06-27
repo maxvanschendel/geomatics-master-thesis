@@ -12,14 +12,13 @@ import markov_clustering as mc
 import networkx as nx
 import numpy as np
 import skopt
-from evaluation.map_extract_performance import mean_similarity
+
 from model.spatial_graph import SpatialGraph
 from model.topometric_map import Hierarchy, TopometricMap, TopometricNode
 from model.voxel_grid import Kernel, VoxelGrid
-from utils.datasets import write_multiple
-from utils.visualization import visualize_htmap, visualize_voxel_grid
-
 from processing.configuration import MapExtractionParameters
+from utils.datasets import write_multiple
+from utils.visualization import visualize_htmap
 
 
 def extract_create(partial_maps: List[VoxelGrid], config: MapExtractionParameters, kwargs):
@@ -56,13 +55,6 @@ def extract_analyse(truths, topometric_maps, kwargs):
         logging.info(f"Map extract performance: {map_extract_perf}")
 
 
-def mean_similarity(ground_truth: TopometricMap, extracted: TopometricMap) -> float:
-    o2o_similarity = extracted.match_nodes(ground_truth)
-    mean_similarity = np.mean(list(o2o_similarity.values()))
-
-    return mean_similarity
-
-
 def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> TopometricMap:
     try:
         # Map representation that is result of map extraction
@@ -71,11 +63,8 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
 
         logging.info('Extracting traversable volume')
         # Extract the traversable volume and get building voxels at its bottom (the floor)
-        nav_volume_voxel, floor_voxel = segment_floor_area(
-            traversability_lod, p.kernel_scale, p.leaf_voxel_size)
+        nav_volume_voxel, floor_voxel = segment_floor_area(traversability_lod, p.kernel_scale, p.leaf_voxel_size)
         floor_voxel = deepcopy(floor_voxel)
-
-        # visualize_voxel_grid(floor_voxel)
 
         logging.info('Estimating optimal isovist positions')
         # Attempt to find the positions in the map from which as much of the
@@ -112,10 +101,10 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
             clustering=visibility_clustering
         )
 
-        if len(map_rooms.voxels) == 0:
+        if not len(map_rooms.voxels):
             raise Exception('Room segmentation is empty')
 
-        logging.info(f'Propagating labels')
+        logging.info(f'Propagating labels') 
         map_rooms = map_rooms.propagate_attr(
             attr=VoxelGrid.cluster_attr,
             prop_kernel=Kernel.sphere(r=2), max_its=10)
@@ -123,7 +112,7 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
         logging.info(f'Finding connected clusters')
         map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
 
-        connection_kernel = Kernel.sphere(r=1)
+        connection_kernel = Kernel.sphere(r=2)
         connected_clusters = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
 
         n_cluster = 0
@@ -136,25 +125,23 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
                 connected_clusters += c
 
         logging.info(f'Extracting topometric map')
-        topological_map = traversability_graph(
+        topology = traversability_graph(
             map_segments=connected_clusters,
             floor_voxels=nav_volume_voxel,
             min_voxels=p.min_voxels)
 
         node_dict = {n: TopometricNode(
-            Hierarchy.ROOM, topological_map.graph.nodes[n]['geometry']) for n in topological_map.graph.nodes}
+            geometry=topology.graph.nodes[n]['geometry']) for n in topology.graph.nodes}
 
         for node in node_dict:
             topometric_map.add_node(node_dict[node])
 
         for node in node_dict:
-            node_edges = topological_map.graph.edges(node)
+            node_edges = topology.graph.edges(node)
             for a, b in node_edges:
                 if a != b:
                     topometric_map.add_edge(
                         node_dict[a], node_dict[b], directed=False)
-
-        # visualize_htmap(topometric_map)
 
         return topometric_map
     except Exception as e:
@@ -165,10 +152,8 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
 def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_size: float = 0.1) -> SpatialGraph:
     '''Uses stick-shaped structuring element to extract 3D traversable volume from voxel map. 
     Based on Gorte et al (2019).
-
     Args:
         voxel_map (VoxelRepresentation): Input voxel map from which the traversable volume is extracted.
-
     Returns:
         SpatialGraphRepresentation: Graph representation of traversable volume, nodes are connected to 6-neighbourhood.
     '''
@@ -185,7 +170,7 @@ def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_s
     nav_volume = candidate_voxels.dilate(dilation_kernel)
 
     # Find the largest connected component that is traversable
-    nav_kernel = Kernel.nb26()
+    nav_kernel = Kernel.nb6()
     nav_components = nav_volume.connected_components(nav_kernel)
     nav_manifold = nav_components[0]
 
@@ -206,6 +191,13 @@ def local_distance_field_maxima(vg, radius, min=0) -> VoxelGrid:
             local_maxima.add(vx)
 
     return vg.subset(lambda v: v in local_maxima)
+
+
+def mean_similarity(ground_truth: TopometricMap, extracted: TopometricMap) -> float:
+    o2o_similarity = extracted.match_nodes(ground_truth)
+    mean_similarity = np.mean(list(o2o_similarity.values()))
+
+    return mean_similarity
 
 
 def optimal_isovist_voxels(floor: VoxelGrid, height: Tuple[float, float], radius=7, min_dist=1) -> VoxelGrid:
@@ -296,7 +288,7 @@ def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clusterin
     return clustered_map
 
 
-def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_voxels: float = 100, kernel_radius: int = 5) -> SpatialGraph:
+def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_voxels: float = 32) -> SpatialGraph:
     G = nx.Graph()
     cluster_attr = VoxelGrid.cluster_attr
 
@@ -317,7 +309,7 @@ def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_v
             G.nodes[voxel_centroid_index]['geometry'] = map_segments.subset(
                 lambda v: v in cluster_voxels)
 
-    kernel = Kernel.sphere(kernel_radius)
+    kernel = Kernel.sphere(2)
     cluster_borders = map_segments.attr_borders(cluster_attr, kernel)
 
     for v in cluster_borders.voxels:
