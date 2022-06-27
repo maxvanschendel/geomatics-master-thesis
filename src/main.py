@@ -4,7 +4,11 @@ from processing.extract import extract_analyse, extract_create, extract_read, ex
 from processing.match import match_create, match_read, match_write, match_analyse, match_visualize
 from processing.fuse import fuse_create, fuse_read, fuse_write, fuse_analyze, fuse_visualize
 from utils.datasets import *
+import logging
 
+logging.getLogger().setLevel(logging.INFO)
+numba_logger = logging.getLogger('numba')
+numba_logger.setLevel(logging.WARNING)
 
 class PipelineException(Exception):
     pass
@@ -92,20 +96,22 @@ def run(**kwargs):
                                         kwargs["graph"])
 
     # Extract topometric maps from voxel grid partial maps
-    topometric_maps = process_step(kwargs["extract"],
-                                   kwargs["write_extract"],
-                                   kwargs["visualize_extract"],
-                                   kwargs["analyse_extract"],
+    topometric_maps = process_step( kwargs["extract"],
+                                    kwargs["write_extract"],
+                                    kwargs["visualize_extract"],
+                                    kwargs["analyse_extract"],
 
-                                   lambda args: extract_create(
-                                       [p.voxel_grid for p in partial_maps], extract_cfg, args),
-                                   extract_write,
-                                   extract_read,
-                                   extract_visualize,
-                                   lambda ts, args: extract_analyse(
-                                       ground_truth, ts, args),
-                                   kwargs,
-                                   )
+                                    lambda args: extract_create(
+                                        [p.voxel_grid for p in partial_maps], extract_cfg, args),
+                                    extract_write,
+                                    extract_read,
+                                    extract_visualize,
+                                    lambda ts, args: extract_analyse(
+                                        ground_truth, ts, args),
+                                    kwargs,
+                                    )
+    
+    
 
     # Map matching using attributed graph embedding
     matches = process_step(
@@ -147,7 +153,7 @@ if __name__ == "__main__":
     # Read configuration from YAML files in config directory
     extract_cfg = MapExtractionParameters.read(extract_cfg_fn)
     merge_cfg = MapMergeParameters.read(merge_cfg_fn)
-
+    
     run(
         logging=True,
 
