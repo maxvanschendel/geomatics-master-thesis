@@ -123,10 +123,12 @@ def visualize_visibility(map: VoxelGrid, origins):
 
 
 def visualize_htmap(map):
+    geometry, graph, _ = map.to_o3d(randomize_color=True, voxel=False)
+        
     MultiViewScene([
-        [SceneObject(o, pcd_mat(pt_size=6)) for o in map.to_o3d()[0]]
-    ])
-
+        [SceneObject(o, pcd_mat()) for o in geometry] + [SceneObject(graph, MultiViewScene.graph_mat())] ,],
+    )
+    
 
 def visualize_map_merge(map_a, map_b):
     map_a_o3d = map_a.to_o3d()

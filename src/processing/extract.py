@@ -19,15 +19,15 @@ from model.voxel_grid import Kernel, VoxelGrid
 from utils.datasets import write_multiple
 from utils.visualization import visualize_htmap, visualize_voxel_grid
 
-from processing.parameters import MapExtractionParameters
+from processing.configuration import MapExtractionParameters
 
 
 def extract_create(partial_maps: List[VoxelGrid], config: MapExtractionParameters, kwargs):
     logging.info(f'Extracting {len(partial_maps)} partial topometric maps')
-    
+
     cpu_count = multiprocessing.cpu_count()
     p = multiprocessing.Pool(1)
-    
+
     topometric_maps = p.starmap(extract, zip(
         partial_maps, [config]*len(partial_maps)))
 
@@ -56,6 +56,13 @@ def extract_analyse(truths, topometric_maps, kwargs):
         logging.info(f"Map extract performance: {map_extract_perf}")
 
 
+def mean_similarity(ground_truth: TopometricMap, extracted: TopometricMap) -> float:
+    o2o_similarity = extracted.match_nodes(ground_truth)
+    mean_similarity = np.mean(list(o2o_similarity.values()))
+
+    return mean_similarity
+
+
 def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> TopometricMap:
     try:
         # Map representation that is result of map extraction
@@ -67,7 +74,7 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
         nav_volume_voxel, floor_voxel = segment_floor_area(
             traversability_lod, p.kernel_scale, p.leaf_voxel_size)
         floor_voxel = deepcopy(floor_voxel)
-        
+
         # visualize_voxel_grid(floor_voxel)
 
         logging.info('Estimating optimal isovist positions')
@@ -116,7 +123,7 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
         logging.info(f'Finding connected clusters')
         map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
 
-        connection_kernel = Kernel.sphere(r=2)
+        connection_kernel = Kernel.sphere(r=1)
         connected_clusters = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
 
         n_cluster = 0

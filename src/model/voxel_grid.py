@@ -427,19 +427,25 @@ class VoxelGrid:
             # The most common neighbour attribute is assumed to be the current
             # voxel's attribute first. Another attribute needs to occur more than once
             # to be the most common neighbour attribute.
-            occurances = voxels[current_voxel[0],
+            occurences = voxels[current_voxel[0],
                                 current_voxel[1], current_voxel[2]]
             most_common_attribute = 1
 
             for val in range(n_vals):
                 if attribute_count[pos][val] > most_common_attribute:
                     most_common_attribute = attribute_count[pos][val]
-                    occurances = val
+                    occurences = val
 
-            max_occurences[pos] = occurances
+            max_occurences[pos] = occurences
 
     def jaccard_index(self, other):
-        return len(self.intersect(other)) / len(self.union(other))
+        intersect = self.intersect(other)
+        union = self.union(other)
+
+        intersect_size = len(intersect)
+        union_size = len(union)
+
+        return intersect_size / union_size if union_size else 0
 
     def symmetric_overlap(self, other):
         if len(self.voxels) and len(other.voxels):
@@ -589,16 +595,16 @@ class VoxelGrid:
                         t_max_z += t_delta_z
 
     def distance_field(self) -> np.array:
-        hipf = {}
+        df = {}
         for v in self.voxels:
             i = 1
             kernel = Kernel.circle(r=i)
             while len(self.get_kernel(v, kernel)) == len(kernel.voxels):
                 i += 1
                 kernel = Kernel.circle(r=i)
-            hipf[v] = i
+            df[v] = i
 
-        return hipf
+        return df
 
     def to_o3d(self, has_color=False):
         pcd = self.to_pcd(has_color).to_o3d()

@@ -8,29 +8,7 @@ from sklearn import cluster
 from utils.array import euclidean_distance_matrix, replace_with_unique
 from utils.visualization import visualize_map_merge
 
-from processing.registration import registration
-
-
-def cluster_transform(transforms: List[np.array], algorithm: str = 'optics', **kwargs) -> np.array:
-    # Only these algorithms are currently supported
-    if algorithm not in ['dbscan', 'optics']:
-        raise ArgumentError(
-            algorithm, f'Clustering algorithm must be either dbscan or optics. Currently {algorithm}.')
-
-    # Compute distance matrix for all transformation matrices by computing the norm of their difference.
-    distance_matrix = euclidean_distance_matrix(transforms)
-
-    # Use density-based clustering to find similar transformations.
-    # Either OPTICS or DBSCAN are currently available.
-    if algorithm == 'optics':
-        clustering = cluster.OPTICS(max_eps=kwargs['max_eps'],
-                                    min_samples=kwargs['min_samples'],
-                                    metric='precomputed').fit(distance_matrix)
-    elif algorithm == 'dbscan':
-        raise NotImplementedError()
-
-    labels = clustering.labels_
-    return labels
+from processing.registration import cluster_transform, registration
 
 
 def fuse_topology(map_a: TopometricMap, map_b: TopometricMap,
@@ -112,3 +90,11 @@ def fuse_visualize(global_map, kwargs):
 
 def fuse_analyze(global_map, ground_truths, partial_maps, result_transforms, kwargs):
     return analyse_fusion_performance(global_map, ground_truths, result_transforms, [p.transform for p in partial_maps])
+
+
+def analyse_fusion_performance(result_global_map: TopometricMap, target_global_map: TopometricMap,
+                               result_transform: np.array, target_transform: np.array):
+
+    transform_distance = np.linalg.norm(result_transform - target_transform)
+
+    return {'transform_distance': transform_distance}
