@@ -1,4 +1,4 @@
-!!python/object:processing.parameters.MapExtractionParameters
+!!python/object:processing.configuration.MapExtractionParameters
 
 # Visibility
 isovist_height:
