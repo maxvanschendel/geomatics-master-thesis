@@ -7,7 +7,7 @@ import os
 from ast import Lambda
 from copy import deepcopy
 from itertools import product
-from typing import Dict, Tuple
+from typing import Callable, Dict, Iterable, Iterator, Tuple
 from warnings import filterwarnings
 
 import networkx
@@ -54,7 +54,7 @@ class VoxelGrid:
     def clone(self) -> VoxelGrid:
         return deepcopy(self)
 
-    def generate_svo(self):
+    def generate_svo(self) -> SVO:
         return SVO.from_voxels(self.voxels.keys(), self.cell_size/2)
 
     @staticmethod
@@ -134,16 +134,16 @@ class VoxelGrid:
         new_model.size = len(new_model.voxels)
         return new_model
 
-    def __contains__(self, val):
+    def __contains__(self, val: Tuple[int, int, int]) -> bool:
         return val in self.voxels
 
     def get_voxels(self) -> Set[Tuple[int, int, int]]:
         return set(self.voxels.keys())
 
-    def map(self, func, **kwargs):
+    def map(self, func: Callable, **kwargs) -> Iterator:
         return map(lambda v: func(v, **kwargs), self.voxels)
 
-    def filter(self, func, **kwargs):
+    def filter(self, func: Callable, **kwargs) -> Iterator:
         return filter(lambda v: func(v, **kwargs), self.voxels)
 
     def get_voxel(self, p: np.array) -> Tuple[int, int, int]:
@@ -152,7 +152,7 @@ class VoxelGrid:
     def contains_point(self, point: np.array) -> bool:
         return self.get_voxel(point) in self
 
-    def transform(self, transformation):
+    def transform(self, transformation: np.array) -> VoxelGrid:
         pcd = self.to_pcd()
         pcd_t = pcd.transform(transformation)
         voxel_grid_t = pcd_t.voxelize(self.cell_size)
@@ -171,7 +171,7 @@ class VoxelGrid:
 
         return VoxelGrid(deepcopy(self.cell_size), deepcopy(self.origin), voxel_dict)
 
-    def voxel_subset(self, voxels):
+    def voxel_subset(self, voxels: Iterable[Tuple[int, int, int]]) -> VoxelGrid:
         return VoxelGrid(deepcopy(self.cell_size),
                          deepcopy(self.origin),
                          {v: self.voxels[v] for v in voxels})
@@ -180,56 +180,56 @@ class VoxelGrid:
         for voxel in self.voxels:
             func(voxel, **kwargs)
 
-    def set_attr(self, voxel, attr, val):
+    def set_attr(self, voxel: Tuple[int, int, int], attr: str, val: object) -> None:
         self.voxels[voxel][attr] = val
 
-    def set_attr_uniform(self, attr, val):
+    def set_attr_uniform(self, attr: str, val: object) -> None:
         self.for_each(self.set_attr, attr=attr, val=val)
 
-    def colorize(self, color):
+    def colorize(self, color: np.array) -> None:
         self.set_attr_uniform(attr=VoxelGrid.color_attr, val=color)
 
-    def get_attr(self, attr, val):
+    def get_attr(self, attr: str, val: object) -> Iterator:
         return self.filter(lambda vox: attr in self[vox] and self[vox][attr] == val)
 
-    def list_attr(self, attr):
-        voxels_with_attr = self.filter(lambda vox: attr in self.voxels[vox])
+    def list_attr(self, attr: str) -> Iterator:
+        voxels_with_attr = self.filter(lambda v: attr in self.voxels[v])
         voxel_attributes = map(
-            lambda vox: self.voxels[vox][attr], voxels_with_attr)
+            lambda v: self.voxels[v][attr], voxels_with_attr)
 
         return voxel_attributes
 
-    def unique_attr(self, attr):
+    def unique_attr(self, attr: str) -> np.array:
         attributes = list(self.list_attr(attr))
         unique_attributes = np.unique(attributes)
 
         return unique_attributes
 
-    def kernel_attr(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str):
+    def kernel_attr(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str) -> List:
         voxel_nbs = self.get_kernel(voxel, kernel)
         voxel_nbs_labels = [self[v][attr] for v in voxel_nbs]
 
         return voxel_nbs_labels
 
-    def most_common_kernel_attr(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str):
+    def most_common_kernel_attr(self, voxel: Tuple[int, int, int], kernel: VoxelGrid, attr: str) -> np.array:
         kernel_attrs = self.kernel_attr(voxel, kernel, attr)
         most_common_attr = most_common(kernel_attrs)
 
         return most_common_attr
 
-    def attributes(self):
+    def attributes(self) -> np.array:
         from utils.array import flatten_list
 
         voxel_attributes = [list(self.voxels[v].keys()) for v in self.voxels]
         return np.unique(flatten_list(voxel_attributes))
 
-    def to_2d_array(self):
+    def to_2d_array(self) -> np.array:
         arr = np.zeros((self.size, 3), dtype=np.int32)
         for i, k in enumerate(self.voxels):
             arr[i] = k
         return arr
 
-    def to_3d_array(self, attr=None):
+    def to_3d_array(self, attr=None) -> np.array:
         voxel_matrix = np.full(self.extents().astype(int)+1, 0, dtype=np.int8)
         for v in self.voxels:
             voxel_matrix[v] = self[v][attr] if attr else 1
@@ -280,7 +280,7 @@ class VoxelGrid:
 
         return prop_map
 
-    def attr_borders(self, attr, kernel) -> VoxelGrid:
+    def attr_borders(self, attr: str, kernel: Kernel) -> VoxelGrid:
         border_voxels = set()
         for voxel in self.voxels:
             voxel_nbs_labels = self.kernel_attr(voxel, kernel, attr)
@@ -294,7 +294,7 @@ class VoxelGrid:
         border_voxel_grid = self.subset(lambda v: v in border_voxels)
         return border_voxel_grid
 
-    def split_by_attr(self, attr, get_attr=False) -> List[VoxelGrid]:
+    def split_by_attr(self, attr: str, get_attr: bool = False) -> List[VoxelGrid]:
         split = []
         for unique_attr in self.unique_attr(attr):
             attr_subset = self.subset(
@@ -305,7 +305,7 @@ class VoxelGrid:
 
         return split
 
-    def extents(self):
+    def extents(self) -> np.array:
         if len(self.voxels) == 0:
             raise ValueError("No voxels in voxel grid")
         return np.max(self.to_2d_array(), axis=0)
@@ -362,7 +362,7 @@ class VoxelGrid:
         range_morton = self.svo.range_search(aabb - self.origin)
         return [tuple(v) for v in range_morton]
 
-    def connected_components(self, kernel) -> List[VoxelGrid]:
+    def connected_components(self, kernel: Kernel) -> List[VoxelGrid]:
         """ Splits voxel grid into one or more connected components. For each connected
             component there is a path between every voxel within, moving from adjacent
             voxel to adjacent voxel. 
@@ -438,7 +438,7 @@ class VoxelGrid:
 
             max_occurences[pos] = occurences
 
-    def jaccard_index(self, other):
+    def jaccard_index(self, other: VoxelGrid) -> float:
         intersect = self.intersect(other)
         union = self.union(other)
 
@@ -447,18 +447,12 @@ class VoxelGrid:
 
         return intersect_size / union_size if union_size else 0
 
-    def symmetric_overlap(self, other):
-        if len(self.voxels) and len(other.voxels):
-            return len(self.intersect(other)) / min([len(other.voxels), len(self.voxels)])
-        else:
-            return 0
-
-    def mutate(self, voxels):
+    def mutate(self, voxels: Dict) -> VoxelGrid:
         return VoxelGrid(deepcopy(self.cell_size),
                          deepcopy(self.origin),
                          voxels)
 
-    def filter_gpu_kernel_nbs(self, kernel):
+    def filter_gpu_kernel_nbs(self, kernel: Kernel) -> VoxelGrid:
         # Allocate memory on the device for the result
         result_voxels = np.zeros(shape=(self.size, 1), dtype=np.int32)
 
@@ -475,7 +469,7 @@ class VoxelGrid:
                      for (v, occ) in enumerate(result_voxels) if not occ[0]]
         return self.mutate({v: self.voxels[v] for v in nb_voxels})
 
-    def dilate(self, kernel) -> VoxelGrid:
+    def dilate(self, kernel: Kernel) -> VoxelGrid:
         dilated_voxels = set(self.voxels.keys())
         for v in self.voxels:
             kernel_voxels = {tuple(v + (k - kernel.origin))
@@ -484,7 +478,7 @@ class VoxelGrid:
 
         return self.mutate({v: {} for v in dilated_voxels})
 
-    def translate(self, translation: np.array):
+    def translate(self, translation: np.array) -> VoxelGrid:
         translated_cells = {}
         for voxel in self.voxels:
             voxel_t = translation + voxel
@@ -526,8 +520,8 @@ class VoxelGrid:
     @cuda.jit
     def fast_voxel_traversal(point, directions, cell_size, voxels, intersections):
         """
-        Fast voxel traversal, by Amanitides & Woo (1987)
-        Terminates when first voxel has been found
+        Fast voxel traversal (Amanitides & Woo, 1987)
+        Terminates when first voxel has been found.
 
         Based on: https://github.com/francisengelmann/fast_voxel_traversal
         """
@@ -606,17 +600,17 @@ class VoxelGrid:
 
         return df
 
-    def to_o3d(self, has_color=False):
+    def to_o3d(self, has_color: bool=False) -> o3d.geometry.VoxelGrid:
         pcd = self.to_pcd(has_color).to_o3d()
         vg = o3d.geometry.VoxelGrid.create_from_point_cloud(
             pcd, self.cell_size)
         return vg
 
-    def to_pcd(self, color=False) -> model.point_cloud.PointCloud:
+    def to_pcd(self, has_color: bool=False) -> model.point_cloud.PointCloud:
         points = [self.voxel_centroid(v) for v in self.voxels]
         attributes = {attr: np.array(list(self.list_attr(attr)))
                       for attr in self.attributes()}
-        colors = list(self.list_attr(VoxelGrid.color_attr)) if color else []
+        colors = list(self.list_attr(VoxelGrid.color_attr)) if has_color else []
 
         return model.point_cloud.PointCloud(np.array(points),
                                             colors=colors,
@@ -639,13 +633,13 @@ class VoxelGrid:
 
         return SpatialGraph(self.cell_size, self.origin, graph)
 
-    def write(self, fn):
+    def write(self, fn: str) -> None:
         import pickle as pickle
         with open(fn, 'wb') as write_file:
             pickle.dump(self, write_file)
 
     @staticmethod
-    def read(fn):
+    def read(fn: str) -> VoxelGrid:
         import pickle as pickle
         with open(fn, 'rb') as read_file:
             vg = pickle.load(read_file)
@@ -679,6 +673,7 @@ class Kernel(VoxelGrid):
             if dist <= r:
                 sphere_voxels.add((x, y, z))
 
+        print(sphere_voxels)
         return Kernel(voxels={v: None for v in sphere_voxels})
 
     @staticmethod
