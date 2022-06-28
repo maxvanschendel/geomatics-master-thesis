@@ -437,6 +437,12 @@ class VoxelGrid:
         union_size = len(union)
 
         return intersect_size / union_size if union_size else 0
+    
+    def symmetric_overlap(self, other):
+        if len(self.voxels) and len(other.voxels):
+            return len(self.intersect(other)) / min([len(other.voxels), len(self.voxels)])
+        else:
+            return 0
 
     def mutate(self, voxels: Dict) -> VoxelGrid:
         return VoxelGrid(deepcopy(self.cell_size),

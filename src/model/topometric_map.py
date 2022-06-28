@@ -77,7 +77,7 @@ class TopometricMap():
     def incident_edges(self, node, data):
         return self.edges(node, data=data)
     
-    def neighbours(self, node):
+    def neighbours(self, node):       
         return self.graph.neighbors(node)
     
     def to_voxel_grid(self):
@@ -89,7 +89,7 @@ class TopometricMap():
     def to_o3d(self, level=Hierarchy.ROOM, randomize_color: bool = True, voxel: bool = True):
         nodes = self.get_node_level(level)
         nodes_geometry = [node.geometry for node in nodes]
-        nodes_o3d = [geometry.to_pcd(color=True).to_o3d() for geometry in nodes_geometry]
+        nodes_o3d = [geometry.to_pcd(has_color=True).to_o3d() for geometry in nodes_geometry]
 
         if randomize_color:
             for n in nodes_o3d:
@@ -226,21 +226,50 @@ class TopometricMap():
             topo_map = pickle.load(read_file)
         return topo_map
     
-    def breadth_first_traversal(self, origin: TopometricNode):
+    def breadth_first_traversal(self, origin: TopometricNode, k: int = 1):
         from queue import Queue
         
         unvisited = Queue(0)
-        unvisited.put(origin)
+        unvisited.put((0, origin))
         
         visited = set()
         
         while unvisited.qsize():
-            cur = unvisited.get()
-            visited.add(cur)
+            cur_k, cur = unvisited.get()
             
-            cur_nbs = self.neighbours(cur)
-            for nb in cur_nbs:
-                if nb not in visited:
-                    unvisited.put(nb)
-                
-            yield cur
+            if cur_k == k:
+                visited.add(cur)
+            
+            if cur_k <= k:
+                cur_nbs = self.neighbours(cur)
+                for nb in cur_nbs:
+                    if nb not in visited:
+                        unvisited.put((cur_k+1,nb))
+                    
+                yield cur
+            else:
+                continue
+            
+    def knbr(self, origin: TopometricNode, k: int = 1):
+        from queue import Queue
+        
+        unvisited = Queue(0)
+        unvisited.put((0, origin))
+        
+        visited = set()
+        
+        while unvisited.qsize():
+            cur_k, cur = unvisited.get()
+            
+            if cur_k == k:
+                visited.add(cur)
+            
+            if cur_k <= k:
+                cur_nbs = self.neighbours(cur)
+                for nb in cur_nbs:
+                    if nb not in visited:
+                        unvisited.put((cur_k+1,nb))
+                    
+                yield cur
+            else:
+                continue

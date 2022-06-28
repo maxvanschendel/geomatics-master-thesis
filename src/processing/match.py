@@ -44,8 +44,9 @@ def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost
 
             nbs_product = product(nbs_a_idx, nbs_b_idx)
 
-            nbs_cost = np.reshape([cost_matrix[m] for m in nbs_product], (len(nbs_a_idx), len(nbs_b_idx)))
-            
+            nbs_cost = np.reshape(
+                [cost_matrix[m] for m in nbs_product], (len(nbs_a_idx), len(nbs_b_idx)))
+
             # for a, b in nbs_cost.ndindex():
             #     pass
 
@@ -114,36 +115,43 @@ def graph_features():
     pass
 
 
-def feature_embedding(map: TopometricMap, node_model, embed_dim) -> np.array:
-    from scipy import sparse
+def max_pool(ar):
+    if len(ar):
+        return np.max(ar, axis=0)
+    return 0
 
-    rooms = map.get_node_level()
-    room_subgraph = networkx.convert_node_labels_to_integers(
-        map.graph.subgraph(rooms))
-    room_geometry = [r.geometry.to_pcd().points for r in rooms]
 
-    features_a = [pointnet(g, embed_dim) for g in room_geometry]
-    features_b = [dgcnn(g, embed_dim) for g in room_geometry]
+def feature_embedding(map: TopometricMap, embed_dim: int) -> np.array:
+    # feature embedding
+    nodes = map.get_node_level()
 
-    features = np.hstack([features_a, features_b])
+    def embed_node(node): return dgcnn(
+        node.geometry.to_pcd().points, embed_dim)
+    embedding = {node: embed_node(node) for node in nodes}
 
-    if node_model:
-        node_model = node_model()
-        node_model.fit(room_subgraph, sparse.coo_matrix(np.array(features)))
-        node_features = node_model.get_embedding()
+    # graph convolution
+    def max_pool_nbs(nbs): return max_pool([embedding[nb] for nb in nbs])
+    def k_weight(k): return (1/2)**k
+    def graph_convolve(n, k): return max_pool_nbs(map.knbr(n, k))*k_weight(k)
 
-        return node_features
+    convolved_embedding = {n: f for n, f in embedding.items()}
+    for k in range(1, 1):
+        convolved_embedding = {
+            n: f + graph_convolve(n, k) for n, f in convolved_embedding.items()}
 
-    return features
+    dgcnn_f = [convolved_embedding[n] for n in nodes]
+    embedding = dgcnn_f
+
+    return embedding
 
 
 def linear_assign(m: np.array):
     a, b = linear_sum_assignment(m)
     bipartite_matching = list(
-                            zip(
-                                list(a), list(b)
-                            )
-                        )
+        zip(
+            list(a), list(b)
+        )
+    )
 
     return bipartite_matching
 
@@ -198,7 +206,7 @@ def hypothesis_quality(h):
 
 
 def match(maps: List[TopometricMap], node_model: Callable = None, **kwargs):
-    features = {map: feature_embedding(map, node_model, 1024) for map in maps}
+    features = {map: feature_embedding(map, 1024) for map in maps}
 
     matches = defaultdict(lambda: {})
 
@@ -211,14 +219,16 @@ def match(maps: List[TopometricMap], node_model: Callable = None, **kwargs):
             cost_matrix = euclidean_distances(f_a, f_b)
             assignment = linear_assign(cost_matrix)
 
-            # from initial pairing, grow 
-            hypotheses = grow_hypotheses(map_a, map_b, assignment, cost_matrix)
-            # t_clusters = cluster_hypotheses(hypotheses)
-            # merged_hypotheses = merge_clusters(hypotheses, t_clusters)
+            best_hypothesis = [(map_a.get_node_level()[a], map_b.get_node_level()[b]) for a, b in assignment]
 
-            # _, sorted_hypotheses = sort_by_func(
-            #     merged_hypotheses, hypothesis_quality, reverse=True)
-            best_hypothesis = hypotheses[0]
+            # # from initial pairing, grow
+            # hypotheses = grow_hypotheses(map_a, map_b, assignment, cost_matrix)
+            # # t_clusters = cluster_hypotheses(hypotheses)
+            # # merged_hypotheses = merge_clusters(hypotheses, t_clusters)
+
+            # # _, sorted_hypotheses = sort_by_func(
+            # #     merged_hypotheses, hypothesis_quality, reverse=True)
+            # best_hypothesis = hypotheses[0]
 
             for node_a, node_b in best_hypothesis:
                 a, b = map_a.node_index(node_a), map_b.node_index(node_b)
@@ -264,22 +274,22 @@ def match_analyse(truths, matches, topometric_maps, kwargs):
         logging.info(
             f'Map match performance for partial maps {a} and {b}: {map_match_perf}')
 
+
 def analyse_match_performance(partial_a, partial_b, ground_truth_a, ground_truth_b, matches):
-    
+
     a_to_ground_truth = partial_a.match_nodes(ground_truth_a)
     b_to_ground_truth = partial_b.match_nodes(ground_truth_b)
-    
+
     a_matches = {a: v for a, v in a_to_ground_truth.keys()}
     b_matches = {v: b for b, v in b_to_ground_truth.keys()}
-    
-    
+
     a_nodes = partial_a.get_node_level()
     b_nodes = partial_b.get_node_level()
-        
-    target_matches = [(a, b_matches[v]) for a, v in a_matches.items() if v in b_matches]
+
+    target_matches = [(a, b_matches[v])
+                      for a, v in a_matches.items() if v in b_matches]
     target_matches = [(a_nodes[a], b_nodes[b]) for a, b in target_matches]
-    
-    
+
     true_positive = [
         True for match in matches if match in target_matches]
     false_positive = [
@@ -291,7 +301,7 @@ def analyse_match_performance(partial_a, partial_b, ground_truth_a, ground_truth
     accuracy = sum(true_positive) / len(matches)
     precision = sum(true_positive) / (sum(true_positive) + sum(false_positive))
     recall = sum(true_positive) / (sum(true_positive) + sum(false_negative))
-    
+
     if precision + recall:
         f_1 = 2 * (precision*recall) / (precision+recall)
     else:

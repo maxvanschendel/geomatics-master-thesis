@@ -312,6 +312,7 @@ def traversability_graph(map_segments: VoxelGrid, floor_voxels: VoxelGrid, min_v
     kernel = Kernel.sphere(2)
     cluster_borders = map_segments.attr_borders(cluster_attr, kernel)
     
+    visualize_voxel_grid(floor_voxels)
     visualize_voxel_grid(cluster_borders)
 
     for v in cluster_borders.voxels:

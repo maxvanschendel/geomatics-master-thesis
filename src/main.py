@@ -64,8 +64,6 @@ def run(**kwargs):
                                     kwargs,
                                     )
     
-    
-
     # Map matching using attributed graph embedding
     matches = process_step(
         kwargs["match"],
@@ -115,7 +113,7 @@ if __name__ == "__main__":
         visualize_partial_maps=False,
         analyse_partial_maps=False,
 
-        extract=True,
+        extract=False,
         write_extract=True,
         visualize_extract=True,
         analyse_extract=False,
@@ -125,7 +123,7 @@ if __name__ == "__main__":
         visualize_match=True,
         analyse_match=True,
 
-        fuse=True,
+        fuse=False,
         write_fuse=False,
         fuse_visualize=False,
         fuse_analyse=True,
