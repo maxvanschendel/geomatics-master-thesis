@@ -106,7 +106,10 @@ class VoxelGrid:
         for voxel, attributes in lod_voxel_attributes.items():
             for attr, values in attributes.items():
                 if len(values):
-                    lod_voxel_grid[voxel][attr] = most_common(values)
+                    try:
+                        lod_voxel_grid[voxel][attr] = most_common(values)
+                    except:
+                        pass
 
         return lod_voxel_grid
 
@@ -382,10 +385,10 @@ class VoxelGrid:
                 nb_y = cur_vox[1]+nb[1]
                 nb_z = cur_vox[2]+nb[2]
 
-                if  0 < nb_x < voxels.shape[0] and \
-                    0 < nb_y < voxels.shape[1] and \
-                    0 < nb_z < voxels.shape[2] and \
-                    voxels[nb_x, nb_y, nb_z] == 1:
+                if 0 < nb_x < voxels.shape[0] and \
+                        0 < nb_y < voxels.shape[1] and \
+                        0 < nb_z < voxels.shape[2] and \
+                        voxels[nb_x, nb_y, nb_z] == 1:
 
                     conv_voxels[pos] = 1
                     break
@@ -437,7 +440,7 @@ class VoxelGrid:
         union_size = len(union)
 
         return intersect_size / union_size if union_size else 0
-    
+
     def symmetric_overlap(self, other):
         if len(self.voxels) and len(other.voxels):
             return len(self.intersect(other)) / min([len(other.voxels), len(self.voxels)])
@@ -597,17 +600,18 @@ class VoxelGrid:
 
         return df
 
-    def to_o3d(self, has_color: bool=False) -> o3d.geometry.VoxelGrid:
+    def to_o3d(self, has_color: bool = False) -> o3d.geometry.VoxelGrid:
         pcd = self.to_pcd(has_color).to_o3d()
         vg = o3d.geometry.VoxelGrid.create_from_point_cloud(
             pcd, self.cell_size)
         return vg
 
-    def to_pcd(self, has_color: bool=False) -> model.point_cloud.PointCloud:
+    def to_pcd(self, has_color: bool = False) -> model.point_cloud.PointCloud:
         points = [self.voxel_centroid(v) for v in self.voxels]
         attributes = {attr: np.array(list(self.list_attr(attr)))
                       for attr in self.attributes()}
-        colors = list(self.list_attr(VoxelGrid.color_attr)) if has_color else []
+        colors = list(self.list_attr(VoxelGrid.color_attr)
+                      ) if has_color else []
 
         return model.point_cloud.PointCloud(np.array(points),
                                             colors=colors,
@@ -641,6 +645,51 @@ class VoxelGrid:
         with open(fn, 'rb') as read_file:
             vg = pickle.load(read_file)
         return vg
+
+    def shape_dna(self, kernel, k):
+        laplacian = self.laplacian_matrix(kernel)
+        laplacian_eigenvalues = np.linalg.eigvals(laplacian / np.max(laplacian))
+        sorted_eigenvalues = np.real(np.sort(laplacian_eigenvalues))
+        
+        if len(sorted_eigenvalues) > k:
+            first_k_eigenvalues = sorted_eigenvalues[:k]
+        else:
+            first_k_eigenvalues = np.hstack((sorted_eigenvalues[:k], np.zeros(k - len(sorted_eigenvalues))))
+            
+        
+        
+
+        # Fit line through eigenvalues (y = ax + b)
+        a, b = np.polyfit(np.arange(len(sorted_eigenvalues)), sorted_eigenvalues, 1)
+        
+        print(first_k_eigenvalues.shape)
+        return first_k_eigenvalues / a
+
+    def laplacian_matrix(self, kernel):
+        return self.degree_matrix(kernel) - self.adjacency_matrix(kernel)
+
+    def degree_matrix(self, kernel):
+        degree_matrix = np.zeros((self.size, self.size))
+
+        for v in self.voxels:
+            v_index = self.morton_index[morton_code(v)]
+            v_nbs = self.get_kernel(v, kernel)
+
+            degree_matrix[v_index][v_index] = len(v_nbs)
+
+        return degree_matrix
+
+    def adjacency_matrix(self, kernel):
+        adjacency_matrix = np.zeros((self.size, self.size))
+
+        for v in self.voxels:
+            v_index = self.morton_index[morton_code(v)]
+            v_nbs = self.get_kernel(v, kernel)
+            nbs_index = [self.morton_index[morton_code(v)] for v in v_nbs]
+
+            adjacency_matrix[v_index][nbs_index] = 1
+
+        return adjacency_matrix
 
 
 class Kernel(VoxelGrid):

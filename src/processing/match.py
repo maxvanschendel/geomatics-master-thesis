@@ -18,8 +18,10 @@ from utils.array import replace_with_unique
 from utils.visualization import visualize_matches
 
 
-ptnet_model_fn = './learning3d/pretrained/exp_classifier/models/best_ptnet_model.t7'
+ptnet_model_fn = './pointnet/log/part_seg/pointnet2_part_seg_msg/checkpoints/best_model.pth'
+pcn_model_fn = './learning3d/pretrained/exp_pcn/models/best_model.t7'
 dgcnn_model_fn = './dgcnn/pretrained/model.cls.2048.t7'
+pvcnnpp_model_fn = './pvcnn/pretrained/s3dis.pvcnn2.area5.c1.pth.tar'
 
 
 def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost_matrix: np.array):
@@ -63,24 +65,58 @@ def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost
     return hypothesis
 
 
-def pointnet(pcd, dim):
+def pvcnnpp(pcd, num_classes, extra_feature_channels=6, width_multiplier=1, voxel_resolution_multiplier=1):
     import torch
-    from learning3d.models import PointNet
+    from pvcnn.models.s3dis.pvcnnpp import PVCNN2
+    
+   
+    device = torch.device("cuda")
+    model = PVCNN2(num_classes, extra_feature_channels=6, width_multiplier=1).to(device)
+    state_dict = torch.load(pvcnnpp_model_fn)['model']
+    
+    state_dict = {k[7:]: v for k, v in state_dict.items()}
+    model.load_state_dict(state_dict)
 
-    # load pointnet model from storage
-    model = PointNet(emb_dims=dim, input_shape='bnc', use_bn=True)
-    model.load_state_dict(torch.load(
-        ptnet_model_fn))
+    # reshape to bnc format and create torch tensor
+    pcd = np.hstack((pcd, np.random.rand(len(pcd), 6)))
+    pcd_reshape = pcd.reshape((1, pcd.shape[0], pcd.shape[1]))
+    pcd_reshape = np.swapaxes(pcd_reshape, 2, 1)
+    
+    pcd_torch = torch.from_numpy(pcd_reshape).float().to(device)
+
+    # get global feature as numpy array
+    model_embed = model(pcd_torch)
+    
+    embed = model_embed.cpu().detach() \
+                            .numpy() \
+                            .squeeze()                  
+    torch.cuda.empty_cache()
+    
+    max_pool_embed = np.max(embed, axis=1)
+    return max_pool_embed
+
+def pcn(pcd, dim):
+    import torch
+    from learning3d.models import PCN
+    
+   
+    device = torch.device("cuda")
+    model = PCN(emb_dims=dim).to(device)
+    
+    model.load_state_dict(torch.load(pcn_model_fn))
 
     # reshape to bnc format and create torch tensor
     pcd_reshape = pcd.reshape((1, pcd.shape[0], pcd.shape[1]))
-    pcd_torch = torch.from_numpy(pcd_reshape).float()
+    pcd_reshape = np.swapaxes(pcd_reshape, 2, 1)
+    pcd_torch = torch.from_numpy(pcd_reshape).float().to(device)
 
-    # get global feature as 1D numpy array
-    embed = model(pcd_torch).cpu().detach() \
+    # get global feature as numpy array
+    model_embed = model(pcd_torch)
+    
+    embed = model_embed.cpu().detach() \
                             .numpy() \
-                            .squeeze()
-
+                            .squeeze()                  
+    torch.cuda.empty_cache()
     return embed
 
 
@@ -88,8 +124,8 @@ def dgcnn(pcd, dim, k=16, dropout=0.5):
     import torch
     from dgcnn.model import DGCNN_cls
     from torch.nn import DataParallel
-
-    # load DGCNN model from storage
+    
+   
     device = torch.device("cuda")
     model = DGCNN_cls(k=k, emb_dims=dim, dropout=dropout).to(device)
     model = DataParallel(model)
@@ -101,9 +137,12 @@ def dgcnn(pcd, dim, k=16, dropout=0.5):
     pcd_torch = torch.from_numpy(pcd_reshape).float()
 
     # get global feature as numpy array
-    embed = model(pcd_torch).cpu().detach() \
+    model_embed = model(pcd_torch)
+    
+    embed = model_embed.cpu().detach() \
                             .numpy() \
-                            .squeeze()
+                            .squeeze()                  
+    torch.cuda.empty_cache()
     return embed
 
 
@@ -111,7 +150,7 @@ def engineered_features():
     pass
 
 
-def graph_features():
+def graph_features(graph):
     pass
 
 
@@ -121,25 +160,34 @@ def max_pool(ar):
     return 0
 
 
-def feature_embedding(map: TopometricMap, embed_dim: int) -> np.array:
-    # feature embedding
-    nodes = map.get_node_level()
-
-    def embed_node(node): return dgcnn(
-        node.geometry.to_pcd().points, embed_dim)
-    embedding = {node: embed_node(node) for node in nodes}
-
-    # graph convolution
+def feature_embedding(map: TopometricMap, embed_dim: int, k_max: int) -> np.array:
+    def embed_geometry(node: TopometricNode, mode: str): 
+        logging.info(f"Computing {mode} embedding for node {node}")
+        
+        if mode == 'deep':
+            return pcn(node.geometry.level_of_detail(2).to_pcd().center().points, 1024)
+        elif mode == 'spectral':
+            return node.geometry.level_of_detail(1).shape_dna(Kernel.nb26(), 256)
+        elif mode == 'engineered':
+            return engineered_features(node.geometry.to_pcd())
+        else:
+            raise ValueError(f"Invalid embedding method: {mode}")
+    
     def max_pool_nbs(nbs): return max_pool([embedding[nb] for nb in nbs])
     def k_weight(k): return (1/2)**k
     def graph_convolve(n, k): return max_pool_nbs(map.knbr(n, k))*k_weight(k)
+    
+    # geometrical feature embedding
+    nodes = map.get_node_level()
+    embedding = {node: embed_geometry(node, 'deep') for node in nodes}
 
-    convolved_embedding = {n: f for n, f in embedding.items()}
-    for k in range(1, 1):
-        convolved_embedding = {
-            n: f + graph_convolve(n, k) for n, f in convolved_embedding.items()}
+    # graph convolution
+    for k in range(1, k_max):
+        embedding = {
+            n: f + graph_convolve(n, k) for n, f in embedding.items()}
 
-    dgcnn_f = [convolved_embedding[n] for n in nodes]
+
+    dgcnn_f = [embedding[n] for n in nodes]
     embedding = dgcnn_f
 
     return embedding
@@ -206,7 +254,7 @@ def hypothesis_quality(h):
 
 
 def match(maps: List[TopometricMap], node_model: Callable = None, **kwargs):
-    features = {map: feature_embedding(map, 1024) for map in maps}
+    features = {map: feature_embedding(map, 1024, 3) for map in maps}
 
     matches = defaultdict(lambda: {})
 
@@ -218,17 +266,20 @@ def match(maps: List[TopometricMap], node_model: Callable = None, **kwargs):
             # create initial pairing by finding least cost assignment between nodes
             cost_matrix = euclidean_distances(f_a, f_b)
             assignment = linear_assign(cost_matrix)
+            
+            cost, assignment = sort_by_func(assignment, lambda a: cost_matrix[a[0], a[1]], reverse=False)
+            print(assignment)
 
             best_hypothesis = [(map_a.get_node_level()[a], map_b.get_node_level()[b]) for a, b in assignment]
 
-            # # from initial pairing, grow
-            # hypotheses = grow_hypotheses(map_a, map_b, assignment, cost_matrix)
-            # # t_clusters = cluster_hypotheses(hypotheses)
-            # # merged_hypotheses = merge_clusters(hypotheses, t_clusters)
+            # from initial pairing, grow
+            hypotheses = grow_hypotheses(map_a, map_b, assignment, cost_matrix)
+            # t_clusters = cluster_hypotheses(hypotheses)
+            # merged_hypotheses = merge_clusters(hypotheses, t_clusters)
 
-            # # _, sorted_hypotheses = sort_by_func(
-            # #     merged_hypotheses, hypothesis_quality, reverse=True)
-            # best_hypothesis = hypotheses[0]
+            # _, sorted_hypotheses = sort_by_func(
+            #     merged_hypotheses, hypothesis_quality, reverse=True)
+            best_hypothesis = hypotheses[0]
 
             for node_a, node_b in best_hypothesis:
                 a, b = map_a.node_index(node_a), map_b.node_index(node_b)
@@ -240,7 +291,7 @@ def match(maps: List[TopometricMap], node_model: Callable = None, **kwargs):
 
 
 def sort_by_func(collection, func, reverse):
-    return list(zip(*sorted([(func(h), h) for h in collection]), reverse=reverse))
+    return list(zip(*sorted([(func(h), h) for h in collection], reverse=reverse)))
 
 
 def match_create(topometric_maps, kwargs):

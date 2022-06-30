@@ -41,12 +41,15 @@ def run(**kwargs):
                                 kwargs
                                 )
 
-    # Get ground truth topometric maps that are aligned with voxel grid partial maps.
-    # Results are compared to these to determine performance characteristics.
-    ground_truth = aligned_ground_truth(partial_maps,
-                                        extract_cfg.leaf_voxel_size *
-                                        (2**extract_cfg.segmentation_lod),
-                                        kwargs["graph"])
+    if False:
+        # Get ground truth topometric maps that are aligned with voxel grid partial maps.
+        # Results are compared to these to determine performance characteristics.
+        ground_truth = aligned_ground_truth(partial_maps,
+                                            extract_cfg.leaf_voxel_size *
+                                            (2**extract_cfg.segmentation_lod),
+                                            kwargs["graph"])
+    else:
+        ground_truth = None
 
     # Extract topometric maps from voxel grid partial maps
     topometric_maps = process_step( kwargs["extract"],
@@ -115,13 +118,13 @@ if __name__ == "__main__":
 
         extract=False,
         write_extract=True,
-        visualize_extract=True,
+        visualize_extract=False,
         analyse_extract=False,
 
         match=True,
         write_match=False,
         visualize_match=True,
-        analyse_match=True,
+        analyse_match=False,
 
         fuse=False,
         write_fuse=False,
@@ -133,4 +136,4 @@ if __name__ == "__main__":
         graph=dataset.graph,
         trajectories=dataset.trajectories,
         topometric_maps=dataset.topometric_maps,
-    )
+    ) 

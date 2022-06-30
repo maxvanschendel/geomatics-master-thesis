@@ -250,7 +250,7 @@ class TopometricMap():
             else:
                 continue
             
-    def knbr(self, origin: TopometricNode, k: int = 1):
+    def knbr(self, origin: TopometricNode, k: int):
         from queue import Queue
         
         unvisited = Queue(0)
@@ -263,13 +263,12 @@ class TopometricMap():
             
             if cur_k == k:
                 visited.add(cur)
+                yield cur
             
             if cur_k <= k:
                 cur_nbs = self.neighbours(cur)
                 for nb in cur_nbs:
                     if nb not in visited:
                         unvisited.put((cur_k+1,nb))
-                    
-                yield cur
             else:
                 continue

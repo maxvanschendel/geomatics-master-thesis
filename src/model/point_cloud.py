@@ -269,6 +269,12 @@ class PointCloud:
             return as_tensor(self.points[:, :][np.newaxis, ...]).float()
         else:
             return as_tensor(self.points).float()
+        
+    def centroid(self):
+        return np.mean(self.points, axis=0)
+        
+    def center(self):
+        return PointCloud(self.points - self.centroid())
 
 class Trajectory(PointCloud):
     pass
