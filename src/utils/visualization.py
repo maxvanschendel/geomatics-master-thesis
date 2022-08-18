@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 from random import random
+
+
+import numpy as np
 import open3d as o3d
 from typing import List
 from model.point_cloud import PointCloud
 from model.voxel_grid import VoxelGrid
 
 from utils.io import load_pickle, select_file
-
 
 
 @dataclass
@@ -16,7 +18,7 @@ class SceneObject:
 
 
 class MultiViewScene:
-    def pcd_mat(pt_size=7, base_color=[1, 1, 1, 1]):
+    def pcd_mat(pt_size=3, base_color=[1, 1, 1, 1]):
         mat = o3d.visualization.rendering.MaterialRecord()
         mat.point_size = pt_size
         mat.base_color = base_color
@@ -24,10 +26,10 @@ class MultiViewScene:
 
         return mat
 
-    def graph_mat(color=[1.0, 0, 0, 1.0]):
+    def graph_mat(color=[0., 0., 0., 1.0]):
         mat = o3d.visualization.rendering.MaterialRecord()
         mat.shader = "unlitLine"
-        mat.line_width = 5
+        mat.line_width = .5
         mat.base_color = color
 
         return mat
@@ -67,22 +69,37 @@ class MultiViewScene:
             submap_widget.scene = o3d.visualization.rendering.Open3DScene(
                 window.renderer)
 
+            submap_widget.scene.set_background(np.asarray([1, 1, 1, 1]))
+
             for object_i, submap_object in enumerate(submap):
                 submap_widget.scene.add_geometry(
                     f"{submap_index}_{object_i}", submap_object.geometry, submap_object.material)
 
             submap_widget.setup_camera(
-                60, submap_widget.scene.bounding_box, (0, 0, 0))
+                3, submap_widget.scene.bounding_box, submap_widget.scene.bounding_box.get_center())
             submap_widget.set_on_mouse(on_mouse)
+
+            submap_widget.look_at(submap_widget.scene.bounding_box.get_center(
+            ), submap_widget.scene.bounding_box.get_center() + np.array([0, 1250, 0]), np.array([1, 0, 0]))
+
+            import matplotlib
+            matplotlib.use("TkAgg")
+
+            from matplotlib import pyplot as plt
+
+            img = app.render_to_image(submap_widget.scene, 2048, 2048)
+            plt.imshow(np.asarray(img))
+            plt.imsave(f'{name}_{submap_index}.jpg', np.asarray(img))
 
             window.add_child(submap_widget)
             widgets.append(submap_widget)
 
-        window.set_on_layout(on_layout)
-        app.run()
+        # window.set_on_layout(on_layout)
+        # app.run()
 
 
 pcd_mat = MultiViewScene.pcd_mat
+
 
 def random_color(alpha: bool = False) -> List[float]:
     return [random(), random(), random()]
@@ -122,13 +139,12 @@ def visualize_visibility(map: VoxelGrid, origins):
     ])
 
 
-def visualize_htmap(map):
+def visualize_htmap(map, capture_screen_image_name: str):
     geometry, graph, _ = map.to_o3d(randomize_color=True, voxel=False)
-        
+
     MultiViewScene([
-        [SceneObject(o, pcd_mat()) for o in geometry] + [SceneObject(graph, MultiViewScene.graph_mat())] ,],
-    )
-    
+        [SceneObject(o, pcd_mat(pt_size=2)) for o in geometry] + [SceneObject(graph, MultiViewScene.graph_mat())], ], name=capture_screen_image_name)
+
 
 def visualize_map_merge(map_a, map_b):
     map_a_o3d = map_a.to_o3d()
@@ -146,28 +162,36 @@ def visualize_map_merge(map_a, map_b):
     ])
 
 
-def visualize_matches(map_a, map_b, matches):
+def visualize_matches(map_a, map_b, matches, capture_screen_image_name: str):
     for room_a, room_b in matches:
         color = random_color()
         room_a.geometry.colorize(color)
         room_b.geometry.colorize(color)
-        
+
     geometry_a, lines_a, _ = map_a.to_o3d(randomize_color=False, voxel=False)
     geometry_b, lines_b, _ = map_b.to_o3d(randomize_color=False, voxel=False)
-        
+
     MultiViewScene([
-        [SceneObject(o, pcd_mat()) for o in geometry_a] + [SceneObject(lines_a, MultiViewScene.graph_mat())] ,
-        [SceneObject(o, pcd_mat()) for o in geometry_b]  + [SceneObject(lines_b, MultiViewScene.graph_mat())]],
-    )
+            [SceneObject(o, pcd_mat()) for o in geometry_a] +
+            [SceneObject(lines_a, MultiViewScene.graph_mat())],
+            [SceneObject(o, pcd_mat()) for o in geometry_b] + [SceneObject(lines_b, MultiViewScene.graph_mat())]],
+        name=capture_screen_image_name)
 
 
 if __name__ == '__main__':
     from model.topometric_map import TopometricMap
 
-    map = load_pickle(select_file())
-    map_type = type(map)
+    fn = select_file()
 
-    if map_type == TopometricMap:
-        visualize_htmap(map)
-    elif map_type == PointCloud:
+    if fn.endswith('.pickle'):
+        map = load_pickle(fn)
+        map_type = type(map)
+
+        if map_type == TopometricMap:
+            visualize_htmap(map)
+        elif map_type == PointCloud:
+            visualize_point_cloud(map)
+
+    elif fn.endswith('.ply'):
+        map = PointCloud.read_ply(fn)
         visualize_point_cloud(map)

@@ -36,7 +36,8 @@ def extract_create(partial_maps: List[VoxelGrid], config: MapExtractionParameter
 def extract_write(topometric_maps, kwargs):
     logging.info(f'Writing topometric maps')
     write_multiple(kwargs["topometric_maps"],
-                   topometric_maps, lambda p, fn: p.write(fn))
+                   topometric_maps, 
+                   lambda p, fn: p.write(fn))
 
 
 def extract_read(kwargs):
@@ -44,8 +45,9 @@ def extract_read(kwargs):
 
 
 def extract_visualize(topometric_maps, kwargs):
-    for t in topometric_maps:
-        visualize_htmap(t)
+    for i, t in enumerate(topometric_maps):
+        mapfn = kwargs["topometric_maps"][i] + '.jpg'
+        visualize_htmap(t, mapfn)
 
 
 def extract_analyse(truths, topometric_maps, kwargs):

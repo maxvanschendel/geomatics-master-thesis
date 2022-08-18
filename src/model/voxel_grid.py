@@ -656,9 +656,6 @@ class VoxelGrid:
         else:
             first_k_eigenvalues = np.hstack((sorted_eigenvalues[:k], np.zeros(k - len(sorted_eigenvalues))))
             
-        
-        
-
         # Fit line through eigenvalues (y = ax + b)
         a, b = np.polyfit(np.arange(len(sorted_eigenvalues)), sorted_eigenvalues, 1)
         

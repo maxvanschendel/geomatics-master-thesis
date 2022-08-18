@@ -30,10 +30,13 @@ def display_open3d(template, source, transformed_source):
 
 
 def align_least_squares(a: np.array, b: np.array):
-    def f(t): return sum([np.linalg.norm(
-        a[i] - (R.from_euler('xyz', [0, t[3], 0]).apply(b[i]) + t[0:3])) for i, _ in enumerate(a)])
+    def f(t): 
+        rot = R.from_euler('xyz', [0, t[3], 0])
+        trans = t[0:3]
+        return [np.linalg.norm(a[i] - rot.apply(b[i]) + trans) for i, _ in enumerate(a)]
 
-    return least_squares(f, np.zeros((4))).x
+    lstsq = least_squares(f, np.zeros((4)), ftol=0.001)
+    return lstsq.x, lstsq.fun
 
 
 def pointnet_lk(source: PointCloud, target: PointCloud, **kwargs) -> np.array:

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 import numpy as np
 
 from model.point_cloud import PointCloud, Trajectory
@@ -8,6 +8,7 @@ from model.topometric_map import TopometricMap
 from model.voxel_grid import VoxelGrid
 from utils.io import *
 from utils.linalg import random_transform
+from utils.visualization import visualize_voxel_grid
 
 
 class PartialMap():
@@ -57,33 +58,143 @@ cslam_flat_dataset = Dataset(
                      "../data/cslam/flat/flat_topo_02.pickle"),
 )
 
+cslam_house_dataset = Dataset(
+    point_cloud="../data/cslam/house/house.ply",
+    graph="../data/cslam/house/house_graph.csv",
+    trajectories=("../data/cslam/house/house_trajectory_01.csv",
+                  "../data/cslam/house/house_trajectory_02.csv"),
+    partial_maps=("../data/cslam/house/house_partial_01.pickle",
+                  "../data/cslam/house/house_partial_02.pickle"),
+    topometric_maps=("../data/cslam/house/house_topo_01.pickle",
+                     "../data/cslam/house/house_topo_02.pickle"),
+)
+
+cslam_lab_dataset = Dataset(
+    point_cloud="../data/cslam/lab/lab.ply",
+    graph="../data/cslam/lab/lab_graph.csv",
+    trajectories=("../data/cslam/lab/lab_trajectory_01.csv",
+                  "../data/cslam/lab/lab_trajectory_02.csv"),
+    partial_maps=("../data/cslam/lab/lab_partial_01.pickle",
+                  "../data/cslam/lab/lab_partial_02.pickle"),
+    topometric_maps=("../data/cslam/lab/lab_topo_01.pickle",
+                     "../data/cslam/lab/lab_topo_02.pickle"),
+)
+
+s3dis_area_1_dataset = Dataset(
+    point_cloud="../data/s3dis/area_1/area_1_subsample5cm.ply",
+    graph="../data/s3dis/area_1/area_1_graph.csv",
+
+    trajectories=("../data/s3dis/area_1/area_1_trajectory_01.csv",
+                  "../data/s3dis/area_1/area_1_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_1/area_1_partial_01.pickle",
+                  "../data/s3dis/area_1/area_1_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_1/area_1_topo_01.pickle",
+                     "../data/s3dis/area_1/area_1_topo_02.pickle",
+                     )
+)
+
+s3dis_area_2_dataset = Dataset(
+    point_cloud="../data/s3dis/area_2/area_2_subsample5cm.ply",
+    graph="../data/s3dis/area_2/area_2_graph.csv",
+
+    trajectories=("../data/s3dis/area_2/area_2_trajectory_01.csv",
+                  "../data/s3dis/area_2/area_2_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_2/area_2_partial_01.pickle",
+                  "../data/s3dis/area_2/area_2_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_2/area_2_topo_01.pickle",
+                     "../data/s3dis/area_2/area_2_topo_02.pickle",
+                     )
+)
+
 s3dis_area_3_dataset = Dataset(
-    point_cloud="../data/s3dis/area_3/area_3.ply",
+    point_cloud="../data/s3dis/area_3/area_3_subsample5cm.ply",
     graph="../data/s3dis/area_3/area_3_graph.csv",
 
     trajectories=("../data/s3dis/area_3/area_3_trajectory_01.csv",
                   "../data/s3dis/area_3/area_3_trajectory_02.csv",
-                  #   "../data/s3dis/area_3/area_3_trajectory_03.csv",
-                  #   "../data/s3dis/area_3/area_3_trajectory_04.csv"
                   ),
     partial_maps=("../data/s3dis/area_3/area_3_partial_01.pickle",
                   "../data/s3dis/area_3/area_3_partial_02.pickle",
-                  #   "../data/s3dis/area_3/area_3_partial_03.pickle",
-                  #   "../data/s3dis/area_3/area_3_partial_04.pickle"
                   ),
     topometric_maps=("../data/s3dis/area_3/area_3_topo_01.pickle",
                      "../data/s3dis/area_3/area_3_topo_02.pickle",
-                     #   "../data/s3dis/area_3/area_3_topo_03.pickle",
-                     #   "../data/s3dis/area_3/area_3_topo_04.pickle"
                      )
 )
+
+s3dis_area_4_dataset = Dataset(
+    point_cloud="../data/s3dis/area_4/area_4_subsample5cm.ply",
+    graph="../data/s3dis/area_4/area_4_graph.csv",
+
+    trajectories=("../data/s3dis/area_4/area_4_trajectory_01.csv",
+                  "../data/s3dis/area_4/area_4_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_4/area_4_partial_01.pickle",
+                  "../data/s3dis/area_4/area_4_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_4/area_4_topo_01.pickle",
+                     "../data/s3dis/area_4/area_4_topo_02.pickle",
+                     )
+)
+
+s3dis_area_5_dataset = Dataset(
+    point_cloud="../data/s3dis/area_5/area_5_subsample5cm.ply",
+    graph="../data/s3dis/area_5/area_5_graph.csv",
+
+    trajectories=("../data/s3dis/area_5/area_5_trajectory_01.csv",
+                  "../data/s3dis/area_5/area_5_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_5/area_5_partial_01.pickle",
+                  "../data/s3dis/area_5/area_5_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_5/area_5_topo_01.pickle",
+                     "../data/s3dis/area_5/area_5_topo_02.pickle",
+                     )
+)
+
+s3dis_area_6_dataset = Dataset(
+    point_cloud="../data/s3dis/area_6/area_6_subsample5cm.ply",
+    graph="../data/s3dis/area_6/area_6_graph.csv",
+
+    trajectories=("../data/s3dis/area_6/area_6_trajectory_01.csv",
+                  "../data/s3dis/area_6/area_6_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_6/area_6_partial_01.pickle",
+                  "../data/s3dis/area_6/area_6_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_6/area_6_topo_01.pickle",
+                     "../data/s3dis/area_6/area_6_topo_02.pickle",
+                     )
+)
+
+other_elspeet_dataset = Dataset(
+    point_cloud="../data/other/elspeet/elspeet_subsample5cm.ply",
+    graph="../data/other/elspeet/elspeet_graph.csv",
+
+    trajectories=("../data/other/elspeet/elspeet_trajectory_01.csv",
+                  "../data/other/elspeet/elspeet_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/other/elspeet/elspeet_partial_01.pickle",
+                  "../data/other/elspeet/elspeet_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/other/elspeet/elspeet_topo_01.pickle",
+                     "../data/other/elspeet/elspeet_topo_02.pickle",
+                     )
+)
+
+s3dis_datasets = [s3dis_area_1_dataset, s3dis_area_2_dataset, s3dis_area_3_dataset, s3dis_area_4_dataset, s3dis_area_5_dataset, s3dis_area_6_dataset]
+cslam_datasets = [cslam_flat_dataset, cslam_house_dataset, cslam_lab_dataset]
+various_datasets = [other_elspeet_dataset]
 
 
 def read_point_cloud(fn: str) -> PointCloud:
     if fn.endswith(".xyz") or fn.endswith(".csv"):
         return PointCloud.xyz(fn)
     elif fn.endswith(".ply"):
-        return PointCloud.read_ply(fn)
+        return PointCloud.read_ply(fn, y_up=False)
     else:
         raise NotImplementedError(f"Failed to read point cloud, \
                                     file extension for file {fn} is not supported.")
@@ -121,7 +232,7 @@ def simulate_scan(voxel_grid: VoxelGrid, trajectory: Trajectory, scan_range: flo
 
 
 def read_trajectory(fns: List[str]) -> List[np.array]:
-    return list(map(lambda fn: Trajectory.read_xyz(fn), fns))
+    return list(map(lambda fn: Trajectory.read_xyz(fn, y_up=False), fns))
 
 
 def simulate_create(config, kwargs):
@@ -150,8 +261,16 @@ def simulate_read(kwargs):
     return [SimulatedPartialMap.read(fn) for fn in kwargs["partial_maps"]]
 
 
-def simulate_visualize(partial_maps, kwargs):
-    pass
+def simulate_visualize(partial_maps: Iterable[SimulatedPartialMap], kwargs):
+    for p in partial_maps:
+        vg = p.voxel_grid
+        aabb = p.point_cloud.aabb
+
+        def cmap(v): return np.array(
+            [(vg.voxel_centroid(v)[1]) / aabb[1][1]]*3)
+
+        vg.for_each(lambda v: vg.set_attr(v, 'color', cmap(v)))
+        visualize_voxel_grid(vg)
 
 
 def aligned_ground_truth(partial_maps, voxel_size, graph):
@@ -159,8 +278,8 @@ def aligned_ground_truth(partial_maps, voxel_size, graph):
 
     def create_htmap(p): return TopometricMap.from_segmented_point_cloud(
         p.point_cloud, graph, voxel_size)
+    
     truths = [create_htmap(p) for p in partial_maps]
-
     return truths
 
 

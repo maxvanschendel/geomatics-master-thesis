@@ -93,7 +93,8 @@ class TopometricMap():
 
         if randomize_color:
             for n in nodes_o3d:
-                n.paint_uniform_color(random_color())
+                random_node_color = random_color()
+                n.paint_uniform_color(random_node_color)
             
         if voxel:
             nodes_o3d = [o3d.geometry.VoxelGrid.create_from_point_cloud(
@@ -160,7 +161,6 @@ class TopometricMap():
                       edge_color=colors,
                       labels=hier_labels,
                       node_size=1)
-        
         savefig(fn)
 
     @staticmethod
@@ -182,7 +182,7 @@ class TopometricMap():
         # Read topological graph stored as edge list in CSV file
         with open(topology_fn) as topology_file:
             csvreader = csv.reader(topology_file, delimiter=' ')
-            edges = [[int(n) for n in edge_str] for edge_str in csvreader]
+            edges = [[int(n) for n in edge_str if n != ''] for edge_str in csvreader]
 
         # Add an edge between room nodes that have a traversable relationship
         for attr_a, attr_b in edges:

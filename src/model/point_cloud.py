@@ -183,7 +183,7 @@ class PointCloud:
         return PointCloud(noisy_points)
 
     @staticmethod
-    def read_ply(fn: str) -> PointCloud:
+    def read_ply(fn: str, y_up: bool = True) -> PointCloud:
         """Reads .ply file to point cloud. Discards all mesh data.
 
         Args:
@@ -209,8 +209,13 @@ class PointCloud:
 
         # Fill matrix with point coordinates
         points[:, 0] = plydata['vertex'].data['x']
-        points[:, 1] = plydata['vertex'].data['y']
-        points[:, 2] = plydata['vertex'].data['z']
+            
+        if y_up:
+            points[:, 1] = plydata['vertex'].data['y']
+            points[:, 2] = plydata['vertex'].data['z']
+        else:
+            points[:, 2] = plydata['vertex'].data['y']
+            points[:, 1] = plydata['vertex'].data['z']
 
         # Try to read colors from ply file, if they don't exist then colors are set to zero
         try:
@@ -226,7 +231,7 @@ class PointCloud:
         
         return PointCloud(points, colors, {'room': rooms})
 
-    def read_xyz(fn: str, separator: str = ' ') -> PointCloud:
+    def read_xyz(fn: str, separator: str = ' ', y_up: bool = True) -> PointCloud:
         """Read XYZ file from disk.
 
         Args:
@@ -251,6 +256,9 @@ class PointCloud:
         # Put result in numpy matrix where each row represents a point.
         xyz = [[float(i) for i in line.split(separator)] for line in lines]
         pt_matrix = np.array(xyz)
+        
+        if not y_up:
+            pt_matrix[:,[1, 2]] = pt_matrix[:,[2, 1]]
 
         # Split matrix into point positions and colors
         pt_color = pt_matrix[:, 3:] / 255
@@ -275,6 +283,16 @@ class PointCloud:
         
     def center(self):
         return PointCloud(self.points - self.centroid())
+    
+    def normalize(self, target_min, target_max):
+        min, max = self.aabb[:,0], self.aabb[:,1]
+        points = (self.points - min) / (max - min).reshape((1,3))
+        points = points * (target_max - target_min) + target_min
+        
+        return PointCloud(self.points)
+        
+        
+        
 
 class Trajectory(PointCloud):
     pass
