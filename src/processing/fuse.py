@@ -30,12 +30,13 @@ def fuse(matches, registration_method: str) -> Dict[Tuple[TopometricMap, Topomet
 
         # Find transform between both maps based on ICP registration between matched spaces
         match_transforms = [registration(
-            source=a.geometry.to_pcd(),
-            target=b.geometry.to_pcd(),
-            algo=registration_method,
-            voxel_size=a.geometry.cell_size,
-            pointer='transformer', head='svd')
+                source=a.geometry.to_pcd(),
+                target=b.geometry.to_pcd(),
+                algo=registration_method,
+                voxel_size=a.geometry.cell_size,
+                pointer='transformer', head='svd')
             for a, b in node_matches.keys()]
+        
 
         if len(match_transforms) > 1:
             # Cluster similar transforms into transform hypotheses

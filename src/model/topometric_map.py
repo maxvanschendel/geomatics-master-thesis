@@ -57,6 +57,13 @@ class TopometricMap():
     def add_nodes(self, nodes: List[TopometricNode]):
         for n in nodes:
             self.add_node(n)
+            
+    def remove_node(self, node: TopometricNode):
+        self.graph.remove_node(node)
+        
+    def remove_nodes(self, nodes: Iterable[TopometricNode]):
+        for node in nodes:
+            self.remove_node(node) 
 
     def add_edge(self, node_a: TopometricNode, node_b: TopometricNode,
                  edge_type: EdgeType = EdgeType.TRAVERSABILITY, directed=True):
@@ -86,6 +93,9 @@ class TopometricMap():
     def geometry(self):
         return [n.geometry for n in self.nodes(False)]
     
+    def filter_nodes(self, func: Callable):
+        return [n for n in self.nodes(data=False) if func(n)]  
+        
     def to_o3d(self, level=Hierarchy.ROOM, randomize_color: bool = True, voxel: bool = True):
         nodes = self.get_node_level(level)
         nodes_geometry = [node.geometry for node in nodes]

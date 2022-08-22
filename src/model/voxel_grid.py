@@ -75,12 +75,11 @@ class VoxelGrid:
                 "All input voxel grids must have same origin and voxel size when  merging.")
 
         # sum up the voxels of each voxel grid
-        voxel_grid = VoxelGrid(cell_sizes[0], origins[0])
+        voxels = {}
         for vg in voxel_grids:
-            voxel_grid += vg
+            voxels.update(vg.voxels)
+        voxel_grid = VoxelGrid(cell_sizes[0], origins[0], voxels)
 
-        # after merging all voxel grids compute a new sparse voxel octree
-        voxel_grid.svo = voxel_grid.generate_svo()
         return voxel_grid
 
     def level_of_detail(self, level: int) -> VoxelGrid:

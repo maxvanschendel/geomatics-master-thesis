@@ -80,7 +80,7 @@ def run(**kwargs):
         kwargs["visualize_match"],
         kwargs["analyse_match"],
 
-        lambda args: match_create(topometric_maps, args),
+        lambda args: match_create(topometric_maps, partial_maps, args),
         match_write,
         match_read,
         lambda m, args: match_visualize(topometric_maps, m, args),
@@ -122,6 +122,7 @@ if __name__ == "__main__":
         try:
             run(
                 logging=True,
+                
 
                 simulate_partial_maps=False,
                 write_partial_maps=False,

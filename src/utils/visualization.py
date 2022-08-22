@@ -94,8 +94,8 @@ class MultiViewScene:
             window.add_child(submap_widget)
             widgets.append(submap_widget)
 
-        # window.set_on_layout(on_layout)
-        # app.run()
+        window.set_on_layout(on_layout)
+        app.run()
 
 
 pcd_mat = MultiViewScene.pcd_mat

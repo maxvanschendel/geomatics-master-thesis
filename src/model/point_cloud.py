@@ -291,7 +291,11 @@ class PointCloud:
         
         return PointCloud(self.points)
         
-        
+    def filter(self, func):
+        return PointCloud(np.array([p for p in self.points if func(p)])) 
+    
+    def intersect(self, voxel_grid: VoxelGrid):
+        return self.filter(lambda p: voxel_grid.contains_point(p))
         
 
 class Trajectory(PointCloud):
