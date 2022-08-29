@@ -52,9 +52,12 @@ def extract_visualize(topometric_maps, kwargs):
 
 def extract_analyse(truths, topometric_maps, kwargs):
     logging.info("Analysing topometric map extraction performance")
+    
     for i, t in enumerate(topometric_maps):
-        map_extract_perf = mean_similarity(truths[i], t)
-        logging.info(f"Map extract performance: {map_extract_perf}")
+        mean_sim = mean_similarity(truths[i], t)
+        
+        logging.info(f" Map extract performance: \n \
+                        mean similarity: {mean_sim}")
 
 
 def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> TopometricMap:

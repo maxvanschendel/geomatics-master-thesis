@@ -14,6 +14,7 @@ from utils.datasets import *
 from utils.pipeline import process_step
 
 logging.getLogger().setLevel(logging.INFO)
+
 numba_logger = logging.getLogger('numba')
 numba_logger.setLevel(logging.WARNING)
 
@@ -88,21 +89,21 @@ def run(**kwargs):
         kwargs
     )
 
-    # # Map fusion of partial topometric maps into global topometric map
-    # global_map = process_step(
-    #     kwargs["fuse"],
-    #     kwargs["write_fuse"],
-    #     kwargs["fuse_visualize"],
-    #     kwargs["fuse_analyse"],
+    # Map fusion of partial topometric maps into global topometric map
+    global_map = process_step(
+        kwargs["fuse"],
+        kwargs["write_fuse"],
+        kwargs["fuse_visualize"],
+        kwargs["fuse_analyse"],
 
-    #     lambda args: fuse_create(matches, args),
-    #     fuse_write,
-    #     fuse_read,
-    #     fuse_visualize,
-    #     lambda m, t, args: fuse_analyze(
-    #         m, ground_truths, partial_maps, t, args),
-    #     kwargs
-    # )
+        lambda args: fuse_create(matches, args),
+        fuse_write,
+        fuse_read,
+        fuse_visualize,
+        lambda m, t, args: fuse_analyze(
+            m, ground_truths, partial_maps, t, args),
+        kwargs
+    )
 
 
 if __name__ == "__main__":
@@ -126,7 +127,7 @@ if __name__ == "__main__":
 
                 simulate_partial_maps=False,
                 write_partial_maps=False,
-                visualize_partial_maps=False,
+                visualize_partial_maps=True,
                 analyse_partial_maps=False,
 
                 extract=False,
@@ -139,7 +140,7 @@ if __name__ == "__main__":
                 visualize_match=True,
                 analyse_match=True,
 
-                fuse=False,
+                fuse=True,
                 write_fuse=False,
                 fuse_visualize=False,
                 fuse_analyse=False,

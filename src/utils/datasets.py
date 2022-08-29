@@ -170,6 +170,96 @@ s3dis_area_6_dataset = Dataset(
                      )
 )
 
+s3dis_area_1_dataset_5cm = Dataset(
+    point_cloud="../data/s3dis/area_1/area_1_subsample5cm.ply",
+    graph="../data/s3dis/area_1/area_1_graph.csv",
+
+    trajectories=("../data/s3dis/area_1/area_1_trajectory_01.csv",
+                  "../data/s3dis/area_1/area_1_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_1/area_1_partial_01.pickle",
+                  "../data/s3dis/area_1/area_1_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_1/area_1_topo_01_5cm.pickle",
+                     "../data/s3dis/area_1/area_1_topo_02_5cm.pickle",
+                     )
+)
+
+s3dis_area_2_dataset_5cm = Dataset(
+    point_cloud="../data/s3dis/area_2/area_2_subsample5cm.ply",
+    graph="../data/s3dis/area_2/area_2_graph.csv",
+
+    trajectories=("../data/s3dis/area_2/area_2_trajectory_01.csv",
+                  "../data/s3dis/area_2/area_2_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_2/area_2_partial_01.pickle",
+                  "../data/s3dis/area_2/area_2_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_2/area_2_topo_01_5cm.pickle",
+                     "../data/s3dis/area_2/area_2_topo_02_5cm.pickle",
+                     )
+)
+
+s3dis_area_3_dataset_5cm = Dataset(
+    point_cloud="../data/s3dis/area_3/area_3_subsample5cm.ply",
+    graph="../data/s3dis/area_3/area_3_graph.csv",
+
+    trajectories=("../data/s3dis/area_3/area_3_trajectory_01.csv",
+                  "../data/s3dis/area_3/area_3_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_3/area_3_partial_01.pickle",
+                  "../data/s3dis/area_3/area_3_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_3/area_3_topo_01_5cm.pickle",
+                     "../data/s3dis/area_3/area_3_topo_02_5cm.pickle",
+                     )
+)
+
+s3dis_area_4_dataset_5cm = Dataset(
+    point_cloud="../data/s3dis/area_4/area_4_subsample5cm.ply",
+    graph="../data/s3dis/area_4/area_4_graph.csv",
+
+    trajectories=("../data/s3dis/area_4/area_4_trajectory_01.csv",
+                  "../data/s3dis/area_4/area_4_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_4/area_4_partial_01.pickle",
+                  "../data/s3dis/area_4/area_4_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_4/area_4_topo_01_5cm.pickle",
+                     "../data/s3dis/area_4/area_4_topo_02_5cm.pickle",
+                     )
+)
+
+s3dis_area_5_dataset_5cm = Dataset(
+    point_cloud="../data/s3dis/area_5/area_5_subsample5cm.ply",
+    graph="../data/s3dis/area_5/area_5_graph.csv",
+
+    trajectories=("../data/s3dis/area_5/area_5_trajectory_01.csv",
+                  "../data/s3dis/area_5/area_5_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_5/area_5_partial_01.pickle",
+                  "../data/s3dis/area_5/area_5_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_5/area_5_topo_01_5cm.pickle",
+                     "../data/s3dis/area_5/area_5_topo_02_5cm.pickle",
+                     )
+)
+
+s3dis_area_6_dataset_5cm = Dataset(
+    point_cloud="../data/s3dis/area_6/area_6_subsample5cm.ply",
+    graph="../data/s3dis/area_6/area_6_graph.csv",
+
+    trajectories=("../data/s3dis/area_6/area_6_trajectory_01.csv",
+                  "../data/s3dis/area_6/area_6_trajectory_02.csv",
+                  ),
+    partial_maps=("../data/s3dis/area_6/area_6_partial_01.pickle",
+                  "../data/s3dis/area_6/area_6_partial_02.pickle",
+                  ),
+    topometric_maps=("../data/s3dis/area_6/area_6_topo_01_5cm.pickle",
+                     "../data/s3dis/area_6/area_6_topo_02_5cm.pickle",
+                     )
+)
+
 other_elspeet_dataset = Dataset(
     point_cloud="../data/other/elspeet/elspeet_subsample5cm.ply",
     graph="../data/other/elspeet/elspeet_graph.csv",
@@ -186,6 +276,7 @@ other_elspeet_dataset = Dataset(
 )
 
 s3dis_datasets = [s3dis_area_1_dataset, s3dis_area_2_dataset, s3dis_area_3_dataset, s3dis_area_4_dataset, s3dis_area_5_dataset, s3dis_area_6_dataset]
+s3dis_5cm_datasets = [s3dis_area_1_dataset_5cm, s3dis_area_2_dataset_5cm, s3dis_area_3_dataset_5cm, s3dis_area_4_dataset_5cm, s3dis_area_5_dataset_5cm, s3dis_area_6_dataset_5cm]
 cslam_datasets = [cslam_flat_dataset, cslam_house_dataset, cslam_lab_dataset]
 various_datasets = [other_elspeet_dataset]
 
@@ -262,15 +353,17 @@ def simulate_read(kwargs):
 
 
 def simulate_visualize(partial_maps: Iterable[SimulatedPartialMap], kwargs):
-    for p in partial_maps:
+    for i, p in enumerate(partial_maps):
         vg = p.voxel_grid
         aabb = p.point_cloud.aabb
+        
+        mapfn = kwargs["topometric_maps"][i] + '_partial'
 
         def cmap(v): return np.array(
             [(vg.voxel_centroid(v)[1]) / aabb[1][1]]*3)
 
         vg.for_each(lambda v: vg.set_attr(v, 'color', cmap(v)))
-        visualize_voxel_grid(vg)
+        visualize_voxel_grid(vg, fn=mapfn)
 
 
 def aligned_ground_truth(partial_maps, voxel_size, graph):

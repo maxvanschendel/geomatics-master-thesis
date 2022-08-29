@@ -282,3 +282,11 @@ class TopometricMap():
                         unvisited.put((cur_k+1,nb))
             else:
                 continue
+            
+    def graph_edit_distance(self, other: TopometricMap, iterations: int = 0) -> int:
+        ismags = networkx.isomorphism.ISMAGS(self.graph, other.graph)
+        largest_common_subgraph = list(ismags.largest_common_subgraph())
+        
+        print(largest_common_subgraph)
+
+            

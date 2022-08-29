@@ -32,11 +32,11 @@ def fuse(matches, registration_method: str) -> Dict[Tuple[TopometricMap, Topomet
         match_transforms = [registration(
                 source=a.geometry.to_pcd(),
                 target=b.geometry.to_pcd(),
-                algo=registration_method,
-                voxel_size=a.geometry.cell_size,
-                pointer='transformer', head='svd')
+                registration_methods=registration_method,
+                voxel_size=a.geometry.cell_size)
             for a, b in node_matches.keys()]
         
+        logging.info(f"Identified {len(match_transforms)} transform clusters")
 
         if len(match_transforms) > 1:
             # Cluster similar transforms into transform hypotheses
@@ -47,6 +47,7 @@ def fuse(matches, registration_method: str) -> Dict[Tuple[TopometricMap, Topomet
                 transformation_clusters, -1)
         else:
             transformation_clusters = np.zeros((1))
+            
 
         for cluster in np.unique(transformation_clusters):
             # For every transformation cluster, compute the mean transformation
@@ -68,7 +69,7 @@ def fuse(matches, registration_method: str) -> Dict[Tuple[TopometricMap, Topomet
 
 def fuse_create(matches, kwargs):
     logging.info('Fusing partial maps')
-    global_map, result_transforms = fuse(matches, 'pnlk')
+    global_map, result_transforms = fuse(matches, 'icp')
 
     return global_map, result_transforms
 

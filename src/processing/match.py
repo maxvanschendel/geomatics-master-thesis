@@ -7,6 +7,7 @@ from typing import Callable
 
 from scipy.optimize import linear_sum_assignment
 from sklearn.metrics.pairwise import euclidean_distances
+from model.point_cloud import PointCloud
 
 from model.topometric_map import *
 from processing.fuse import cluster_transform
@@ -23,7 +24,7 @@ def product_matrix(func, a, b):
     return mat
 
 
-def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost_matrix: np.array, d_max: float = 0.5, t_max: float = 2.5):
+def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost_matrix: np.array, d_max: float = 1, t_max: float = 2.5):
     LARGE_NUM = 2**32
 
     def align_hypothesis(h):
@@ -70,8 +71,8 @@ def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost
                 nb_b = b_nodes[b_idx]
 
                 if cost_matrix[a_idx, b_idx] > d_max:
-                    nbs_cost[nbs_a_idx.index(
-                        a_idx), nbs_b_idx.index(b_idx)] = LARGE_NUM
+                    nbs_cost[nbs_a_idx.index(a_idx),
+                             nbs_b_idx.index(b_idx)] = LARGE_NUM
                     continue
 
                 # add potential
@@ -127,12 +128,27 @@ def lpdnet(pcd, n_points=4096):
     return embed
 
 
-def engineered_features():
-    pass
+def engineered_features(pcd: PointCloud):
+    embedding = np.array([
+        len(pcd.points),
+        pcd.planarity(),
+        pcd.volume(),
+        pcd.height(),
+        pcd.projected_area(),
+        pcd.mean_distance_to_centroid(),
 
+        pcd.quotient_of_eigenvalues(),
+        pcd.svd()[2],
+        pcd.svd()[2] / (pcd.svd()[0] + pcd.svd()[1]),
+        pcd.svd()[0] / pcd.svd()[1],
 
-def graph_features(graph):
-    pass
+        np.dot(np.array([0, 0, 1]), abs(pcd.pca()[0]
+               * pcd.explained_variance_ratio()[0])),
+        pcd.roughness(k=32),
+    ])
+
+    embedding = embedding / np.linalg.norm(embedding)
+    return embedding
 
 
 def max_pool(ar):
@@ -141,33 +157,32 @@ def max_pool(ar):
     return 0
 
 
-def embed_geometry(node: TopometricNode, feature: Iterable[str]):
-    # logging.info(f"Computing {feature} embedding for node {node}")
+def embed_geometry(geometry: VoxelGrid, feature: Iterable[str]):
+    logging.info(f"Computing {feature} embedding for node {geometry}")
 
     feature_func = {
         # deep learning
-        'lpdnet': lambda n: lpdnet(n.level_of_detail(0).to_pcd().center().normalize(-1, 1).points, 4096),
+        'deep': lambda n: lpdnet(n.level_of_detail(0).to_pcd().center().normalize(-1, 1).points, 4096),
         'spectral': lambda n: n.level_of_detail(1).shape_dna(Kernel.nb26(), 256),
         'engineered': lambda n: engineered_features(n.to_pcd())
     }
 
-    embedding = np.hstack((feature_func[f](node) for f in feature))
+    embedding = np.hstack((feature_func[f](geometry) for f in feature))
     return embedding
 
 
-def feature_embedding(tmap: TopometricMap, k_max: int, models: List[str] = ['lpdnet'], w: float = 1/2, partial_map: SimulatedPartialMap = None) -> np.array:
+def feature_embedding(tmap: TopometricMap, k_max: int, models: List[str], w: float = 1/2, partial_map: SimulatedPartialMap = None) -> np.array:
     def max_pool_nbs(nbs): return max_pool([embed[nb] for nb in nbs])
     def k_weight(k): return w**k
     def graph_conv(n, k=1): return max_pool_nbs(tmap.knbr(n, k))*k_weight(k)
 
     # geometrical feature embedding
     nodes = tmap.get_node_level()
-    
+
     embed = {n: embed_geometry(n.geometry, models) for n in nodes}
-    embed_1step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(n, 1)]) if len(list(tmap.knbr(n, 1))) else n.geometry, models) for n in nodes}
-    embed_2step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(n, 2)]) if len(list(tmap.knbr(n, 2))) else n.geometry, models) for n in nodes}
-    
-    embed = {n: np.hstack([embed[n], embed_1step[n], embed_2step[n]]) for n in nodes}
+    # embed_1step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(n, 1)]) if len(list(tmap.knbr(n, 1))) else n.geometry, models) for n in nodes}
+    # embed_2step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(n, 2)]) if len(list(tmap.knbr(n, 2))) else n.geometry, models) for n in nodes}
+    # embed = {n: np.hstack([embed[n], 0.5*embed_1step[n], 0.25*embed_2step[n]]) for n in nodes}
 
     # graph convolution
     for _ in range(k_max):
@@ -236,7 +251,7 @@ def hypothesis_quality(h):
     return len(h)
 
 
-def match(maps: List[TopometricMap], partial_maps: List[PartialMap], node_model: Callable = None, k_max=2, min_node_size: int = 4096, models: Iterable[str] = ['lpdnet'], grow: bool = False, **kwargs):
+def match(maps: List[TopometricMap], partial_maps: List[PartialMap], k_max=0, min_node_size: int = 4096, models: Iterable[str] = ['deep'], grow: bool = True, min_similarity: float = 1, **kwargs):
     for i, m in enumerate(maps):
         undersized_nodes = m.filter_nodes(
             lambda n: n.geometry.size < min_node_size)
@@ -252,11 +267,8 @@ def match(maps: List[TopometricMap], partial_maps: List[PartialMap], node_model:
             # compute distance in feature space between every pair of nodes
             f_a, f_b = features[map_a], features[map_b]
 
-            f_a_0 = f_a
-            f_b_0 = f_b
-
             # create initial pairing by finding least cost assignment between nodes
-            cost_matrix = euclidean_distances(f_a_0, f_b_0)
+            cost_matrix = euclidean_distances(f_a, f_b)
             assignment = linear_assign(cost_matrix)
 
             _, assignment = sort_by_func(
@@ -265,28 +277,22 @@ def match(maps: List[TopometricMap], partial_maps: List[PartialMap], node_model:
             if grow:
                 logging.info("Growing hypotheses")
 
-                # from initial pairing, grow
+                # from initial pairing, grow hypotheses along navigation graph
                 hypotheses = grow_hypotheses(
                     map_a, map_b, assignment, cost_matrix)
-
-                # t_clusters = cluster_hypotheses(hypotheses)
-                # merged_hypotheses = merge_clusters(hypotheses, t_clusters)
 
                 _, sorted_hypotheses = sort_by_func(
                     hypotheses, hypothesis_quality, reverse=True)
                 best_hypothesis = sorted_hypotheses[0]
-
             else:
                 best_hypothesis = [
-                    (map_a.get_node_level()[a], map_b.get_node_level()[b]) for a, b in assignment]
+                    (map_a.get_node_level()[a],
+                     map_b.get_node_level()[b]) for a, b in assignment]
 
             for node_a, node_b in best_hypothesis:
                 a, b = map_a.node_index(node_a), map_b.node_index(node_b)
 
-                print(cost_matrix[a, b])
-
-                similarity_threshold = 1
-                if cost_matrix[a, b] < similarity_threshold:
+                if cost_matrix[a, b] < min_similarity:
                     matches[map_a, map_b][node_a, node_b] = cost_matrix[a, b]
 
     return matches

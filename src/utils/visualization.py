@@ -34,7 +34,7 @@ class MultiViewScene:
 
         return mat
 
-    def __init__(self, maps: List[List[SceneObject]], name: str = ""):
+    def __init__(self, maps: List[List[SceneObject]], name: str = "", run: bool = False):
         app = o3d.visualization.gui.Application.instance
         app.initialize()
 
@@ -94,8 +94,9 @@ class MultiViewScene:
             window.add_child(submap_widget)
             widgets.append(submap_widget)
 
-        window.set_on_layout(on_layout)
-        app.run()
+        if run:
+            window.set_on_layout(on_layout)
+            app.run()
 
 
 pcd_mat = MultiViewScene.pcd_mat
@@ -115,14 +116,14 @@ def visualize_point_clouds(point_clouds: List[PointCloud]):
         [[SceneObject(point_cloud.to_o3d(), pcd_mat(pt_size=6))] for point_cloud in point_clouds])
 
 
-def visualize_voxel_grid(map: VoxelGrid, color=True):
+def visualize_voxel_grid(map: VoxelGrid, color=True, fn=''):
     pcd_map = map.to_pcd(has_color=color).to_o3d()
     vg_map = o3d.geometry.VoxelGrid.create_from_point_cloud(
         pcd_map, map.cell_size)
 
     MultiViewScene([
         [SceneObject(vg_map, pcd_mat(pt_size=6))]
-    ])
+    ], name = fn)
 
 
 def visualize_visibility(map: VoxelGrid, origins):
