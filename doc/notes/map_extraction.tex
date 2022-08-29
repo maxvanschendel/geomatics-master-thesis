@@ -1,21 +1,28 @@
 \subsection{Map Extraction}
-In the map extraction module we extract topometric maps from each individual partial point cloud map. In this subsection we will discuss the algorithms and data structures used for this purpose.
 
-\subsubsection{Overview}
-The goal of the map extraction step is to transform a partial voxel grid map \(\voxelgrid\) into a topometric map \(\topometricmap\). It works by first finding a navigation graph \(\navgraph\) that connects a subset of the partial map \(\voxelgrid_{navigation} \in \voxelgrid\), which represents the parts of the map that a hypothetical agent would use to move through the environment, including the floor, stairs and ramps. We then use \(\navgraph\) along with \(\voxelgrid\) to segment the map into semantically meaningful rooms based on clusters of visibility, we denote the segmented voxel grid map as \(\voxelgrid_{room}\). After doing so we construct the topological graph \(\topologicalgraph\) of the environment by finding which rooms are adjacent in \(\navgraph\). Finally, we fuse the topological map with the segmented room map to construct the topometric map \(\topometricmap\). Figure \ref{fig:map_extract_steps} shows an overview of our map extraction algorithm, its input, and (intermediate) outputs. In the rest of this subsection we will discuss each of steps in more detail.
+The goal of the topometric map extraction step is to transform a partial voxel grid map of an indoor environment, denoted by \(\voxelgrid\), into a topometric map, denoted by \(\topometricmap\). The algorithm should be robust the missing data and work across a wide range of data resolution. In this section we propose an algorithm to achieve this goal. In an overview, it works as follows.
+
+We first extract a navigation graph \(\navgraph\), a graph connecting all of the voxels which a hypothetical agent could use to move through the environment, from the partial voxel grid map \(\voxelgrid\). Using \(\navgraph\) we compute points where the hypothetical agent would have an optimal view of the environment. We then find the visible voxels for each of these points. By clustering the resultant visibilities based on similarity, we segment \(\voxelgrid\) into submaps that align closely with how humans divide indoor environments into rooms. As such, we refer to the submaps of \(\voxelgrid\) when segmented using visibility clustering as 'rooms'. Afterwards, we construct the topological graph of the environment, denoted by \(\topologicalgraph\), with edges representing whether it is possible to navigate between two rooms without passing through another. Finally, we fuse the topological map with the segmented map to construct the topometric map \(\topometricmap\). 
+
+Figure \ref{fig:map_extract_steps} shows an overview of our map extraction algorithm, its input, and intermediate outputs. In the rest of this subsection we will the algorithm in more detail.
 
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=\textwidth]{./fig/map_extract.png}
+    \includegraphics*[width=1\textwidth]{./fig/flowchart_extract.pdf}
     \caption{Diagram showing map extraction processes and intermediate data.}
     \label{fig:map_extract_steps}
 \end{figure}
 
 \subsubsection{Navigable volume}
-In our first step we extract a navigation graph \(\navgraph\). The navigation graph tells us how a theoretical agent in the map's environment would navigate through that environment. In practice, this means the areas of the floor, ramps and stairs that are at a sufficient distance from a wall and a ceiling. We compute \(\navgraph\) using a three step algorithm.
+In our first step we extract a navigation graph \(\navgraph\). The navigation graph tells us how a theoretical agent in the map's environment would navigate through that environment. In practice, assuming a human agent, this means the areas of the floor, ramps and stairs that are at a sufficient distance from a wall and a ceiling. We compute \(\navgraph\) using a three step algorithm which we describe below.
 
 \subsubsection{Convolution}
-The first step uses voxel convolution with a stick-shaped kernel \(\mathcal{K}_{stick}\) (shown in \ref{fig:stick_kernel}) to find all voxels that are unobstructed and are thus candidates for navigation. Each voxel in the kernel has a weight of 1, except the origin voxel which has weight 0. The associated function is summation. Convolving the voxel grid's occupancy property with the stick kernel results in voxels with an obstructed value of 0 when no other voxels are in the stick kernel. This indicates that these voxels have enough space around and above them to be used for navigation. We denote this convolution as \(\mathcal{V}_{\mathcal{K}_{stick}} = c(\mathcal{V},\mathcal{K}_{stick})\). We then filter out all non-zero voxels, such that \(\mathcal{V}_{unobstructed}=\{\boldsymbol{v} \in \mathcal{V}_{\mathcal{K}_{stick}}\ |\ \mathcal{V}_{obstructed}(\boldsymbol{v}) = 0\}\). 
+The first step uses voxel convolution with a stick-shaped kernel \(\mathcal{K}_{stick}\) (shown in \ref{fig:stick_kernel}) to find all voxels that are unobstructed and are thus candidates for navigation. Each voxel in the kernel has a weight of 1, except the origin voxel which has weight 0. The associated function is summation. Convolving the voxel grid's occupancy property with the stick kernel gives us each voxel's obstruction property, denoted as \(\voxel_{obstruction}\) with an obstruction value of 0 when no other voxels are present in the stick kernel. This indicates that these voxels have enough space around and above them to be used for navigation. We then filter out all obstructed voxels, such that equation \ref{eq:convolve} follows.
+
+\begin{equation}
+    \label{eq:convolve}
+\mathcal{V}_{unobstructed}=\{\boldsymbol{v} \mid \voxel \in convolve(\mathcal{V},\ \mathcal{K}_{stick}),\ \voxel_{obstruction} = 0\}
+\end{equation}
 
 \begin{figure}[h]
     \centering
@@ -28,9 +35,25 @@ The first step uses voxel convolution with a stick-shaped kernel \(\mathcal{K}_{
 The next step of the algorithm is to dilate the unobstructed voxels upwards by a distance \(d_{dilate}\). This connects the unoccupied voxels separated by a small height differences into a connected volume. The value of \(d_{dilate}\) depends on the expected differences in height between the steps of stairs in the environment. Typically, we use a value of 0.2m for this parameter. The result is a new voxel grid \(\mathcal{V}_{dilated}\). Note that the dilation step may create new occupied voxels that are not in the original voxel grid, which means that \(\mathcal{V}_{dilated}\) is not a subset of \(\voxelgrid\).
 
 \subsubsection{Connected components}
-The final step of the algorithm is to split \(\mathcal{V}_{dilated}\) into one or more connected components. A connected component \(\mathcal{V}_c\) of a voxel grid is a subset of \(\mathcal{V}\) where there exists a path between every voxel in \(\mathcal{V}_c\). The neighbourhood graph \(\mathcal{G}_{\mathcal{V},\ \mathcal{K}} = (V,\ E)\) of \(\mathcal{V}\) represents the voxels in \(\mathcal{V}\) as nodes. Each node has incident edges towards all other voxels in its neighbourhood, which is defined by a kernel \(\mathcal{K}\), such that \(V = \mathcal{V},\ E_{V} = \{(\boldsymbol{v}, \boldsymbol{v_{nb}})\ |\ \boldsymbol{v} \in \mathcal{V},\ \boldsymbol{v_{nb}} \in \mathcal{K}_{\boldsymbol{v}}\},\ |E_{V}| \leq |\mathcal{K}|*|\mathcal{V}|\). 
+The final step of the algorithm is to split \(\mathcal{V}_{dilated}\) into one or more connected components. A connected component \(\mathcal{V}_c\) of a voxel grid is a subset of \(\mathcal{V}\) where there exists a path between every voxel in \(\mathcal{V}_c\). The neighbourhood graph \(\mathcal{G}_{\mathcal{V},\ \mathcal{K}} = (N,\ E)\) of \(\mathcal{V}\) represents the voxels in \(\mathcal{V}\) as nodes. Each node has incident edges towards all other voxels in its neighbourhood, which is defined by a kernel \(\mathcal{K}\), such that 
 
-There exists a path between two voxels \(\boldsymbol{v_a},\ \boldsymbol{v_b}\) in \(\mathcal{V}\) if there exists a path between their corresponding nodes \(V_a,\ V_b\) in \(\mathcal{G}_{\mathcal{V}}\). We denote the set of all possible paths between two nodes as \(paths(V_a,\ V_b)\). A connected component is then defined as \(\mathcal{V}_c=\{\boldsymbol{v_a}\ |\ \boldsymbol{v_a} \in \mathcal{V},\ \boldsymbol{v_b} \in \mathcal{V},\ |paths(V_a, V_b)| \neq 0\}\). We define the set of all connected components as \(\mathcal{V}_{cc}=\{\mathcal{V}_{c,\ i}\}_{i=1}^n\). We find the connected components using the following algorithm:
+\begin{equation}
+    \label{eq:connected_components_01}
+N = \mathcal{V}
+\end{equation}
+\begin{equation}
+    \label{eq:connected_components_02}
+    E_{V} = \{(\boldsymbol{v}, \boldsymbol{v_{nb}})\ |\ \boldsymbol{v} \in \mathcal{V},\ \boldsymbol{v_{nb}} \in \mathcal{K}_{\boldsymbol{v}}\},\ |E_{V}| \leq |\mathcal{K}|*|\mathcal{V}|
+\end{equation}
+
+There exists a path between two voxels \(\boldsymbol{v_a},\ \boldsymbol{v_b}\) in \(\mathcal{V}\) if there exists a path between their corresponding nodes \(N_a,\ N_b\) in \(\mathcal{G}_{\mathcal{V}}\). We denote the set of all possible paths between two nodes as \(paths(N_a,\ N_b)\). We denote a connected component containing voxel \(\boldsymbol{v_a}\) and all voxels conntected to it as:
+
+\begin{equation}
+    \label{eq:connected_components_03}
+\mathcal{V}_a=\{\boldsymbol{v_b}\ |\ \boldsymbol{v_a} \in \mathcal{V},\ \boldsymbol{v_b} \in \mathcal{V},\ |paths(N_a, N_b)| \neq 0\}
+\end{equation}
+
+We define the set of all connected components as \(\mathcal{V}_{cc}=\{\mathcal{V}_{c,\ i}\}_{i=1}^n\). We find the connected components using the following algorithm:
 
 \begin{algorithm}
     \caption{Region growing connected components}\label{alg:cap}
@@ -62,7 +85,18 @@ After doing so, we find the connected component in \(\mathcal{V}_{cc}\) with the
 To compute the isovists necessary for room segmentation it is first necessary to estimate hypothetical scanning positions that maximize the view of the map. We compute these by finding the local maxima of the horizontal distance field of \(\mathcal{V}_{navigation}\). The steps to achieve this are as follows. 
 
 \subsubsection{Horizontal distance field}
-For each voxel in \(\voxelgrid\) we compute the horizontal Manhattan distance to the nearest boundary voxel. A boundary voxel is a voxel for which not every voxel in its Von Neumann neighbourhood is occupied. To compute this value we iteratively convolve the voxel grid with a circle-shaped kernel on the X-Z plane, where the radius of the circle is expanded by 1 voxel with each iteration, starting with a radius of 1. When the number of voxel neighbours within the kernel is less than the number of voxels in the kernel a boundary voxel has been reached. Thus, the number of radius expansions tells us the Manhattan distance to the boundary of a particular voxel. We denote the horizontal distance of a voxel to its boundary as \(dist: \mathbb{Z}^{3+} \mapsto \mathbb{Z}\). Computing the horizontal distance for every voxel in \(\voxelgrid\) gives us the horizontal distance field (HDF), such that \(HDF = \{dist(\voxel) \mid \voxel \in \voxelgrid\}\). We denote the horizontal distance of a given voxel \(\voxel\) as \(d_{\voxel}\). We implement this using the following algorithm.
+For each voxel in \(\voxelgrid\) we compute the horizontal Manhattan distance to the nearest boundary voxel. A boundary voxel is a voxel for which not every voxel in its Von Neumann neighbourhood is occupied. To compute this value we iteratively convolve the voxel grid with a circle-shaped kernel on the X-Z plane, where the radius of the circle is expanded by 1 voxel with each iteration, starting with a radius of 1. When the number of voxel neighbours within the kernel is less than the number of voxels in the kernel a boundary voxel has been reached. Thus, the number of radius expansions tells us the Manhattan distance to the boundary of a particular voxel. We denote the horizontal distance of a voxel to its boundary as \(dist: \mathbb{Z}^{3+} \mapsto \mathbb{Z}\). Computing the horizontal distance for every voxel in \(\voxelgrid\) gives us the horizontal distance field (HDF), such that 
+
+\begin{equation}
+    \label{eq:hdf}
+HDF = \{dist(\voxel) \mid \voxel \in \voxelgrid\
+\end{equation}
+\begin{equation}
+    \label{eq:hdfmax}
+HDF_{max} = \{\voxel \mid dist(\voxel) \geq max \{dist(\boldsymbol{v_{r}} \mid \boldsymbol{v_{r}} \in radius(\voxel,\ r))\}\}
+\end{equation}
+
+We denote the horizontal distance of a given voxel \(\voxel\) as \(d_{\voxel}\). We implement this using the following algorithm.
 
 \algnewcommand\algorithmicforeach{\textbf{for each}}
 \algdef{S}[FOR]{ForEach}[1]{\algorithmicforeach\ #1\ \algorithmicdo}
@@ -89,7 +123,14 @@ For each voxel in \(\voxelgrid\) we compute the horizontal Manhattan distance to
     \end{algorithmic}
 \end{algorithm}
 
-We then find the maxima of the horizontal distance field within a given radius \(r \in \mathbb{R}\).  The local maxima of the horizontal distance field are all voxels that have a larger or equal horizontal distance than all voxels within \(r\), such that \(HDF_{max} = \{\voxel \mid dist(\voxel) \geq max \{dist(\boldsymbol{v_{r}} \mid \boldsymbol{v_{r}} \in radius(\voxel,\ r))\}\}\). Increasing the value of \(r\) reduces the number of local maxima and vice versa. All voxels in \(HDF_{max}\) lie within the geometry of the environment, which means the view of the environment is blocked by the surrounding voxels. To solve this, we take the centroids of the voxels in \(HDF_{max}\) and translate them upwards to a reasonable scanning height \(h\), to estimate the positions with the optimal view of the map. We denote these positions as \(views = \{\boldsymbol{v_c} + (0, h, 0) \mid \boldsymbol{v} \in HDF_{max}\}\). We use the following algorithm to compute \(views\).
+We then find the maxima of the horizontal distance field within a given radius \(r \in \mathbb{R}\).  The local maxima of the horizontal distance field are all voxels that have a larger or equal horizontal distance than all voxels within \(r\), such that equation \ref{eq:hdfmax} follows. Increasing the value of \(r\) reduces the number of local maxima and vice versa. All voxels in \(HDF_{max}\) lie within the geometry of the environment, which means the view of the environment is blocked by the surrounding voxels. To solve this, we take the centroids of the voxels in \(HDF_{max}\) and translate them upwards to a reasonable scanning height \(h\), to estimate the positions with the optimal view of the map. We denote these positions as 
+
+\begin{equation}
+    \label{eq:views}
+views = \{\boldsymbol{v_c} + (0, h, 0) \mid \boldsymbol{v} \in HDF_{max}\}
+\end{equation}
+
+We use the following algorithm to compute \(views\).
 
 \begin{algorithm}
     \caption{Horizontal Distance Field Maxima}
@@ -131,7 +172,32 @@ We then find the maxima of the horizontal distance field within a given radius \
 \end{figure}
 
 \subsubsection{Visibility}
-The next step in the room segmentation algorithm is to compute the visibility from each position in \(views\). We denote the all voxels that are visible from a given position as \(visibility: \mathbb{R},\ \voxelset \mapsto \mathbb{Z}^{m \times 3},\ m \in \mathbb{R},\ n \geq m\). A target voxel is visible from a position if a ray cast from the position towards the centroid of the voxel does not intersect with any other voxel. To compute this we use the digital differential analyzer (DDA) algorithm to rasterize the ray onto the voxel grid in 3D. We then check if any of the voxels that the ray enters- except the target voxel- is occupied. If none are, the target voxel is visible from the point. We perform this raycasting operation from every position in \(views\) towards every voxel within a radius \(r_{visibility}\) of that position. Only taking into account voxels within a radius speeds up the visibility computation, and is justifiable based on the fact that real-world 3D scanners have limited range. We denote the set of visibilities from each point in views as \(visibility_{views} = \{visibility(\boldsymbol{x}) \mid \boldsymbol{x} \in views\}\). The below pseudocode shows how the visibility computation works.
+The next step in the room segmentation algorithm is to compute the visibility from each position in \(views\). We denote the all voxels that are visible from a given position as 
+
+\begin{equation}
+    \label{eq:visibility}
+    visibility: \mathbb{R},\ \voxelset \mapsto \mathbb{Z}^{m \times 3},\ m \in \mathbb{R},\ n \geq m
+\end{equation}
+
+A target voxel is visible from a position if a ray cast from the position towards the centroid of the voxel does not intersect with any other voxel. To compute this we use the digital differential analyzer (DDA) algorithm to rasterize the ray onto the voxel grid in 3D. We then check if any of the voxels that the ray enters- except the target voxel- is occupied. If none are, the target voxel is visible from the point. Figure \ref{fig:voxel_raycast} shows a 2D representation of voxel raycasting.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.5\textwidth]{./fig/voxel_raycast.pdf}
+    \caption{2D representation of voxel raycasting.}
+    \label{fig:voxel_raycast}
+
+\end{figure}
+\clearpage
+
+We perform this raycasting operation from every position in \(views\) towards every voxel within a radius \(r_{visibility}\) of that position. Only taking into account voxels within a radius speeds up the visibility computation, and is justifiable based on the fact that real-world 3D scanners have limited range. We denote the set of visibilities from each point in views as 
+
+\begin{equation}
+    \label{eq:visibility_views}
+visibility_{views} = \{visibility(\boldsymbol{x}) \mid \boldsymbol{x} \in views\}
+\end{equation}
+
+The below pseudocode shows how the visibility computation works.
 
 \begin{algorithm}
     \caption{Visibility}
@@ -191,13 +257,34 @@ The next step in the room segmentation algorithm is to compute the visibility fr
 \end{algorithm}
 
 \subsubsection{Room segmentation}
-After computing the set of visibilities from the estimated optimal views we apply clustering to group the visibilities by similarity. This is based on the definition of a room as a region of similar visibility. Remember that each visibility is a subset of the voxel grid map. To compute the similarity of two sets we use the Jaccard index, which is given by \(J(A,B) = \frac{|A \cap B|}{|A \cup B|}\). Computing the Jaccard index for every combination of visibilities gives us a similarity matrix \(S^{n \times n} \in [0, 1]\). The similarity matrix is symmetric because \(J(A,B) = J(B,A)\). Its diagonals are 1, as \(J(A,A) = 1\). An example similarity matrix is showin in figure \ref{fig:jaccard}.
+After computing the set of visibilities from the estimated optimal views we apply clustering to group the visibilities by similarity. This is based on the definition of a room as a region of similar visibility. Remember that each visibility is a subset of the voxel grid map. To compute the similarity of two sets we use the Jaccard index, which is given by equation \ref{eq:jacc_01}.
+\begin{equation}
+    \label{eq:jacc_01}
+    J(A,B) = \frac{|A \cap B|}{|A \cup B|}
+\end{equation}
+\begin{equation}
+    \label{eq:jacc_02}
+    J(A,B) = J(B,A)
+\end{equation}
+\begin{equation}
+    \label{eq:jacc_03}
+    J(A,A) = 1
+\end{equation}
 
-\begin{figure}
+Computing the Jaccard index for every combination of visibilities gives us a similarity matrix \(S^{n \times n} \in [0, 1]\). The similarity matrix is symmetric because of equation \ref{eq:jacc_02}. Its diagonals are 1, as follows from equation \ref{eq:jacc_03}. An example similarity matrix and its corresponding graph are shown in figure \ref{fig:jaccard} and \ref{fig:similarity_graph}.
+
+\begin{figure}[h]
     \centering
     \includegraphics*[width=0.8\textwidth]{./fig/mutual_visibility_matrix.png}
     \caption{Similarity matrix extracted from set of visibilities. Each value represents the Jaccard index of two visibilities.}
     \label{fig:jaccard}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=0.8\textwidth]{./fig/mutual_visibility_graph.png}
+    \caption{Graph representation of the similarity matrix, edges under a threshold similarity are removed. Nodes represent visibilities.}
+    \label{fig:similarity_graph}
 \end{figure}
 
 We can also consider \(S^{n \times n}\) as an undirected weighted graph \(\graph_S\), where every node represents a visibility and the edges the Jaccard index of two visibilities. This means we can treat visibility clustering as a weighted graph clustering problem. To solve this problem we used the Markov Cluster (MCL) algorithm (CITE MCL), which has been shown by previous research to be state-of-the-art for visibility clustering. 
@@ -208,9 +295,27 @@ The main parameter of the MCL algorithm is inflation. By varying this parameter 
 % TODO: Give mathematical description of MCL
 % TODO: Give mathematical equation of modularity
 
-We denote the clustering of \(visibility_{views}\) that results from the MCL algorithm as \(\mathbf{C}_{visibility} = \{c_0, c_1, \dots c_{n-1}, c_{n}\},\ n=|views|,\ c \in \integers,\ n \geq c\), where \(n\)th element of \(\mathbf{C}_{visibility}\) is the cluster that the \(n\)th element of \(visibility_{views}\) belongs to, such that for a given value of \(c\), the elements in \(visibility_{views}\) for which the corresponding \(c\) in \(\mathbf{C}_{visibility}\) has the same value belong to the same cluster. As each visibility is a subset of the map, each cluster of visibilities is also a subset of the map. We denote the union of the visibilities belonging to each cluster as \(\mathcal{V}_{c}\). 
+We denote the clustering of \(visibility_{views}\) that results from the MCL algorithm as 
 
-It is possible for visibility clusters in \(\mathcal{V}_{c}\) to have overlapping voxels. This means that each voxel in the partial map may have multiple associated visibility clusters. However, the goal is to assign a single room to each voxel in the map. To solve this we assign to each voxel the cluster in which the most visibilities contain that voxel. The result is a mapping from voxels to visibility clusters (which we will from now on refer to as rooms), which we denote as \(room: \voxel \mapsto \integers\), such that \(room(\voxel) = c,\ c \in \mathbf{C}_{visibility},\ \voxel \in \voxelgrid\). This often results in noisy results, with small, disconnected islands of rooms surrounded by other rooms. Intuitively, this does not correspond to a reasonable room segmentation. To solve this, we apply a label propagation algorithm. This means that for every voxel we find the voxels within a neighbourhood as defined by a convolution kernel. We then assign to the voxel the most common label, in this case the room, of its neighbourhood, if that label is more common than the current label. We iteratively apply this step until the assigned labels stop changing. Depending on the size of the convolution kernel the results are smoothed and small islands are absorbed by the surrounding rooms.
+\begin{equation}
+    \label{eq:c_visibility}
+    \mathbf{C}_{visibility} = \{c_i\}_{i=1}^{|views|},\ c_i \in \mathbb{Z}^+
+\end{equation}
+
+Where the \(i\)th element of \(\mathbf{C}_{visibility}\) is the cluster that the \(i\)th element of \(visibility_{views}\) belongs to, such that for a given value of \(c\), the elements in \(visibility_{views}\) for which the corresponding \(c\) in \(\mathbf{C}_{visibility}\) has the same value belong to the same cluster. As each visibility is a subset of the map, each cluster of visibilities is also a subset of the map. We denote the union of the visibilities belonging to each cluster as \(\mathcal{V}_{c}\). 
+
+It is possible for visibility clusters in \(\mathcal{V}_{c}\) to have overlapping voxels. This means that each voxel in the partial map may have multiple associated visibility clusters. However, the goal is to assign a single room to each voxel in the map. To solve this we assign to each voxel the cluster in which the most visibilities contain that voxel. The result is a mapping from voxels to visibility clusters (which we will from now on refer to as rooms), which we denote as 
+
+\begin{equation}
+    \label{eq:room_01}
+room: \voxel \mapsto \integers
+\end{equation}
+\begin{equation}
+    \label{eq:room_02}
+room(\voxel) = c,\ c \in \mathbf{C}_{visibility},\ \voxel \in \voxelgrid
+\end{equation}
+
+This often results in noisy results, with small, disconnected islands of rooms surrounded by other rooms. Intuitively, this does not correspond to a reasonable room segmentation. To solve this, we apply a label propagation algorithm. This means that for every voxel we find the voxels within a neighbourhood as defined by a convolution kernel. We then assign to the voxel the most common label, in this case the room, of its neighbourhood, if that label is more common than the current label. We iteratively apply this step until the assigned labels stop changing. Depending on the size of the convolution kernel the results are smoothed and small islands are absorbed by the surrounding rooms.
 
 
 \begin{algorithm}
@@ -244,7 +349,7 @@ It is possible for visibility clusters in \(\mathcal{V}_{c}\) to have overlappin
 \end{algorithm}
 
 \subsubsection{Topometric map extraction}
-The above steps segment the map into multiple non-overlapping rooms based on visibility clustering. In the next step we transform the map into a topometric representation \(\topometricmap = (\topologicalgraph, \voxelgrid)\), which consists of a topological graph \(\topologicalgraph=(V,E)\) and a voxel grid map \(\voxelgrid\). Each node in \(\topologicalgraph\) represents a room, and also has an associated voxel grid which is a subset of \(\voxelgrid\) and represents the geometry of that room. Edges in \(\topologicalgraph\) represent navigability between rooms, meaning that there is a path between them on the navigable volume that does not pass through any other rooms. This means that for two rooms to have a navigable relationship they need to have adjacent voxels that are both in the navigable volume. To construct the topometric map we thus add a node for every room in the segmented map with its associated voxels, we then add edges between every pair of nodes that satisfy the above navigability requirement.  
+The above steps segment the map into multiple non-overlapping rooms based on visibility clustering. In the next step we transform the map into a topometric representation \(\topometricmap = (\mathcal{G}, \voxelgrid)\), which consists of a topological graph \(\mathcal{G}=(N,E)\) and a voxel grid map \(\voxelgrid\). Each node in \(\mathcal{G}\) represents a room, and also has an associated voxel grid which is a subset of \(\voxelgrid\) and represents the geometry of that room. Edges in \(\mathcal{G}\) represent navigability between rooms, meaning that there is a path between them on the navigable volume that does not pass through any other rooms. This means that for two rooms to have a navigable relationship they need to have adjacent voxels that are both in the navigable volume. To construct the topometric map we thus add a node for every room in the segmented map with its associated voxels, we then add edges between every pair of nodes that satisfy the above navigability requirement.  
 
 
 \begin{algorithm}

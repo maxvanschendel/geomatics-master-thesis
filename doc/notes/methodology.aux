@@ -1,78 +1,133 @@
 \relax 
-\citation{volodine_point_2007}
 \@writefile{toc}{\contentsline {section}{\numberline {4}Methodology}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Map Representations}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.1}Point Cloud}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.2}Voxel Grid}{8}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Sparse Voxel Octree}{8}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces A voxel grid and its components.}}{9}{}\protected@file@percent }
-\newlabel{fig:vg_basic}{{3}{9}}
-\@writefile{toc}{\contentsline {paragraph}{Voxel convolution}{9}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Voxel hashing}{9}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Map extraction}{8}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Map matching}{8}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Map fusion}{8}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{}{8}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Diagram showing overview of methodology.}}{9}{}\protected@file@percent }
+\newlabel{fig:flowchart_complete}{{3}{9}}
+\citation{volodine_point_2007}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Map Representations}{10}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.1}Point Cloud}{10}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.2}Voxel Grid}{10}{}\protected@file@percent }
+\newlabel{eq:vmin}{{3}{10}}
+\newlabel{eq:vmax}{{4}{10}}
+\newlabel{eq:vc}{{5}{10}}
+\newlabel{eq:vp}{{6}{10}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces A voxel grid and its components.}}{11}{}\protected@file@percent }
+\newlabel{fig:vg_basic}{{4}{11}}
+\newlabel{eq:vproperty}{{7}{11}}
+\newlabel{eq:voxelgrid}{{8}{11}}
+\@writefile{toc}{\contentsline {paragraph}{Sparse Voxel Octree}{11}{}\protected@file@percent }
+\newlabel{eq:morton}{{9}{11}}
 \citation{thrun_learning_1998,kuipers_robust_1988}
 \citation{kuipers_robust_1988,kuipers_modeling_1978}
-\citation{kobayashi_spatial_1994}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.3}Topological map}{10}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.4}Topometric map}{10}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Map Extraction}{11}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.1}Overview}{11}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.2}Navigable volume}{11}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.3}Convolution}{11}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.4}Dilation}{11}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Diagram showing map extraction processes and intermediate data.}}{12}{}\protected@file@percent }
-\newlabel{fig:map_extract_steps}{{4}{12}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.5}Connected components}{12}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Illustration of stick kernel with top and side views.}}{13}{}\protected@file@percent }
-\newlabel{fig:stick_kernel}{{5}{13}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.6}Maximum visibility estimation}{13}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Region growing connected components}}{14}{}\protected@file@percent }
-\newlabel{alg:cap}{{1}{14}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.7}Horizontal distance field}{14}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces Horizontal distance field}}{15}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {3}{\ignorespaces Horizontal Distance Field Maxima}}{15}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Illustration of horizontal distance field computation and extraction of local maxima.}}{16}{}\protected@file@percent }
-\newlabel{fig:hdf_simple}{{6}{16}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.8}Visibility}{16}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {4}{\ignorespaces Visibility}}{16}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.9}Room segmentation}{16}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {5}{\ignorespaces DDA (Digital Differential Analyzer)}}{17}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Resulting horizontal distance field of partial map, with resultant optimal view points shown in red.}}{18}{}\protected@file@percent }
-\newlabel{fig:hdf}{{7}{18}}
-\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Similarity matrix extracted from set of visibilities. Each value represents the Jaccard index of two visibilities.}}{19}{}\protected@file@percent }
-\newlabel{fig:jaccard}{{8}{19}}
-\@writefile{loa}{\contentsline {algorithm}{\numberline {6}{\ignorespaces Label propagation}}{20}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.10}Topometric map extraction}{20}{}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {7}{\ignorespaces Topology extraction}}{21}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Map Matching}{22}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.1}Geometrical Feature Embedding}{22}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.2}Engineered Features}{22}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Volume}{23}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Height}{23}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Horizontal Area}{23}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Mean distance to centroid}{23}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Number of points}{23}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Quotient of eigenvalues}{23}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Ratio of smallest eigenvalue to sum of two largest eigenvalues}{23}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Verticality of largest eigenvector}{23}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Roughness}{23}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.3}ShapeDNA}{24}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.4}Deep Learning}{24}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{PointNet}{24}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{DGCNN}{24}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.5}Attributed Node Embedding}{24}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{SINE}{24}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{MUSAE}{24}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{FEATHER-N}{24}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.6}Map Matching}{24}{}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Conversion of similarity between all pairs of rooms to injective non-surjective mapping between rooms.}}{25}{}\protected@file@percent }
-\newlabel{fig:injunction}{{9}{25}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Map Fusion}{26}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.1}Registration}{26}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.2}Transform Hypothesis Clustering}{26}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.3}Topological Fusion}{26}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Voxel convolution}{12}{}\protected@file@percent }
+\newlabel{eq:convolution}{{11}{12}}
+\newlabel{eq:kv}{{14}{12}}
+\newlabel{eq:kw}{{15}{12}}
+\newlabel{eq:c}{{16}{12}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.3}Topological map}{12}{}\protected@file@percent }
+\newlabel{eq:G}{{17}{13}}
+\newlabel{eq:V}{{18}{13}}
+\newlabel{eq:E}{{19}{13}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.4}Topometric map}{13}{}\protected@file@percent }
+\newlabel{eq:topometricmap}{{20}{13}}
+\newlabel{eq:place_subset}{{21}{13}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Map Extraction}{14}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Diagram showing map extraction processes and intermediate data.}}{14}{}\protected@file@percent }
+\newlabel{fig:map_extract_steps}{{5}{14}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.1}Navigable volume}{15}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.2}Convolution}{15}{}\protected@file@percent }
+\newlabel{eq:convolve}{{22}{15}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.3}Dilation}{15}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.4}Connected components}{15}{}\protected@file@percent }
+\newlabel{eq:connected_components_01}{{23}{15}}
+\newlabel{eq:connected_components_02}{{24}{15}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Illustration of stick kernel with top and side views.}}{16}{}\protected@file@percent }
+\newlabel{fig:stick_kernel}{{6}{16}}
+\newlabel{eq:connected_components_03}{{25}{16}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Region growing connected components}}{17}{}\protected@file@percent }
+\newlabel{alg:cap}{{1}{17}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.5}Maximum visibility estimation}{17}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.6}Horizontal distance field}{17}{}\protected@file@percent }
+\newlabel{eq:hdf}{{26}{17}}
+\newlabel{eq:hdfmax}{{27}{17}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces Horizontal distance field}}{18}{}\protected@file@percent }
+\newlabel{eq:views}{{28}{18}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {3}{\ignorespaces Horizontal Distance Field Maxima}}{18}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Illustration of horizontal distance field computation and extraction of local maxima.}}{19}{}\protected@file@percent }
+\newlabel{fig:hdf_simple}{{7}{19}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.7}Visibility}{19}{}\protected@file@percent }
+\newlabel{eq:visibility}{{29}{19}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Resulting horizontal distance field of partial map, with resultant optimal view points shown in red.}}{20}{}\protected@file@percent }
+\newlabel{fig:hdf}{{8}{20}}
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces 2D representation of voxel raycasting.}}{20}{}\protected@file@percent }
+\newlabel{fig:voxel_raycast}{{9}{20}}
+\newlabel{eq:visibility_views}{{30}{21}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {4}{\ignorespaces Visibility}}{21}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.8}Room segmentation}{21}{}\protected@file@percent }
+\newlabel{eq:jacc_01}{{31}{21}}
+\newlabel{eq:jacc_02}{{32}{21}}
+\newlabel{eq:jacc_03}{{33}{21}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {5}{\ignorespaces DDA (Digital Differential Analyzer)}}{22}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Similarity matrix extracted from set of visibilities. Each value represents the Jaccard index of two visibilities.}}{23}{}\protected@file@percent }
+\newlabel{fig:jaccard}{{10}{23}}
+\newlabel{eq:c_visibility}{{34}{23}}
+\@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces Graph representation of the similarity matrix, edges under a threshold similarity are removed. Nodes represent visibilities.}}{24}{}\protected@file@percent }
+\newlabel{fig:similarity_graph}{{11}{24}}
+\newlabel{eq:room_01}{{35}{24}}
+\newlabel{eq:room_02}{{36}{24}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.9}Topometric map extraction}{24}{}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {6}{\ignorespaces Label propagation}}{25}{}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {7}{\ignorespaces Topology extraction}}{26}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Map Matching}{26}{}\protected@file@percent }
+\newlabel{eq:tmap_a}{{37}{26}}
+\newlabel{eq:tmap_b}{{38}{26}}
+\newlabel{eq:match_01}{{39}{26}}
+\newlabel{eq:match_02}{{40}{26}}
+\@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces Diagram showing map matching methodology.}}{27}{}\protected@file@percent }
+\newlabel{fig:flowchart_match}{{12}{27}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.1}Geometrical Feature Embedding}{27}{}\protected@file@percent }
+\newlabel{eq:f}{{41}{27}}
+\newlabel{eq:embed_geometry_01}{{42}{28}}
+\newlabel{eq:embed_geometry_02}{{43}{28}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.2}Engineered Features}{28}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Volume}{28}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Height}{28}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Horizontal Area}{28}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Mean distance to centroid}{28}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Number of points}{28}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Quotient of eigenvalues}{28}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Ratio of smallest eigenvalue to sum of two largest eigenvalues}{29}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Verticality of largest eigenvector}{29}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Roughness}{29}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.3}Spectral Features}{29}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.4}Deep Learning}{29}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.5}Attributed Node Embedding}{30}{}\protected@file@percent }
+\newlabel{eq:embed_node_01}{{44}{30}}
+\newlabel{eq:embed_node_02}{{45}{30}}
+\newlabel{eq:f_node}{{46}{30}}
+\newlabel{eq:N_G}{{47}{30}}
+\newlabel{eq:graph_convolve}{{48}{30}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.6}Map Matching}{30}{}\protected@file@percent }
+\citation{huang_topological_2005}
+\citation{huang_topological_2005}
+\newlabel{eq:E_ab}{{49}{31}}
+\newlabel{eq:C}{{50}{31}}
+\newlabel{eq:C}{{51}{31}}
+\newlabel{eq:M}{{52}{31}}
+\newlabel{eq:init_match}{{53}{31}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Map Fusion}{33}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.1}Geometric fusion}{33}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Iterative closest point}{33}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Deep closest point}{33}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.2}Topological fusion}{33}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces Diagram showing overview of map fusion methodology.}}{34}{}\protected@file@percent }
+\newlabel{fig:flowchart_fuse}{{13}{34}}
 \@setckpt{methodology}{
-\setcounter{page}{27}
-\setcounter{equation}{0}
+\setcounter{page}{35}
+\setcounter{equation}{53}
 \setcounter{enumi}{5}
 \setcounter{enumii}{0}
 \setcounter{enumiii}{0}
@@ -82,13 +137,14 @@
 \setcounter{part}{0}
 \setcounter{section}{4}
 \setcounter{subsection}{4}
-\setcounter{subsubsection}{3}
+\setcounter{subsubsection}{2}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
-\setcounter{figure}{9}
+\setcounter{figure}{13}
 \setcounter{table}{0}
 \setcounter{BibCnt}{0}
 \setcounter{NAT@ctr}{0}
+\setcounter{parentequation}{0}
 \setcounter{ALG@line}{12}
 \setcounter{ALG@rem}{12}
 \setcounter{ALG@nested}{0}
@@ -98,7 +154,6 @@
 \setcounter{ALG@tmpcounter}{0}
 \setcounter{float@type}{8}
 \setcounter{algorithm}{7}
-\setcounter{parentequation}{0}
 \setcounter{su@anzahl}{0}
 \setcounter{LT@tables}{0}
 \setcounter{LT@chunks}{0}

@@ -1,6 +1,31 @@
 \section{Methodology}
+In this section we will describe our methodology for answering our research questions. We can divide our methodology into three major components: map extraction, map matching and map fusion, which correspond with the three sub-research questions. This section follows this division, with an added subsection describing the different map representations that are used in-depth. In an overview, our methodology can be summarized as follows. 
+
+\paragraph{Map extraction}
+For each input partial map, in the form of a point cloud, we create a voxel grid with equal cell size. Within these voxel grids, we detect which voxels could feasible be used to navigate through the environment. Using this information we segment the voxel grids into submaps, which we refer to as rooms, by finding areas with many common viewpoints. By combining the room submaps with the navigable voxels we extract a topometric representation from each partial map containing both the room submaps and their topological relationships as a graph. 
+
+\paragraph{Map matching}
+We then identify matches between rooms to detect overlapping areas between the partial maps. We do this based on the rooms' geometric features and those of their context, the rooms that are \(n\) steps away in the topological graph. We further improve our matching by generating multiple matching hypotheses along their topological graphs and selecting the one with the best quality. 
+
+\paragraph{Map fusion}
+Afterwards, we use the matches to find a rigid transform between the partial maps that brings the overlapping areas into alignment. Finally, we fuse the topological graphs and the room geometry into a single global map.
+
+\paragraph{}
+Figure \ref{fig:flowchart_complete} shows the steps described above as a flowchart. Refer to the specific subsections for each step for a further description of the algorithms and notation.
+
+\afterpage{
+    \begin{figure}[h]
+        \centering
+        \includegraphics*[width=.8\textwidth]{./fig/flowchart_complete-All.pdf}
+        \caption{Diagram showing overview of methodology.}
+        \label{fig:flowchart_complete}
+    
+    \end{figure}
+    \clearpage
+}
 
 
+\pagebreak
 \input{map_representation}
 \pagebreak
 \input{map_extraction}

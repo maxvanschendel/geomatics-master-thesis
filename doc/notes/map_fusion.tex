@@ -1,7 +1,18 @@
 \subsection{Map Fusion}
 The final step of the map merging process is map fusion. In the case of topometric maps this means fusion at the geometric and topological level. We arbitrarily designate one partial map as the source and the other as the target. The goal of geometric fusion is to find a rigid transformation that aligns the source map with the target. 
 
-At the topological level, we first merge the nodes of the source map with their corresponding matches in the target map. If two adjacent nodes in one map match with two other adjacent nodes in the other partial map then their edges are also merged. Afterwards, a transformation between the geometry (a point cloud derived from the voxel grid's centroids) of each matching node is computed using a fine registration approach. We use two different algorithms two do this: iterative closest point (ICP) and deep closest point (DCP).
+At the topological level, we first merge the nodes of the source map with their corresponding matches in the target map. If two adjacent nodes in one map match with two other adjacent nodes in the other partial map then their edges are also merged. Afterwards, a transformation between the geometry (a point cloud derived from the voxel grid's centroids) of each matching node is computed using a fine registration approach. We use two different algorithms two do this: iterative closest point (ICP) and deep closest point (DCP). Figure \ref{fig:flowchart_fuse} shows an overview of our map fusion methodology.
+
+\afterpage{
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.9\textwidth]{./fig/flowchart_fuse.pdf}
+    \caption{Diagram showing overview of map fusion methodology.}
+    \label{fig:flowchart_fuse}
+\end{figure}
+}
+
+\subsubsection{Geometric fusion}
 
 \paragraph{Iterative closest point}
 The iterative closest point (ICP) algorithm finds a transformation between two point clouds by iteratively aligning \(n\) random points from the source point cloud to the \(n\) points that are closest to them in the target point cloud using least squares adjustment. This approach is sensitive to local minima but can often lead to good results if enough data is available. Its simple nature also makes it easy to modify. For example, constraining the registration to only allow rotation around a single axis is a matter of changing the equations used in the least square adjustment step. This
@@ -10,3 +21,6 @@ The iterative closest point (ICP) algorithm finds a transformation between two p
 Deep closest point is a variation on the ICP algorithm which uses deep learning to identify matching points instead of using the closest points. This approach is less sensitive to local minima and data quality. However, constraining the registration is difficult as it requires retraining the network.
 
 After finding a transformation between every match outliers that represent an incorrect registration are removed. We then find the mean of the remaining transformations and apply this to the source map. The result is a global topometric map \(\mathcal{T}_{global}\).
+
+\subsubsection{Topological fusion}
+

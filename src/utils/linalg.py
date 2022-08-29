@@ -1,6 +1,8 @@
 from random import random
+
 import numpy as np
 from transforms3d.euler import euler2mat
+
 
 def norm(x: np.array):
     return np.linalg.norm(x)

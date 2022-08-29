@@ -1,5 +1,6 @@
 \babel@toc {english}{}\relax 
-\contentsline {section}{\numberline {1}Introduction}{1}{}%
+\contentsline {paragraph}{abstract}{1}{}%
+\contentsline {section}{\numberline {1}Introduction}{2}{}%
 \contentsline {section}{\numberline {2}Research Questions}{3}{}%
 \contentsline {subsection}{\numberline {2.1}Main question}{3}{}%
 \contentsline {subsection}{\numberline {2.2}Subquestions}{3}{}%
@@ -8,57 +9,69 @@
 \contentsline {subsection}{\numberline {3.1}Metric Maps}{4}{}%
 \contentsline {subsection}{\numberline {3.2}Topological(-Metric) Maps}{5}{}%
 \contentsline {section}{\numberline {4}Methodology}{8}{}%
-\contentsline {subsection}{\numberline {4.1}Map Representations}{8}{}%
-\contentsline {subsubsection}{\numberline {4.1.1}Point Cloud}{8}{}%
-\contentsline {subsubsection}{\numberline {4.1.2}Voxel Grid}{8}{}%
-\contentsline {paragraph}{Sparse Voxel Octree}{8}{}%
-\contentsline {paragraph}{Voxel convolution}{9}{}%
-\contentsline {paragraph}{Voxel hashing}{9}{}%
-\contentsline {subsubsection}{\numberline {4.1.3}Topological map}{10}{}%
-\contentsline {subsubsection}{\numberline {4.1.4}Topometric map}{10}{}%
-\contentsline {subsection}{\numberline {4.2}Map Extraction}{11}{}%
-\contentsline {subsubsection}{\numberline {4.2.1}Overview}{11}{}%
-\contentsline {subsubsection}{\numberline {4.2.2}Navigable volume}{11}{}%
-\contentsline {subsubsection}{\numberline {4.2.3}Convolution}{11}{}%
-\contentsline {subsubsection}{\numberline {4.2.4}Dilation}{11}{}%
-\contentsline {subsubsection}{\numberline {4.2.5}Connected components}{12}{}%
-\contentsline {subsubsection}{\numberline {4.2.6}Maximum visibility estimation}{13}{}%
-\contentsline {subsubsection}{\numberline {4.2.7}Horizontal distance field}{14}{}%
-\contentsline {subsubsection}{\numberline {4.2.8}Visibility}{16}{}%
-\contentsline {subsubsection}{\numberline {4.2.9}Room segmentation}{16}{}%
-\contentsline {subsubsection}{\numberline {4.2.10}Topometric map extraction}{20}{}%
-\contentsline {subsection}{\numberline {4.3}Map Matching}{22}{}%
-\contentsline {subsubsection}{\numberline {4.3.1}Geometrical Feature Embedding}{22}{}%
-\contentsline {subsubsection}{\numberline {4.3.2}Engineered Features}{22}{}%
-\contentsline {paragraph}{Volume}{23}{}%
-\contentsline {paragraph}{Height}{23}{}%
-\contentsline {paragraph}{Horizontal Area}{23}{}%
-\contentsline {paragraph}{Mean distance to centroid}{23}{}%
-\contentsline {paragraph}{Number of points}{23}{}%
-\contentsline {paragraph}{Quotient of eigenvalues}{23}{}%
-\contentsline {paragraph}{Ratio of smallest eigenvalue to sum of two largest eigenvalues}{23}{}%
-\contentsline {paragraph}{Verticality of largest eigenvector}{23}{}%
-\contentsline {paragraph}{Roughness}{23}{}%
-\contentsline {subsubsection}{\numberline {4.3.3}ShapeDNA}{24}{}%
-\contentsline {subsubsection}{\numberline {4.3.4}Deep Learning}{24}{}%
-\contentsline {paragraph}{PointNet}{24}{}%
-\contentsline {paragraph}{DGCNN}{24}{}%
-\contentsline {subsubsection}{\numberline {4.3.5}Attributed Node Embedding}{24}{}%
-\contentsline {paragraph}{SINE}{24}{}%
-\contentsline {paragraph}{MUSAE}{24}{}%
-\contentsline {paragraph}{FEATHER-N}{24}{}%
-\contentsline {subsubsection}{\numberline {4.3.6}Map Matching}{24}{}%
-\contentsline {subsection}{\numberline {4.4}Map Fusion}{26}{}%
-\contentsline {subsubsection}{\numberline {4.4.1}Registration}{26}{}%
-\contentsline {subsubsection}{\numberline {4.4.2}Transform Hypothesis Clustering}{26}{}%
-\contentsline {subsubsection}{\numberline {4.4.3}Topological Fusion}{26}{}%
-\contentsline {section}{\numberline {5}Implementation Details}{27}{}%
-\contentsline {subsection}{\numberline {5.1}External Libraries}{27}{}%
-\contentsline {subsection}{\numberline {5.2}GPU Acceleration}{27}{}%
-\contentsline {section}{\numberline {6}Results}{28}{}%
-\contentsline {subsection}{\numberline {6.1}Map Extraction}{28}{}%
-\contentsline {subsection}{\numberline {6.2}Map Matching}{28}{}%
-\contentsline {subsection}{\numberline {6.3}Map Merging}{28}{}%
-\contentsline {section}{\numberline {7}Discussion}{29}{}%
-\contentsline {subsection}{\numberline {7.1}Performance}{29}{}%
-\contentsline {subsection}{\numberline {7.2}Future Works}{29}{}%
+\contentsline {paragraph}{Map extraction}{8}{}%
+\contentsline {paragraph}{Map matching}{8}{}%
+\contentsline {paragraph}{Map fusion}{8}{}%
+\contentsline {paragraph}{}{8}{}%
+\contentsline {subsection}{\numberline {4.1}Map Representations}{10}{}%
+\contentsline {subsubsection}{\numberline {4.1.1}Point Cloud}{10}{}%
+\contentsline {subsubsection}{\numberline {4.1.2}Voxel Grid}{10}{}%
+\contentsline {paragraph}{Sparse Voxel Octree}{11}{}%
+\contentsline {paragraph}{Voxel convolution}{12}{}%
+\contentsline {subsubsection}{\numberline {4.1.3}Topological map}{12}{}%
+\contentsline {subsubsection}{\numberline {4.1.4}Topometric map}{13}{}%
+\contentsline {subsection}{\numberline {4.2}Map Extraction}{14}{}%
+\contentsline {subsubsection}{\numberline {4.2.1}Navigable volume}{15}{}%
+\contentsline {subsubsection}{\numberline {4.2.2}Convolution}{15}{}%
+\contentsline {subsubsection}{\numberline {4.2.3}Dilation}{15}{}%
+\contentsline {subsubsection}{\numberline {4.2.4}Connected components}{15}{}%
+\contentsline {subsubsection}{\numberline {4.2.5}Maximum visibility estimation}{17}{}%
+\contentsline {subsubsection}{\numberline {4.2.6}Horizontal distance field}{17}{}%
+\contentsline {subsubsection}{\numberline {4.2.7}Visibility}{19}{}%
+\contentsline {subsubsection}{\numberline {4.2.8}Room segmentation}{21}{}%
+\contentsline {subsubsection}{\numberline {4.2.9}Topometric map extraction}{24}{}%
+\contentsline {subsection}{\numberline {4.3}Map Matching}{26}{}%
+\contentsline {subsubsection}{\numberline {4.3.1}Geometrical Feature Embedding}{27}{}%
+\contentsline {subsubsection}{\numberline {4.3.2}Engineered Features}{28}{}%
+\contentsline {paragraph}{Volume}{28}{}%
+\contentsline {paragraph}{Height}{28}{}%
+\contentsline {paragraph}{Horizontal Area}{28}{}%
+\contentsline {paragraph}{Mean distance to centroid}{28}{}%
+\contentsline {paragraph}{Number of points}{28}{}%
+\contentsline {paragraph}{Quotient of eigenvalues}{28}{}%
+\contentsline {paragraph}{Ratio of smallest eigenvalue to sum of two largest eigenvalues}{29}{}%
+\contentsline {paragraph}{Verticality of largest eigenvector}{29}{}%
+\contentsline {paragraph}{Roughness}{29}{}%
+\contentsline {subsubsection}{\numberline {4.3.3}Spectral Features}{29}{}%
+\contentsline {subsubsection}{\numberline {4.3.4}Deep Learning}{29}{}%
+\contentsline {subsubsection}{\numberline {4.3.5}Attributed Node Embedding}{30}{}%
+\contentsline {subsubsection}{\numberline {4.3.6}Map Matching}{30}{}%
+\contentsline {subsection}{\numberline {4.4}Map Fusion}{33}{}%
+\contentsline {subsubsection}{\numberline {4.4.1}Geometric fusion}{33}{}%
+\contentsline {paragraph}{Iterative closest point}{33}{}%
+\contentsline {paragraph}{Deep closest point}{33}{}%
+\contentsline {subsubsection}{\numberline {4.4.2}Topological fusion}{33}{}%
+\contentsline {section}{\numberline {5}Results}{35}{}%
+\contentsline {subsection}{\numberline {5.1}Datasets}{35}{}%
+\contentsline {subsubsection}{\numberline {5.1.1}Simulated Scan}{35}{}%
+\contentsline {subsubsection}{\numberline {5.1.2}Stanford 3D Indoor Scene Dataset}{36}{}%
+\contentsline {subsubsection}{\numberline {5.1.3}Collaborative SLAM Dataset}{36}{}%
+\contentsline {subsubsection}{\numberline {5.1.4}Various Sources}{36}{}%
+\contentsline {subsection}{\numberline {5.2}Map Extraction}{37}{}%
+\contentsline {subsection}{\numberline {5.3}Map Matching}{39}{}%
+\contentsline {subsection}{\numberline {5.4}Map Fusion}{40}{}%
+\contentsline {section}{\numberline {6}Discussion}{43}{}%
+\contentsline {subsection}{\numberline {6.1}Map Extraction}{43}{}%
+\contentsline {subsection}{\numberline {6.2}Map Matching}{44}{}%
+\contentsline {paragraph}{Feature embedding}{44}{}%
+\contentsline {paragraph}{Hypothesis growing}{45}{}%
+\contentsline {subsection}{\numberline {6.3}Map Fusion}{45}{}%
+\contentsline {subsection}{\numberline {6.4}Future Works}{45}{}%
+\contentsline {subsubsection}{\numberline {6.4.1}Map extraction}{46}{}%
+\contentsline {paragraph}{Room segmentation}{46}{}%
+\contentsline {paragraph}{Robust topological graph extraction}{46}{}%
+\contentsline {paragraph}{Hierarchical topological representation}{46}{}%
+\contentsline {paragraph}{Volumetric representation}{47}{}%
+\contentsline {subsubsection}{\numberline {6.4.2}Map Matching}{47}{}%
+\contentsline {subsubsection}{\numberline {6.4.3}Map Fusion}{47}{}%
+\contentsline {subsection}{\numberline {6.5}Conclusion}{48}{}%

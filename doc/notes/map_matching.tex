@@ -1,10 +1,59 @@
 \subsection{Map Matching}
-The process of identifying overlapping areas between partial maps is called map matching. In the case of topometric map matching, this refers to identifying which nodes represent the same rooms between two partial maps. We denote our two partial topometric maps as \(\topometricmap_A = (\mathcal{G}_A,\ \voxelgrid_A)\) and \(\topometricmap_B = (\mathcal{G}_B,\ \voxelgrid_B)\). The goal of map matching is to find a mapping \(match: v_A \mapsto v_B,\ v_A \in \mathcal{G}_A,\ v_B \in \mathcal{G}_B\) which corresponds to the real world and is robust to differences in coordinate system, resolution and quality between partial maps. To identify matches between nodes we need to be able to compute the similarity between them. To do so, we must first transform each node into a feature vector which represents both the node itself and its relationship to its neighbourhood. The feature vectors of two nodes with similar geometry and a similar neighbourhood should be close to eachother, meaning their distance in feature space is small. Conversely, the feature vectors of two dissimilar nodes should be far away from eachother. The first step of this process, encoding the node's geometry into a feature vector, is called geometrical feature embedding. The second step, encoding both the geometrical feature embedding of the node itself and of its neighbourhood into a new feature vector is called attributed node embedding. 
+The process of identifying overlapping areas between partial maps is called map matching. In the case of topometric map matching, this refers to identifying which nodes represent the same rooms between two partial maps. We denote our two partial topometric maps as
 
-We hypothesize that the attributed node embedding will have better performance for map matching, especially when differences between partial maps are large, because it involves not just the node itself but also its neighbourhood in the similarity measure. This can be compared to human place recognition, where places are identified not just by their appearance but also by their relationship to their context. In this subsection we will discuss multiple algorithms used for geometrical feature embedding and attributed node embedding. We will also discuss how we identify matches between nodes based on their feature vectors.
+\begin{equation}
+    \label{eq:tmap_a}
+    \topometricmap_a = (\mathcal{G}_a,\ \voxelgrid_a),\ \mathcal{G}_a=(N_a,E_a)
+\end{equation}
+
+\begin{equation}
+    \label{eq:tmap_b}
+    \topometricmap_b = (\mathcal{G}_b,\ \voxelgrid_b),\ \mathcal{G}_b=(N_b,E_b)
+\end{equation}
+
+The goal of map matching is to find a one-to-one mapping between the nodes of both partial maps  which corresponds to the real world and is robust to differences in coordinate system, resolution and quality between partial maps. 
+
+\begin{equation}
+    \label{eq:match_01}
+    match: n_a \mapsto n_b,\ n_a \in N_a,\ n_b \in N_b \mid n_b = null
+\end{equation}
+\begin{equation}
+    \label{eq:match_02}
+    match(n_a) = 
+    \begin{cases}
+        n_b & \\
+        null & \\
+    \end{cases}
+\end{equation}
+
+To identify matches between nodes we need to be able to compute the similarity between them. To do so, we must first transform each node into a feature vector which represents both the node itself and its relationship to its neighbourhood. The feature vectors of two nodes with similar geometry and a similar neighbourhood should be close to eachother, meaning their distance in feature space is small. Conversely, the feature vectors of two dissimilar nodes should be far away from eachother. The first step of this process, encoding the node's geometry into a feature vector, is called geometric feature embedding. The second step, encoding both the geometric feature embedding of the node itself and of its neighbourhood into a new feature vector is called attributed node embedding. Figure \ref{fig:flowchart_match} shows an overview of the steps described above.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=0.5\textwidth]{./fig/flowchart_match.pdf}
+    \caption{Diagram showing map matching methodology.}
+    \label{fig:flowchart_match}
+\end{figure}
+
+In this subsection we will discuss multiple algorithms used for geometrical feature embedding and attributed node embedding. We will also discuss how we identify matches between nodes based on their feature vectors.
 
 \subsubsection{Geometrical Feature Embedding}
-Geometrical feature embedding means transforming a geometric object into a feature vector \(f \in \mathbb{R}^m\), where \(m\) is the dimensionality of the vector. We denote the function that embeds a set of voxels into a feature vector as \(embed_{geometry}: \voxelset \mapsto \mathbb{R}^m\). We implement this function using three different approaches, which we discuss below.
+Geometric feature embedding transforms a geometric object, in our case a voxel grid, into an m-dimensional feature vector \(f_{geometry}\), such that objects with similar geometry are nearby in feature space and vice versa.
+
+\begin{equation}
+    \label{eq:f}
+    f_{geometry} \in \mathbb{R}^m
+\end{equation}
+\begin{equation}
+    \label{eq:embed_geometry_01}
+    embed_{geometry}: \voxelset \mapsto \mathbb{R}^m
+\end{equation}
+\begin{equation}
+    \label{eq:embed_geometry_02}
+    embed_{geometry}(n) = \prescript{n}{}{f_{geometry}}
+\end{equation}
+
+We denote the function that embeds a set of voxels into a feature vector as in equation \ref{eq:embed_geometry_01}. We implement this function using three different approaches, which we discuss below.
 
 \subsubsection{Engineered Features}
 The first approach uses a number of manually engineered features to construct the feature vector from a room's geometry. These features include, for example, the height of the room and its volume. A full list of features and their explanation is given below. More features were tried, but only the ones that were found to contribute to the accuracy of the clustering by trial and error are included here. The features are computed using a point cloud derived from centroids of the occupied voxels of the voxel grid, which we will denote here as \(\mathbf{P}\).
@@ -43,20 +92,81 @@ Another approach to feature embedding uses the first \(n\) sorted nonzero eigenv
 Our final approach to feature embedding is deep learning. In this approach, the geometry of the nodes is fed into a neural network that is trained on a specific task, such as semantic segmentation or classification, and the intermediate output of a hidden layer is used as a feature vector. We use an architecture called Point Completion Network (PCN), which is an autoencoder used for the specific task of completing incomplete point clouds. Autoencoders consist of two components: an encoder and a decoder. The encoder component is responsible for reducing the dimensionality of the input data into a single n-dimensional feature vector which captures the input's defining characteristics. The decoder is responsible for recovering the input data from the encoder's output as accurately as possible. For our purposes, only the output of the encoder is required. The advantage of using an autoencoder network is that they are trained in an unsupervised manner, so no manually labelled data is required. We train our model on the Stanford 3D Indoor Scene dataset (see results section). To generate incomplete views we compute visibilities from one or multiple random poses in each room.
 
 \subsubsection{Attributed Node Embedding}
-Attributed node embedding aims to find a feature embedding for each node in a graph that uses both an attribute of the node, in our case a geometrical feature embedding, and the node's relationship to the rest of the graph. We denote the function that embeds a node's attribute \(f_{attr}\) and its graph into a feature vector as \(embed_{node}: \mathbb{R}^m,\ \graph \mapsto \mathbb{R}^m\), such that \(embed_{node}(f_{attr},\ \graph_{attr}) = f_{node}\). Finding the attributed node embedding of a node \(n\) in the topometric map \(\topometricmap\) with topological graph \(\graph_{T}\) is then equal to computing \(f_{node}=embed_{node}(embed_{geometry}(n),\ \graph_{T})\). 
+Attributed node embedding aims to find a feature embedding for each node in a graph that uses both an attribute of the node, in our case a geometrical feature embedding, and the node's relationship to the rest of the graph. We denote the function that embeds a node's attribute \(f_{attr}\) and its graph into a \(l\)-dimensional feature vector.
 
-We compute the attributed node embedding using graph convolution. This means that for every node, we find its adjacent nodes and add their feature vectors weighted by a factor \(w\) to the origin node's feature vector. If we denote the adjacent nodes of \(v\) in graph \(G\) as \(N_{G}(v) = \{v_i\}_{i=1}^{k}\), then each node's feature vector after graph convolution becomes \(v^{t+1} = v^t + \sum_{i=1}^k wN_{G}(v^t)_i\). By repeating this step the embedding of a node's neighbourhood is integrated in each node's embedding, making nodes that have a similar neighbourhood more similar and vice versa. Increasing the number of iterations also increases the distance at which a neighbour influences a node's embedding. Changing the value of \(w\) increases the influence of neighbours. 
+
+\begin{equation}
+    \label{eq:embed_node_01}
+embed_{node}: \mathbb{R}^m,\ \graph \mapsto \mathbb{R}^l
+\end{equation}
+\begin{equation}
+    \label{eq:embed_node_02}
+    embed_{node}(\prescript{n}{}{f_{attr}},\ \graph) = \prescript{n}{node}{f_{attr}},\ n \in N
+\end{equation}
+
+Finding the attributed node embedding of a node \(n\) in the topometric map \(\topometricmap\) with topological graph \(\graph_{T}\) is then equal to computing 
+
+\begin{equation}
+    \label{eq:f_node}
+    \prescript{n}{node}{f_{geometry}}=embed_{node}(\prescript{n}{}{f_{geometry}},\ \graph_{T})
+\end{equation}
+
+
+We compute the attributed node embedding using graph convolution. This means that for every node, we find its adjacent nodes and add their feature vectors weighted by a factor \(w\) to the origin node's feature vector. If we denote the adjacent nodes of \(v\) in graph \(G\) as 
+
+\begin{equation}
+    \label{eq:N_G}
+    N_{G}(v) = \{v_i\}_{i=1}^{k}
+\end{equation}
+
+Then each node's feature vector after graph convolution becomes 
+
+\begin{equation}
+    \label{eq:graph_convolve}
+    v^{t+1} = v^t + \sum_{i=1}^k wN_{G}(v^t)_i
+\end{equation}
+
+
+By repeating this step the embedding of a node's neighbourhood is integrated in each node's embedding, making nodes that have a similar neighbourhood more similar and vice versa. Increasing the number of iterations also increases the distance at which a neighbour influences a node's embedding. Changing the value of \(w\) increases the influence of neighbours. 
 
 \subsubsection{Map Matching}
 The above steps are applied to both partial maps. This gives us two sets of feature vectors \(\mathcal{E}_A,\ \mathcal{E}_B\) representing the embedding of the nodes of both topometric maps.
 
 To identify the most likely overlapping rooms between the partial maps we find the one-to-one mapping between the elements of \(\mathcal{E}_A\) and \(\mathcal{E}_B\) that maximizes the similarity (or minimizes the distances) between the chosen pairs. This is an example of the unbalanced assignment problem, which consists of finding a matching in a weighted bipartite graph that minimizes the sum of its edge weights. It is unbalanced because there may be more nodes in one part of the bipartite graph than the other, which means it is not possible to assign every node in one part to a node in the other. 
 
-To construct the weighted bipartite graph we first find the Cartesian product of the feature vectors \(\mathcal{E}_{AB} = \mathcal{E}_A \times \mathcal{E}_B = \{(a,b) \mid a \in \mathcal{E}_A,\ b \in \mathcal{E}_B\}\). We then compute the Euclidean distance in feature space between every pair of nodes in \(\mathcal{E}_{AB}\), creating the cost matrix that represents the weighted bipartite graph \(\mathbf{C} \in \mathbb{R}^{|V_a| \times |V_b|},\ \mathbf{C}_{ij} = ||a - b||,\ (a,\ b) \in \mathcal{E}_{AB},\ a = \mathcal{E}_{A,\ i},\ b = \mathcal{E}_{B,\ j},\ \mathbf{C}_{ij} \in \mathbb{R},\ \mathbf{C}_{ij} \geq 0\).
+To construct the weighted bipartite graph we first find the Cartesian product of the feature vectors 
 
-We can then find unbalanced assignment using various approaches, in our case the Jonker-Volgenant algorithm [CITE]. We denote the resulting matching between the nodes of both partial maps and their distance in feature space as a set of triples \(\mathbf{M} = \{(i,\ j,\ d) \mid  |V_a| \geq i,\ |V_b|\geq j,\ d = \mathbf{C}_{ij}\}\). 
+\begin{equation}
+    \label{eq:E_ab}
+    \mathcal{E}_{AB} = \mathcal{E}_A \times \mathcal{E}_B = \{(a,b) \mid a \in \mathcal{E}_A,\ b \in \mathcal{E}_B\}
+\end{equation}
 
-In practice it is unlikely that every match in \(\mathbf{M}\) is correct. However, we can use them as seeds to generate hypotheses similar to the approach described in Huang \citep{huang_topological_2005}. Starting at each match \((v_i,\ v_j) = (V_{A,\ i},\ V_{B,\ j}),\ (i,\ j) \in \mathbf{M}\) we get the neighbourhood of both nodes. We then construct a new cost matrix from the Euclidean distance between the embeddings of both neighbourhoods, again creating a weighted bipartite graph for which we can solve the assignment problem. By doing this we identify which neighbours of the nodes in the match are most likely to also match. We recursively apply this step to the matching neighbours to grow our initial matches into hypotheses. To decrease the risk of incorrectly identifying neighbourhood matches we constrain hypothesis growing in two ways. First, the cost of two potential matches must be below a given threshold \(c_{max}\). Second, a newly identified match may not bring the existing matching too much out of alignment. To check this, we perform coarse registration between the centroids of the geometry of the identified matches at every step of the hypothesis growing using least squares adjustment. If the error increases between steps, and the increase is too large such that \(\triangle e \geq \triangle e_{max} \), then the matching is rejected. By adjusting the values of \(c_{max}\) and \(\triangle e_{max}\) more or less uncertainty is allowed when growing hypotheses.
+We then compute the Euclidean distance in feature space between every pair of nodes in \(\mathcal{E}_{AB}\), creating the cost matrix that represents the weighted bipartite graph 
+
+\begin{equation}
+    \label{eq:C}
+    \mathbf{C} \in \mathbb{R}^{|V_a| \times |V_b|}
+\end{equation}
+\begin{equation}
+    \label{eq:C}
+    \mathbf{C}_{ij} = ||a - b||,\ (a,\ b) \in \mathcal{E}_{AB},\ a = \mathcal{E}_{A,\ i},\ b = \mathcal{E}_{B,\ j},\ \mathbf{C}_{ij} \in \mathbb{R}^+
+\end{equation}
+
+We can then find unbalanced assignment using various approaches, in our case the Jonker-Volgenant algorithm [CITE]. We denote the resulting matching between the nodes of both partial maps and their distance in feature space as a set of triples 
+
+\begin{equation}
+    \label{eq:M}
+    \mathbf{M} = \{(i,\ j,\ d) \mid  |V_a| \geq i,\ |V_b|\geq j,\ d = \mathbf{C}_{ij}\}
+\end{equation}
+
+In practice it is unlikely that every match in \(\mathbf{M}\) is correct. However, we can use them as seeds to generate hypotheses similar to the approach described in Huang \citep{huang_topological_2005}. Starting at each match 
+
+\begin{equation}
+    \label{eq:init_match}
+    (v_i,\ v_j) = (V_{A,\ i},\ V_{B,\ j}),\ (i,\ j) \in \mathbf{M}
+\end{equation}
+
+
+we get the neighbourhood of both nodes. We then construct a new cost matrix from the Euclidean distance between the embeddings of both neighbourhoods, again creating a weighted bipartite graph for which we can solve the assignment problem. By doing this we identify which neighbours of the nodes in the match are most likely to also match. We recursively apply this step to the matching neighbours to grow our initial matches into hypotheses. To decrease the risk of incorrectly identifying neighbourhood matches we constrain hypothesis growing in two ways. First, the cost of two potential matches must be below a given threshold \(c_{max}\). Second, a newly identified match may not bring the existing matching too much out of alignment. To check this, we perform coarse registration between the centroids of the geometry of the identified matches at every step of the hypothesis growing using least squares adjustment. If the error increases between steps, and the increase is too large such that \(\triangle e \geq \triangle e_{max} \), then the matching is rejected. By adjusting the values of \(c_{max}\) and \(\triangle e_{max}\) more or less uncertainty is allowed when growing hypotheses.
 
 The hypothesis growing step produces multiple hypotheses, one for every initial matching. As described in Huang \citep{huang_topological_2005} we then cluster the hypotheses by similarity and compatibility. Two hypotheses are compatible if there are no contradicting matches between them. They are similar if the distance between their coarse registration computed during the hypothesis growing process is small. If two hypotheses are incompatible their distance is set to infinite. We use the OPTICS algorithm to cluster hypotheses. After clustering the hypotheses multiple hypotheses might still remain. We select the hypothesis with the largest number of matches as the most likely hypothesis. If there are multiple hypotheses with an equal largest number of matches then the hypothesis with the lowest mean distance in feature space between matches is selected.
-

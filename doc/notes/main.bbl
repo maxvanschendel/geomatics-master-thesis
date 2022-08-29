@@ -195,39 +195,6 @@ He, Z.%
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
-Hermann%
-, Pentek%
-\BCBL {}\ \BBA {} Otto%
-}{%
-Hermann%
-\ \protect \BOthers {.}}{%
-{\protect \APACyear {2016}}%
-}]{%
-hermann_design_2016}
-\APACinsertmetastar {%
-hermann_design_2016}%
-\begin{APACrefauthors}%
-Hermann, M.%
-, Pentek, T.%
-\BCBL {}\ \BBA {} Otto, B.%
-\end{APACrefauthors}%
-\unskip\
-\newblock
-\APACrefYearMonthDay{2016}{{\APACmonth{01}}}{}.
-\newblock
-{\BBOQ}\APACrefatitle {Design {Principles} for {Industrie} 4.0 {Scenarios}}
-  {Design {Principles} for {Industrie} 4.0 {Scenarios}}.{\BBCQ}
-\newblock
-\BIn{} \APACrefbtitle {2016 49th {Hawaii} {International} {Conference} on
-  {System} {Sciences} ({HICSS})} {2016 49th {Hawaii} {International}
-  {Conference} on {System} {Sciences} ({HICSS})}\ (\BPGS\ 3928--3937).
-\newblock
-\APACrefnote{ISSN: 1530-1605}
-\newblock
-\begin{APACrefDOI} \doi{10.1109/HICSS.2016.488} \end{APACrefDOI}
-\PrintBackRefs{\CurrentBib}
-
-\bibitem [\protect \citeauthoryear {%
 Huang%
 \ \BBA {} Beevers%
 }{%
@@ -258,34 +225,6 @@ Huang, W\BPBI H.%
   \end{APACrefURL}
 \newblock
 \begin{APACrefDOI} \doi{10.1177/0278364905056348} \end{APACrefDOI}
-\PrintBackRefs{\CurrentBib}
-
-\bibitem [\protect \citeauthoryear {%
-Kobayashi%
-}{%
-Kobayashi%
-}{%
-{\protect \APACyear {1994}}%
-}]{%
-kobayashi_spatial_1994}
-\APACinsertmetastar {%
-kobayashi_spatial_1994}%
-\begin{APACrefauthors}%
-Kobayashi, K.%
-\end{APACrefauthors}%
-\unskip\
-\newblock
-\APACrefYearMonthDay{1994}{{\APACmonth{01}}}{}.
-\newblock
-{\BBOQ}\APACrefatitle {On the spatial graph} {On the spatial graph}.{\BBCQ}
-\newblock
-\APACjournalVolNumPages{Kodai Mathematical Journal}{17}{3}{}.
-\newblock
-\begin{APACrefURL}
-  [{2022-01-21}]\url{https://projecteuclid.org/journals/kodai-mathematical-journal/volume-17/issue-3/On-the-spatial-graph/10.2996/kmj/1138040046.full}
-  \end{APACrefURL}
-\newblock
-\begin{APACrefDOI} \doi{10.2996/kmj/1138040046} \end{APACrefDOI}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%

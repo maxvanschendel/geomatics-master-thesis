@@ -1,132 +1,176 @@
 
+from typing import Callable, List
 from model.point_cloud import PointCloud
 
 import numpy as np
-
-
-from utils.validation import kwargs_valid
+import open3d as o3d
+from numba import cuda
+from scipy.optimize import least_squares
+from scipy.spatial.transform import Rotation as R
+from sklearn import cluster
+from utils.array import euclidean_distance_matrix
 
 dcp_model = './learning3d/pretrained/exp_dcp/models/best_model.t7'
 pnlk_model = './learning3d/pretrained/exp_pnlk/models/best_model.t7'
+dgmr_model = './learning3d/pretrained/exp_deepgmr/models/best_model.pth'
 
-def deep_closest_point(source: PointCloud, target: PointCloud, iterations: int = 1, **kwargs) -> np.array:
-	"""
-	Register two point clouds using Deep Closest Point (DCP) model. 
-	https://arxiv.org/abs/1905.03304
 
-	Args:
-		source (PointCloud): Misaligned input point cloud
-		target (PointCloud): Input point cloud which source is aligned to
-		iterations (int, optional): How often to repeat the registration to refine results. Defaults to 1.
+def display_open3d(template, source, transformed_source):
+    template_ = o3d.geometry.PointCloud()
+    source_ = o3d.geometry.PointCloud()
+    transformed_source_ = o3d.geometry.PointCloud()
+    template_.points = o3d.utility.Vector3dVector(template)
+    source_.points = o3d.utility.Vector3dVector(source + np.array([0, 0, 0]))
+    transformed_source_.points = o3d.utility.Vector3dVector(transformed_source)
+    template_.paint_uniform_color([1, 0, 0])
+    source_.paint_uniform_color([0, 1, 0])
+    transformed_source_.paint_uniform_color([0, 0, 1])
+    o3d.visualization.draw_geometries(
+        [template_, source_, transformed_source_])
 
-	Returns:
-		np.array: 4x4 transformation matrix which aligns the source with the target point cloud.
-	"""
 
-	import torch
-	from torch import from_numpy as as_tensor
-	from learning3d.models import DCP, DGCNN
- 
-	torch.cuda.empty_cache()
-	device = torch.device("cuda")
-	
-	# Number of points must be equal for both point clouds
-	# so we remove the additional points from the larger point cloud
-	n_pts = min([len(source.points), len(target.points)])
+def align_least_squares(a: np.array, b: np.array):
+    def f(t): return sum([np.linalg.norm(
+        a[i] - (R.from_euler('xyz', [0, t[3], 0]).apply(b[i]) + t[0:3])) for i, _ in enumerate(a)])
 
-	# Convert numpy array point clouds to Torch tensor
-	pts_source = as_tensor(
-		source.points[:n_pts, :][np.newaxis, ...]).float().to(device)
-	pts_target = as_tensor(
-		target.points[:n_pts, :][np.newaxis, ...]).float().to(device)
- 
-	# load DCP model
-	dgcnn = DGCNN(emb_dims=512).to(device)
-	dcp = DCP(feature_model=dgcnn, cycle=True).to(device)
-	dcp.load_state_dict(torch.load(dcp_model), strict=False)
+    return least_squares(f, np.zeros((4))).x
 
-	# iteratively refine registration.
-	for _ in range(iterations):
-		dcp_registration = dcp(pts_source, pts_target)
-		pts_source = dcp_registration['transformed_source']
-
-	# Get 4x4 transformation matrix from results
-	estimated_transformation = dcp_registration['est_T'].cpu().detach().numpy()
-	return estimated_transformation
 
 def pointnet_lk(source: PointCloud, target: PointCloud, **kwargs) -> np.array:
-	"""
-	Register two point clouds using Deep Closest Point (DCP) model. 
-	https://arxiv.org/abs/1905.03304
+    import torch
+    from learning3d.models import PointNetLK, PointNet
 
-	Args:
-		source (PointCloud): Misaligned input point cloud
-		target (PointCloud): Input point cloud which source is aligned to
-		iterations (int, optional): How often to repeat the registration to refine results. Defaults to 1.
+    torch.cuda.empty_cache()
+    device = torch.device("cuda")
 
-	Returns:
-		np.array: 4x4 transformation matrix which aligns the source with the target point cloud.
-	"""
+    source.points -= np.mean(source.points, axis=0)
+    target.points -= np.mean(target.points, axis=0)
 
-	import torch
-	from learning3d.models.pointnet import PointNet
-	from learning3d.models.pointnetlk import PointNetLK
- 
-	torch.cuda.empty_cache()
-	device = torch.device("cuda")
-	
-	# Convert numpy array point clouds to Torch tensor
-	pts_source = source.to_tensor().to(device)
-	pts_target = target.to_tensor().to(device)
- 
-	# load DCP model
-	pnlk = PointNetLK(feature_model=PointNet(), delta=1e-02, xtol=1e-07, p0_zero_mean=True, p1_zero_mean=True, pooling='max')
-	pnlk.load_state_dict(torch.load(pnlk_model), strict=False)
- 
-	# Get 4x4 transformation matrix from results
-	registration_result = pnlk(pts_source, pts_target)
-	transformation = registration_result['est_T'].cpu().detach().numpy()
- 
-	return transformation
+    pts_source = source.to_tensor().to(device)
+    pts_target = target.to_tensor().to(device)
+
+    feature_model = PointNet(global_feat=False).to(device)
+    pnlk = PointNetLK(feature_model=feature_model,
+                      delta=1e-02,
+                      xtol=1e-07,
+                      p0_zero_mean=False,
+                      p1_zero_mean=False,
+                      pooling='max',
+                      learn_delta=False)
+
+    state_dict = torch.load(pnlk_model)
+    pnlk.load_state_dict(state_dict, strict=False)
+
+    # Get 4x4 transformation matrix from results
+    registration_result = pnlk(pts_target, pts_source, maxiter=200)
+    transformation = registration_result['est_T'].cpu().detach().numpy()
+
+    display_open3d(pts_target.detach().cpu().numpy()[0],
+                   pts_source.detach().cpu().numpy()[0],
+                   registration_result['transformed_source']
+                   .detach()
+                   .cpu()
+                   .numpy()[0]
+                   )
+
+    return transformation
+
+
+def deepgmr(source: PointCloud, target: PointCloud, **kwargs) -> np.array:
+    import torch
+    from learning3d.models import DeepGMR, PointNet
+
+    torch.cuda.empty_cache()
+    device = torch.device("cuda")
+
+    source = source.translate(-np.mean(source.points, axis=1))
+    target = target.translate(-np.mean(target.points, axis=1))
+
+    pts_source = source.to_tensor(bcn=True).to(device)
+    pts_target = target.to_tensor(bcn=True).to(device)
+
+    feature_model = PointNet(input_shape='bnc', global_feat=True).to(device)
+    dgmr = DeepGMR(use_rri=True, feature_model=feature_model,
+                   nearest_neighbors=20)
+
+    state_dict = torch.load(dgmr_model)
+    dgmr.load_state_dict(state_dict, strict=False)
+
+    # Get 4x4 transformation matrix from results
+    registration_result = dgmr(pts_target, pts_source)
+    transformation = registration_result['est_T'].cpu().detach().numpy()
+
+    display_open3d(pts_target.detach().cpu().numpy()[0],
+                   pts_source.detach().cpu().numpy()[0],
+                   registration_result['transformed_source']
+                   .detach()
+                   .cpu()
+                   .numpy()[0]
+                   )
+
+    return transformation
+
 
 def iterative_closest_point(source: PointCloud, target: PointCloud, iterations: int = 1, **kwargs) -> np.array:
-	raise NotImplementedError()
+    raise NotImplementedError()
 
 
 def normal_iterative_closest_point(source: PointCloud, target: PointCloud, iterations: int = 1, **kwargs) -> np.array:
-	raise NotImplementedError()
+    raise NotImplementedError()
 
 
-def registration(source: PointCloud, target: PointCloud, iterations: int = 1, algo: str = 'pnlk', **kwargs) -> np.array:
-	"""Register two point clouds (find 4x4 transformation matrix that brings them into alignment) using various existing methods.
+def cluster_transform(transforms: List[np.array], algorithm: str = 'optics', **kwargs) -> np.array:
+    # Only these algorithms are currently supported
+    if algorithm not in ['dbscan', 'optics']:
+        raise ValueError(
+            algorithm, f'Clustering algorithm must be either dbscan or optics. Currently {algorithm}.')
 
-	Args:
-		source (PointCloud): Misaligned input point cloud
-		target (PointCloud): Input point cloud which source is aligned to
-		iterations (int, optional): How often to repeat the registration to refine results. Defaults to 1.
-		algo (str, optional): Algorithm used for registration. Defaults to 'dcp'. Currently accepts 'dcp', 'icp' and 'nicp'.
+    # Compute distance matrix for all transformation matrices by computing the norm of their difference.
+    distance_matrix = euclidean_distance_matrix(transforms)
 
-	Raises:
-		ArgumentError: Specified registration algorithm is not implemented.
+    # Use density-based clustering to find similar transformations.
+    # Either OPTICS or DBSCAN are currently available.
+    if algorithm == 'optics':
+        clustering = cluster.OPTICS(max_eps=kwargs['max_eps'],
+                                    min_samples=kwargs['min_samples'],
+                                    metric='precomputed').fit(distance_matrix)
+    elif algorithm == 'dbscan':
+        raise NotImplementedError()
 
-	Returns:
-		np.array: 4x4 transformation matrix which aligns the source with the target point cloud.
-	"""
+    labels = clustering.labels_
+    return labels
 
-	# Available registration algorithms and their corresponding methods
-	algo_methods = {'dcp': deep_closest_point,
-					'pnlk': pointnet_lk,
-					'icp': iterative_closest_point,
-					'nicp': normal_iterative_closest_point}
 
-	# Raise an error if the supplied registration algorithm is not available
-	if algo not in algo_methods.keys():
-		raise ValueError(
-			algo, "Target registration algorithm is not currently implemented.")
+def registration(source: PointCloud, target: PointCloud, algo: str, **kwargs) -> np.array:
+    """Register two point clouds (find 4x4 transformation matrix that brings them into alignment) using various existing methods.
 
-	# Get corresponding method for supplied registration algorithm and execute
-	registration_method = algo_methods[algo]
-	estimated_transformation = registration_method(
-		source, target, iterations=iterations, kwargs=kwargs)
+    Args:
+                    source (PointCloud): Misaligned input point cloud
+                    target (PointCloud): Input point cloud which source is aligned to
+                    iterations (int, optional): How often to repeat the registration to refine results. Defaults to 1.
+                    algo (str, optional): Algorithm used for registration. Defaults to 'dcp'. Currently accepts 'dcp', 'icp' and 'nicp'.
 
-	return estimated_transformation
+    Raises:
+                    ArgumentError: Specified registration algorithm is not implemented.
+
+    Returns:
+                    np.array: 4x4 transformation matrix which aligns the source with the target point cloud.
+    """
+
+    # Available registration algorithms and their corresponding methods
+    algo_methods = {'dgmr': deepgmr,
+                    'pnlk': pointnet_lk,
+                    'icp': iterative_closest_point,
+                    'nicp': normal_iterative_closest_point}
+
+    # Raise an error if the supplied registration algorithm is not available
+    if algo not in algo_methods.keys():
+        raise ValueError(
+            algo, "Target registration algorithm is not currently implemented.")
+
+    # Get corresponding method for supplied registration algorithm and execute
+    registration_method = algo_methods[algo]
+    estimated_transformation = registration_method(
+        source, target, kwargs=kwargs)
+
+    return estimated_transformation

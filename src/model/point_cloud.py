@@ -260,10 +260,21 @@ class PointCloud:
         pcd = PointCloud(pt_pos, pt_color)
         return pcd
     
-    def to_tensor(self):
+    def to_tensor(self, bcn: bool = False, batch: bool = True):
         from torch import as_tensor
         
-        as_tensor(self.points[:, :][np.newaxis, ...]).float()
+        if batch:
+            if bcn:
+                return as_tensor(np.swapaxes(self.points[:, :][np.newaxis, ...], 1, 2)).float()
+            return as_tensor(self.points[:, :][np.newaxis, ...]).float()
+        else:
+            return as_tensor(self.points).float()
+        
+    def centroid(self):
+        return np.mean(self.points, axis=0)
+        
+    def center(self):
+        return PointCloud(self.points - self.centroid())
 
 class Trajectory(PointCloud):
     pass

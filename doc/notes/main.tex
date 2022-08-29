@@ -6,13 +6,13 @@
 \usepackage{apacite}
 \usepackage{natbib}
 \usepackage{amsfonts} 
+\usepackage{amsmath}
+\usepackage{mathtools}
 \usepackage{bm} 
 \usepackage{algpseudocode}
 \usepackage{algorithm}
-\usepackage[acronym,nomain]{glossaries}
-
-\makenoidxglossaries
-\loadglsentries{glossary}
+\usepackage{glossaries}
+\usepackage{afterpage}
 
 \title{Extraction and Merging of Topometric Maps}
 
@@ -29,6 +29,7 @@
 \date{24/01/2022}
 \begin{document}
 \include{commands.tex}
+\include{glossary.tex}
 \maketitle
 \pagebreak
 
@@ -40,7 +41,9 @@
 % abstract
 
 \paragraph{abstract}
-The merging of multiple partial maps of indoor environments created by teams of human or robot agents into a single global map is a key problem that, when solved, can enable co-localization and collaborative mapping of large environments. Existing map merging approaches generally depend on external signals which are not available indoors or only use the  geometric properties of an environment. Inspired by the human understanding of environments in relationship to their context we propose a map merging system that extracts and uses topometric maps, a map representation containing both the geometrical and topological characteristics of an environments, to solve the map merging problem in indoor spaces. In this research we demonstrate an intuitive approach to extracting topometric maps of 3D, multi-floor, indoor environments. We then use both the topological and geometric characteristics contained in the topometric maps to perform context-aware map matching and fusion. 
+The merging of multiple partial \gls{map}s of indoor environments created by teams of human or robot agents into a single global map is a key problem that, when solved, can enable co-localization and collaborative mapping of large environments. Existing map merging approaches generally depend on external signals which are not available indoors or only use the  geometric properties of an environment. Inspired by the human understanding of environments in relationship to their context we propose a map merging system that extracts and uses topometric maps, a map representation containing both the geometrical and topological characteristics of an environments, to solve the map merging problem in indoor spaces. In this research we demonstrate an intuitive approach to extracting topometric maps of 3D, multi-floor, indoor environments. We then use both the topological and geometric characteristics contained in the topometric maps to perform context-aware map matching and fusion. 
+
+
 
 \include{introduction}
 % research background
@@ -50,8 +53,6 @@ The merging of multiple partial maps of indoor environments created by teams of 
 \pagebreak
 \include{methodology}
 \pagebreak                                                     
-\include{implementation_details}
-\pagebreak
 \include{results}
 \pagebreak
 \include{discussion}
@@ -61,8 +62,9 @@ The merging of multiple partial maps of indoor environments created by teams of 
 \bibliography{bibliography}
 
 
-\glossarystyle{list}
-\printnoidxglossaries
+\clearpage
+\printglossaries
+
 
 
 \end{document}
