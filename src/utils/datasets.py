@@ -45,6 +45,7 @@ class Dataset:
                                 "../data/cslam/flat/flat_partial_02.pickle"),
     topometric_maps: Tuple[str] = ("../data/cslam/flat/flat_topo_01.pickle",
                                    "../data/cslam/flat/flat_topo_02.pickle"),
+    matches: str="../data/cslam/flat/flat_matches.pickle"
 
 
 cslam_flat_dataset = Dataset(
@@ -56,6 +57,7 @@ cslam_flat_dataset = Dataset(
                   "../data/cslam/flat/flat_partial_02.pickle"),
     topometric_maps=("../data/cslam/flat/flat_topo_01.pickle",
                      "../data/cslam/flat/flat_topo_02.pickle"),
+    matches="../data/cslam/flat/flat_matches.pickle",
 )
 
 cslam_house_dataset = Dataset(
@@ -67,6 +69,7 @@ cslam_house_dataset = Dataset(
                   "../data/cslam/house/house_partial_02.pickle"),
     topometric_maps=("../data/cslam/house/house_topo_01.pickle",
                      "../data/cslam/house/house_topo_02.pickle"),
+    matches="../data/cslam/house/house_matches.pickle",
 )
 
 cslam_lab_dataset = Dataset(
@@ -78,6 +81,7 @@ cslam_lab_dataset = Dataset(
                   "../data/cslam/lab/lab_partial_02.pickle"),
     topometric_maps=("../data/cslam/lab/lab_topo_01.pickle",
                      "../data/cslam/lab/lab_topo_02.pickle"),
+    matches="../data/cslam/lab/lab_matches.pickle",
 )
 
 s3dis_area_1_dataset = Dataset(
@@ -92,7 +96,8 @@ s3dis_area_1_dataset = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_1/area_1_topo_01.pickle",
                      "../data/s3dis/area_1/area_1_topo_02.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_1/area_1_matches.pickle",
 )
 
 s3dis_area_2_dataset = Dataset(
@@ -107,7 +112,8 @@ s3dis_area_2_dataset = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_2/area_2_topo_01.pickle",
                      "../data/s3dis/area_2/area_2_topo_02.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_2/area_2_matches.pickle",
 )
 
 s3dis_area_3_dataset = Dataset(
@@ -122,7 +128,8 @@ s3dis_area_3_dataset = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_3/area_3_topo_01.pickle",
                      "../data/s3dis/area_3/area_3_topo_02.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_3/area_3_matches.pickle",
 )
 
 s3dis_area_4_dataset = Dataset(
@@ -137,7 +144,8 @@ s3dis_area_4_dataset = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_4/area_4_topo_01.pickle",
                      "../data/s3dis/area_4/area_4_topo_02.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_4/area_4_matches.pickle",
 )
 
 s3dis_area_5_dataset = Dataset(
@@ -152,7 +160,8 @@ s3dis_area_5_dataset = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_5/area_5_topo_01.pickle",
                      "../data/s3dis/area_5/area_5_topo_02.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_5/area_5_matches.pickle",
 )
 
 s3dis_area_6_dataset = Dataset(
@@ -167,7 +176,8 @@ s3dis_area_6_dataset = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_6/area_6_topo_01.pickle",
                      "../data/s3dis/area_6/area_6_topo_02.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_6/area_6_matches.pickle",
 )
 
 s3dis_area_1_dataset_5cm = Dataset(
@@ -182,7 +192,8 @@ s3dis_area_1_dataset_5cm = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_1/area_1_topo_01_5cm.pickle",
                      "../data/s3dis/area_1/area_1_topo_02_5cm.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_1/area_1_matches.pickle",
 )
 
 s3dis_area_2_dataset_5cm = Dataset(
@@ -197,7 +208,8 @@ s3dis_area_2_dataset_5cm = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_2/area_2_topo_01_5cm.pickle",
                      "../data/s3dis/area_2/area_2_topo_02_5cm.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_2/area_2_matches.pickle",
 )
 
 s3dis_area_3_dataset_5cm = Dataset(
@@ -212,7 +224,8 @@ s3dis_area_3_dataset_5cm = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_3/area_3_topo_01_5cm.pickle",
                      "../data/s3dis/area_3/area_3_topo_02_5cm.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_3/area_3_matches.pickle",
 )
 
 s3dis_area_4_dataset_5cm = Dataset(
@@ -227,7 +240,8 @@ s3dis_area_4_dataset_5cm = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_4/area_4_topo_01_5cm.pickle",
                      "../data/s3dis/area_4/area_4_topo_02_5cm.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_4/area_4_matches.pickle",
 )
 
 s3dis_area_5_dataset_5cm = Dataset(
@@ -242,7 +256,8 @@ s3dis_area_5_dataset_5cm = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_5/area_5_topo_01_5cm.pickle",
                      "../data/s3dis/area_5/area_5_topo_02_5cm.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_5/area_5_matches.pickle",
 )
 
 s3dis_area_6_dataset_5cm = Dataset(
@@ -257,7 +272,8 @@ s3dis_area_6_dataset_5cm = Dataset(
                   ),
     topometric_maps=("../data/s3dis/area_6/area_6_topo_01_5cm.pickle",
                      "../data/s3dis/area_6/area_6_topo_02_5cm.pickle",
-                     )
+                     ),
+    matches="../data/s3dis/area_6/area_6_matches.pickle",
 )
 
 other_elspeet_dataset = Dataset(
@@ -272,7 +288,8 @@ other_elspeet_dataset = Dataset(
                   ),
     topometric_maps=("../data/other/elspeet/elspeet_topo_01.pickle",
                      "../data/other/elspeet/elspeet_topo_02.pickle",
-                     )
+                     ),
+    matches="../data/other/elspeet/elspeet_matches.pickle",
 )
 
 s3dis_datasets = [s3dis_area_1_dataset, s3dis_area_2_dataset, s3dis_area_3_dataset, s3dis_area_4_dataset, s3dis_area_5_dataset, s3dis_area_6_dataset]

@@ -124,32 +124,37 @@ if __name__ == "__main__":
             run(
                 logging=True,
                 
-
+                # input data
                 simulate_partial_maps=False,
                 write_partial_maps=False,
-                visualize_partial_maps=True,
+                visualize_partial_maps=False,
                 analyse_partial_maps=False,
 
+                # map extraction
                 extract=False,
                 write_extract=False,
                 visualize_extract=False,
                 analyse_extract=False,
 
-                match=True,
-                write_match=False,
-                visualize_match=True,
-                analyse_match=True,
+                # map matching
+                match=False,
+                write_match=True,
+                visualize_match=False,
+                analyse_match=False,
 
+                # map fusion
                 fuse=True,
                 write_fuse=False,
                 fuse_visualize=False,
                 fuse_analyse=False,
 
+                # dataset
                 partial_maps=dataset.partial_maps,
                 point_cloud=dataset.point_cloud,
                 graph=dataset.graph,
                 trajectories=dataset.trajectories,
                 topometric_maps=dataset.topometric_maps,
+                matches=dataset.matches,
             )
         except Exception as e:
             raise e

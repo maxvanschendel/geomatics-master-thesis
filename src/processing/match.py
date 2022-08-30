@@ -271,6 +271,7 @@ def match(maps: List[TopometricMap], partial_maps: List[PartialMap], k_max=0, mi
             cost_matrix = euclidean_distances(f_a, f_b)
             assignment = linear_assign(cost_matrix)
 
+            # sort assignment by cost
             _, assignment = sort_by_func(
                 assignment, lambda a: cost_matrix[a[0], a[1]], reverse=False)
 
@@ -295,7 +296,7 @@ def match(maps: List[TopometricMap], partial_maps: List[PartialMap], k_max=0, mi
                 if cost_matrix[a, b] < min_similarity:
                     matches[map_a, map_b][node_a, node_b] = cost_matrix[a, b]
 
-    return matches
+    return dict(matches)
 
 
 def sort_by_func(collection, func, reverse):
@@ -310,11 +311,18 @@ def match_create(topometric_maps, partial_maps, kwargs):
 
 
 def match_write(matches, kwargs):
-    raise NotImplementedError("")
+    from pickle import dump
+    
+    with open(kwargs['matches'], 'wb') as match_file:
+        dump(matches, match_file)
+    
 
 
 def match_read(kwargs):
-    raise NotImplementedError("")
+    from pickle import load
+    
+    with open(kwargs['matches'], 'rb') as matches:
+        return load(matches)
 
 
 def match_visualize(topometric_maps, matches, kwargs):

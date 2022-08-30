@@ -69,11 +69,12 @@ def iterative_closest_point(source: PointCloud, target: PointCloud, **kwargs) ->
     source = source.center()
     target = target.center()
     
-    rigid_transform, dist, i = icp(target.points[:smallest_size,], source.points[:smallest_size,],  max_iterations=1000, tolerance=0.00001)
-    result_pcd = target.transform(rigid_transform)
+    rigid_transform, result = icp(source.points[:smallest_size,], target.points[:smallest_size,],  max_iterations=200, tolerance=0.001)
+    
+    result = PointCloud(result)
+    
 
-    print(dist, np.mean(dist), i)
-    visualize_point_clouds([source, target, result_pcd])
+    visualize_point_clouds([source, target, result])
 
     return rigid_transform
 
@@ -117,8 +118,7 @@ def registration(source: PointCloud, target: PointCloud, registration_methods: s
     """
 
     # Available registration algorithms and their corresponding methods
-    algo_methods = {'dgmr': deepgmr,
-                    'pnlk': pointnet_lk,
+    algo_methods = {'pnlk': pointnet_lk,
                     'icp': iterative_closest_point}
 
     # Raise an error if the supplied registration algorithm is not available
