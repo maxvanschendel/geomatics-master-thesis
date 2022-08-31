@@ -67,8 +67,6 @@ def registration_RANSAC(s, t, source_feature, target_feature, normals, ransac_n=
                 opt_rmse = rmse
                 opt_t = transform
 
-        print(opt_rmse, rmse)
-
     return opt_t
 
 def best_fit_transform(P, Q, normals):
@@ -178,9 +176,13 @@ def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8):
         distances: Euclidean distances (errors) of the nearest neighbor
         i: number of iterations to converge
     '''
+    
+    from functools import reduce
 
     assert A.shape == B.shape
 
+    transformations = []
+    
     # get number of dimensions
     m = A.shape[1]
 
@@ -195,40 +197,33 @@ def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8):
     
     init_pose = registration_RANSAC(A, B, feature(A), feature(B), normals)
     src = np.dot(init_pose, src)
+    transformations.append(init_pose)
 
     prev_error = 0
 
     for i in range(max_iterations):
-        print(f'{i}/{max_iterations}')
-
         # find the nearest neighbors between the current source and destination points
         distances, indices = nearest_neighbor(src[:m, :].T, dst[:m, :].T)
 
         pt_neighbours_indices = knn(src[:m, :].T, n_neighbours)
         normals = np.array([fit_plane(src[:m, pts].T) for pts in pt_neighbours_indices])
 
-        # compute the transformation between the current source and nearest destination points
+        # compute the transformation between the current source and nearest destination points -> update the current source
         T, _, _ = best_fit_transform(src[:m, :].T, dst[:m, indices].T, normals)
-
-        # update the current source
         src = np.dot(T, src)
+        transformations.append(T)
 
         # check error
         mean_error = np.mean(distances)
-        print(mean_error)
-        
         if np.abs(prev_error - mean_error) < tolerance:
             break
         
         prev_error = mean_error
 
-    pt_neighbours_indices = knn(A, n_neighbours)
-    normals = np.array([fit_plane(A[pts, :]) for pts in pt_neighbours_indices])
+    composite_transformation = reduce(lambda a, b: a.dot(b), reversed(transformations))
+    transformed_source = src[:m, :].T
 
-    # calculate final transformation
-    T, _, _ = best_fit_transform(A, src[:m, :].T, normals)
-    
-    return T, src[:m, :].T
+    return composite_transformation, transformed_source, prev_error
 
 
 if __name__ == '__main__':

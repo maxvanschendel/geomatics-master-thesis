@@ -102,6 +102,7 @@ class PointCloud:
         if transformation.shape != (4, 4):
             raise ValueError("Transformation must be 4x4 matrix")
 
+        
         # Add column of 1s to allow for multiplication with 4x4 transformation matrix
         pts = np.hstack((self.points, np.ones((self.points.shape[0], 1))))
 
