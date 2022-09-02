@@ -1,12 +1,10 @@
 import numpy as np
+from numba import jit
 from sklearn.decomposition import PCA
 from sklearn.neighbors import NearestNeighbors
 
-from numba import jit
 
-# https://github.com/withtimesgo1115/3D-point-cloud-global-registration-based-on-RANSAC
-
-def feature(pts):
+def fpfh_features(pts: np.array):
     import open3d as o3d
 
     pcd = o3d.geometry.PointCloud()
@@ -15,15 +13,15 @@ def feature(pts):
 
     return o3d.pipelines.registration.compute_fpfh_feature(pcd, o3d.geometry.KDTreeSearchParamHybrid(radius=0.5, max_nn=100))
 
-@jit
-def _transform(source, R, T):
+
+def _transform(source: np.array, R: np.array, T: np.array):
     points = []
     for point in source:
         points.append(np.dot(R, point.reshape(-1, 1)+T))
     return points
 
-@jit
-def compute_rmse(source, target, R, T):
+
+def compute_rmse(source: np.array, target: np.array, R: np.array, T: np.array):
     rmse = 0
     number = len(target)
     points = _transform(source, R, T)
@@ -33,7 +31,24 @@ def compute_rmse(source, target, R, T):
     return (rmse / number)**(1/2)
 
 
-def registration_RANSAC(s, t, source_feature, target_feature, normals, ransac_n=5, max_iteration=200, max_validation=100):
+def registration_RANSAC(s: np.array, t: np.array, source_feature: np.array, target_feature: np.array, normals: np.array, ransac_n=5, max_iteration=200) -> np.array:
+    """
+
+    Adapted from: https://github.com/withtimesgo1115/3D-point-cloud-global-registration-based-on-RANSAC
+
+    Args:
+        s (_type_): _description_
+        t (_type_): _description_
+        source_feature (_type_): _description_
+        target_feature (_type_): _description_
+        normals (_type_): _description_
+        ransac_n (int, optional): _description_. Defaults to 5.
+        max_iteration (int, optional): _description_. Defaults to 200.
+
+    Returns:
+        np.array: _description_
+    """
+
     from scipy import spatial
     from random import randint
 
@@ -52,7 +67,8 @@ def registration_RANSAC(s, t, source_feature, target_feature, normals, ransac_n=
         target_point = t[corres_idx, ...]
 
         # estimate transformation
-        transform, R, T = best_fit_transform(source_point, target_point, normals)
+        transform, R, T = best_fit_transform(
+            source_point, target_point, normals)
 
         # calculate rmse for all points
         source_point = s
@@ -67,11 +83,13 @@ def registration_RANSAC(s, t, source_feature, target_feature, normals, ransac_n=
                 opt_rmse = rmse
                 opt_t = transform
 
+    
     return opt_t
+
 
 def best_fit_transform(P, Q, normals):
     '''
-    Calculates the least-squares best-fit transform that maps corresponding points A to B in m spatial dimensions
+    Calculates the least-squares best-fit transform that maps corresponding points A to B in 3 spatial dimensions
     Input:
       A: Nxm numpy array of corresponding points
       B: Nxm numpy array of corresponding points
@@ -83,9 +101,6 @@ def best_fit_transform(P, Q, normals):
 
     assert P.shape == Q.shape
     from scipy.spatial.transform import Rotation as R
-
-    # get number of dimensions
-    m = P.shape[1]
 
     L = np.array([[0, 0, 1], [0, 0, 0], [-1, 0, 0]])
     A = np.zeros((4, 4))
@@ -131,6 +146,7 @@ def nearest_neighbor(src, dst):
     neigh = NearestNeighbors(n_neighbors=1)
     neigh.fit(dst)
     distances, indices = neigh.kneighbors(src, return_distance=True)
+
     return distances.ravel(), indices.ravel()
 
 
@@ -148,7 +164,7 @@ def knn(src, n):
     neigh = NearestNeighbors(n_neighbors=n)
     neigh.fit(src)
     _, indices = neigh.kneighbors(src, return_distance=True)
-    
+
     return indices
 
 
@@ -160,9 +176,28 @@ def fit_plane(pts):
     return nbs_normal
 
 
+def estimate_normals(pcd, n_neighbours):
+    def local_plane(pcd, neighbour_indices): return fit_plane(
+        pcd[neighbour_indices, :])
+
+    pt_neighbours_indices = knn(pcd, n_neighbours)
+    normals = np.array([local_plane(pcd, pts)
+                       for pts in pt_neighbours_indices])
+
+    return normals
+
+
+def align_global(A, B, n_neighbours=8):
+    normals = estimate_normals(A, n_neighbours)
+    global_transformation = registration_RANSAC(
+        A, B, fpfh_features(A), fpfh_features(B), normals)
+
+    return global_transformation
+
+
 def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8):
     '''
-    Original code from: https://github.com/ClayFlannigan/icp
+    Adapted from: https://github.com/ClayFlannigan/icp
 
     The Iterative Closest Point method: finds best-fit transform that maps points A on to points B
     Input:
@@ -176,13 +211,13 @@ def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8):
         distances: Euclidean distances (errors) of the nearest neighbor
         i: number of iterations to converge
     '''
-    
+
     from functools import reduce
 
     assert A.shape == B.shape
 
     transformations = []
-    
+
     # get number of dimensions
     m = A.shape[1]
 
@@ -192,21 +227,17 @@ def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8):
     src[:m, :] = np.copy(A.T)
     dst[:m, :] = np.copy(B.T)
 
-    pt_neighbours_indices = knn(src[:m, :].T, n_neighbours)
-    normals = np.array([fit_plane(src[:m, pts].T) for pts in pt_neighbours_indices])
-    
-    init_pose = registration_RANSAC(A, B, feature(A), feature(B), normals)
-    src = np.dot(init_pose, src)
-    transformations.append(init_pose)
+    # initialize
+    global_transformation = align_global(A, B)
+    src = np.dot(global_transformation, src)
+    transformations.append(global_transformation)
 
     prev_error = 0
-
-    for i in range(max_iterations):
+    for _ in range(max_iterations):
         # find the nearest neighbors between the current source and destination points
         distances, indices = nearest_neighbor(src[:m, :].T, dst[:m, :].T)
 
-        pt_neighbours_indices = knn(src[:m, :].T, n_neighbours)
-        normals = np.array([fit_plane(src[:m, pts].T) for pts in pt_neighbours_indices])
+        normals = estimate_normals(src[:m, :].T, n_neighbours)
 
         # compute the transformation between the current source and nearest destination points -> update the current source
         T, _, _ = best_fit_transform(src[:m, :].T, dst[:m, indices].T, normals)
@@ -217,13 +248,12 @@ def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8):
         mean_error = np.mean(distances)
         if np.abs(prev_error - mean_error) < tolerance:
             break
-        
         prev_error = mean_error
 
-    composite_transformation = reduce(lambda a, b: a.dot(b), reversed(transformations))
-    transformed_source = src[:m, :].T
-
-    return composite_transformation, transformed_source, prev_error
+    composite_transformation = reduce(
+        lambda a, b: a.dot(b), reversed(transformations))
+    
+    return composite_transformation, mean_error
 
 
 if __name__ == '__main__':

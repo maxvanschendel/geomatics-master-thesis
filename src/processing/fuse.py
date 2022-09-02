@@ -3,7 +3,7 @@ from __future__ import annotations
 from model.topometric_map import *
 
 from utils.array import replace_with_unique
-from utils.visualization import visualize_map_merge
+from utils.visualization import visualize_map_merge, visualize_point_cloud
 from processing.registration import cluster_transform, registration
 
 
@@ -25,8 +25,8 @@ def fuse(matches, registration_method: str) -> Dict[Tuple[TopometricMap, Topomet
 
     transforms = {}
     for map_a, map_b in matches.keys():
-        node_matches: Dict[Tuple[TopometricNode,
-                                 TopometricNode], float] = matches[(map_a, map_b)]
+        node_matches: Dict[Tuple[TopometricNode, TopometricNode], float] = matches[(map_a, map_b)]
+        matches = list(node_matches.keys())
 
         # Find transform between both maps based on ICP registration between matched spaces
         match_transforms = [registration(
@@ -34,36 +34,56 @@ def fuse(matches, registration_method: str) -> Dict[Tuple[TopometricMap, Topomet
                 target=b.geometry.to_pcd(),
                 registration_methods=registration_method,
                 voxel_size=a.geometry.cell_size)
-            for a, b in node_matches.keys()]
+            for a, b in matches]
         
-        logging.info(f"Identified {len(match_transforms)} transform clusters")
+        match_transforms, match_errors = zip(*match_transforms)
+        match_errors = np.array(match_errors)
+        match_transforms = np.array(match_transforms)
+        
+        filtered_matches = [matches[int(i)] for i in np.argwhere(match_errors < 0.15)]
+        filtered_geometry = [(a.geometry, b.geometry) for a, b in filtered_matches]
+        
+        a_geometry, b_geometry = zip(*filtered_geometry)
+        a_geometry, b_geometry = VoxelGrid.merge(a_geometry), VoxelGrid.merge(b_geometry)
+        a_pcd, b_pcd = a_geometry.to_pcd(), b_geometry.to_pcd()
+        
+        final_transform, final_error = registration(
+                source=a_pcd,
+                target=b_pcd,
+                registration_methods=registration_method,
+                voxel_size=a_geometry.cell_size)
+        
+        result, target = a_pcd.transform(final_transform), b_pcd
+        visualize_point_cloud(result.merge(target))
 
-        if len(match_transforms) > 1:
-            # Cluster similar transforms into transform hypotheses
-            # Assign unclustered transforms (label=-1) their own unique cluster
-            transformation_clusters = cluster_transform(
-                match_transforms, max_eps=5, min_samples=1)
-            transformation_clusters = replace_with_unique(
-                transformation_clusters, -1)
-        else:
-            transformation_clusters = np.zeros((1))
+
+        
+        # print(match_errors)
+        
+        # if len(match_transforms) > 1:
+        #     # Cluster similar transforms into transform hypotheses
+        #     # Assign unclustered transforms (label=-1) their own unique cluster
+        #     transformation_clusters = cluster_transform(
+        #         match_transforms, max_eps=np.inf, min_samples=3)
+        #     transformation_clusters = replace_with_unique(
+        #         transformation_clusters, -1)
+        # else:
+        #     transformation_clusters = np.zeros((1))
+                
+        # filtered_clusters = transformation_clusters[match_errors < 0.15]
+        # u, c = np.unique(filtered_clusters, return_counts=True)
+        
+        # for cluster in u:
+        #     cluster = int(cluster)
+        #     cluster_transformations = match_transforms[transformation_clusters == cluster]
             
-
-        for cluster in np.unique(transformation_clusters):
-            # For every transformation cluster, compute the mean transformation
-            # then apply this transformation to the partial maps.
-            transform_indices = np.argwhere(transformation_clusters == cluster)
-            cluster_transforms = np.array(match_transforms)[
-                transform_indices.T.flatten()].squeeze()
-
-            mean_transform = np.mean(cluster_transforms, axis=2).squeeze() if len(
-                cluster_transforms.shape) == 3 else cluster_transforms
-            transforms[(map_a, map_b)] = mean_transform
-
-            map_b_transformed = map_b.transform(mean_transform)
-
-            visualize_map_merge(map_a, map_b_transformed)
-
+        #     mean_transformation = sum(cluster_transformations)/len(cluster_transformations)
+            
+        #     a_pcd = map_a.to_voxel_grid().to_pcd().transform(cluster_transformations[0])
+        #     b_pcd = map_b.to_voxel_grid().to_pcd()
+            
+        #     visualize_point_cloud(a_pcd.merge(b_pcd))
+        
     return transforms
 
 
