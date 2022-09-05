@@ -3,7 +3,7 @@ from __future__ import annotations
 from model.topometric_map import *
 
 from utils.array import replace_with_unique
-from utils.visualization import visualize_map_merge, visualize_point_cloud
+from utils.visualization import visualize_map_merge, visualize_point_clouds
 from processing.registration import cluster_transform, registration
 
 
@@ -53,8 +53,18 @@ def fuse(matches, registration_method: str) -> Dict[Tuple[TopometricMap, Topomet
                 registration_methods=registration_method,
                 voxel_size=a_geometry.cell_size)
         
-        result, target = a_pcd.transform(final_transform), b_pcd
-        visualize_point_cloud(result.merge(target))
+        result, target = map_a.to_voxel_grid().to_pcd().transform(final_transform), map_b.to_voxel_grid().to_pcd()
+        final_transform, final_error = registration(
+                source=result,
+                target=target,
+                registration_methods=registration_method,
+                voxel_size=a_geometry.cell_size)
+        
+        
+        
+        visualize_point_clouds([result.merge(target), map_a.to_voxel_grid().to_pcd().transform(final_transform).merge(map_b.to_voxel_grid().to_pcd())])
+        
+        transforms[(map_a, map_b)] = final_transform
 
 
         

@@ -2,7 +2,8 @@ import numpy as np
 from numba import jit
 from sklearn.decomposition import PCA
 from sklearn.neighbors import NearestNeighbors
-
+import logging
+import math
 
 def fpfh_features(pts: np.array):
     import open3d as o3d
@@ -11,7 +12,7 @@ def fpfh_features(pts: np.array):
     pcd.points = o3d.utility.Vector3dVector(pts)
     pcd.estimate_normals()
 
-    return o3d.pipelines.registration.compute_fpfh_feature(pcd, o3d.geometry.KDTreeSearchParamHybrid(radius=0.5, max_nn=100))
+    return o3d.pipelines.registration.compute_fpfh_feature(pcd, o3d.geometry.KDTreeSearchParamHybrid(radius=4, max_nn=100))
 
 
 def _transform(source: np.array, R: np.array, T: np.array):
@@ -21,17 +22,14 @@ def _transform(source: np.array, R: np.array, T: np.array):
     return points
 
 
-def compute_rmse(source: np.array, target: np.array, R: np.array, T: np.array):
-    rmse = 0
-    number = len(target)
+def compute_rmse(source: np.array, target: np.array, R: np.array, T: np.array, tree):
     points = _transform(source, R, T)
-    for i in range(number):
-        error = target[i].reshape(-1, 1)-points[i]
-        rmse += (error[0]**2 + error[1]**2 + error[2]**2)**(1/2)
-    return (rmse / number)**(1/2)
+    
+    dist, nearest = tree.query(np.array(points).squeeze())
+    return np.mean(dist)
 
 
-def registration_RANSAC(s: np.array, t: np.array, source_feature: np.array, target_feature: np.array, normals: np.array, ransac_n=5, max_iteration=200) -> np.array:
+def registration_RANSAC(source: np.array, target: np.array, source_feature: np.array, target_feature: np.array, normals: np.array, ransac_n=3, max_iteration=1000) -> np.array:
     """
 
     Adapted from: https://github.com/withtimesgo1115/3D-point-cloud-global-registration-based-on-RANSAC
@@ -52,28 +50,50 @@ def registration_RANSAC(s: np.array, t: np.array, source_feature: np.array, targ
     from scipy import spatial
     from random import randint
 
+    
+    def triangle_edge_lengths(vxs):
+        ab = np.linalg.norm(vxs[0] - vxs[1])
+        bc = np.linalg.norm(vxs[1] - vxs[2])
+        ca = np.linalg.norm(vxs[2] - vxs[0])
+        
+        return np.array([ab, bc, ca])
+       
     # the intention of RANSAC is to get the optimal transformation between the source and target point cloud
-
     sf = np.transpose(source_feature.data)
     tf = np.transpose(target_feature.data)
+    
     tree = spatial.KDTree(tf)
-    corres_stock = tree.query(sf)[1]
+    dist, corres_stock = tree.query(sf)
+    
+    opt_rmse = math.inf
+    
+    nn_tree = spatial.KDTree(target)
+
 
     for i in range(max_iteration):
         # take ransac_n points randomly
-        idx = [randint(0, s.shape[0]-1) for j in range(ransac_n)]
+        idx = [randint(0, source.shape[0]-1) for j in range(ransac_n)]
         corres_idx = corres_stock[idx]
-        source_point = s[idx, ...]
-        target_point = t[corres_idx, ...]
-
+        source_point = source[idx, ...]
+        target_point = target[corres_idx, ...]
+        
+        source_edge_lengths = triangle_edge_lengths(source_point)
+        target_edge_lengths = triangle_edge_lengths(target_point)
+        
+        edge_ratio = source_edge_lengths * (1/target_edge_lengths)
+        max_ratio = .8
+        if edge_ratio[edge_ratio < max_ratio].any() or edge_ratio[edge_ratio > 1/max_ratio].any():
+            continue
+            
         # estimate transformation
         transform, R, T = best_fit_transform(
             source_point, target_point, normals)
 
         # calculate rmse for all points
-        source_point = s
-        target_point = t[corres_stock, ...]
-        rmse = compute_rmse(source_point, target_point, R, T)
+        # source_point = source
+        # target_point = target[corres_stock, ...]
+        rmse = compute_rmse(source, target, R, T, nn_tree)
+        
         # compare rmse and optimal rmse and then store the smaller one as optimal values
         if not i:
             opt_rmse = rmse
@@ -82,6 +102,9 @@ def registration_RANSAC(s: np.array, t: np.array, source_feature: np.array, targ
             if rmse < opt_rmse:
                 opt_rmse = rmse
                 opt_t = transform
+                
+                logging.info(f"{i}/{max_iteration}: {rmse}")
+
 
     
     return opt_t
@@ -228,12 +251,15 @@ def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8):
     dst[:m, :] = np.copy(B.T)
 
     # initialize
+        
+    logging.info(f"Finding global alignment")
     global_transformation = align_global(A, B)
     src = np.dot(global_transformation, src)
     transformations.append(global_transformation)
 
-    prev_error = 0
-    for _ in range(max_iterations):
+    logging.info(f"Finding local alignment")
+    prev_error = math.inf
+    for i in range(max_iterations):
         # find the nearest neighbors between the current source and destination points
         distances, indices = nearest_neighbor(src[:m, :].T, dst[:m, :].T)
 
@@ -246,9 +272,11 @@ def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8):
 
         # check error
         mean_error = np.mean(distances)
-        if np.abs(prev_error - mean_error) < tolerance:
+        if prev_error - mean_error < tolerance:
             break
         prev_error = mean_error
+        
+        logging.info(f"{i}/{max_iterations}: {mean_error}")
 
     composite_transformation = reduce(
         lambda a, b: a.dot(b), reversed(transformations))

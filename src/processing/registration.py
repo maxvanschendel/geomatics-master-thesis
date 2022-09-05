@@ -65,23 +65,11 @@ def iterative_closest_point(source: PointCloud, target: PointCloud, **kwargs) ->
     from processing.icp import icp
 
     smallest_size = source.size if source.size < target.size else target.size
+    icp_transform, error = icp(source.points[:smallest_size,], target.points[:smallest_size,],  max_iterations=200, tolerance=0.001)
     
-    source_centroid = source.centroid()
-    target_centroid = target.centroid()
-    
-    initial_translation = target_centroid - source_centroid
-    initial_transformation = np.identity(4)
-    initial_transformation[:3, 3] = initial_translation
-       
-    source_center = source.center()
-    target_center = target.center()
-    
-    rigid_transform, error = icp(source_center.points[:smallest_size,], target_center.points[:smallest_size,],  max_iterations=200, tolerance=0.001)
-    rigid_transform = rigid_transform.dot(initial_transformation)
-    
-    visualize_point_clouds([source, target, source.transform(rigid_transform)])
+    visualize_point_clouds([source, target, source.transform(icp_transform)])
 
-    return rigid_transform, error
+    return icp_transform, error
 
 
 def cluster_transform(transforms: List[np.array], algorithm: str = 'optics', **kwargs) -> np.array:
