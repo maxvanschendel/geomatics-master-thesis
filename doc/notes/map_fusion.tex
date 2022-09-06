@@ -1,26 +1,137 @@
 \subsection{Map Fusion}
-The final step of the map merging process is map fusion. In the case of topometric maps this means fusion at the geometric and topological level. We arbitrarily designate one partial map as the source and the other as the target. The goal of geometric fusion is to find a rigid transformation that aligns the source map with the target. 
-
-At the topological level, we first merge the nodes of the source map with their corresponding matches in the target map. If two adjacent nodes in one map match with two other adjacent nodes in the other partial map then their edges are also merged. Afterwards, a transformation between the geometry (a point cloud derived from the voxel grid's centroids) of each matching node is computed using a fine registration approach. We use two different algorithms two do this: iterative closest point (ICP) and deep closest point (DCP). Figure \ref{fig:flowchart_fuse} shows an overview of our map fusion methodology.
+The final step of the map merging process is map fusion. In the case of topometric maps this means fusion at the geometric and topological level. We arbitrarily designate one partial map as the source and the other as the target. The goal of geometric fusion is to find a rigid transformation that aligns the source map with the target.
 
 \afterpage{
-\begin{figure}[h]
-    \centering
-    \includegraphics*[width=.9\textwidth]{./fig/flowchart_fuse.pdf}
-    \caption{Diagram showing overview of map fusion methodology.}
-    \label{fig:flowchart_fuse}
-\end{figure}
+    \begin{figure}[h]
+        \centering
+        \includegraphics*[width=.9\textwidth]{./fig/flowchart_fuse.pdf}
+        \caption{Diagram showing overview of map fusion methodology.}
+        \label{fig:flowchart_fuse}
+    \end{figure}
 }
 
+\subsubsection{Registration}
+
+The goal of registration is to find a rigid transformation \(\tau\) between two point clouds that minimizes the distance, as defined by an error function \(e\), between them. For the error function we use point-to-plane distance, as shown in equation \ref{eq:point2plane}.
+
+In the context of indoor mapping data is usually aligned to gravity, with the direction of gravity being equal to the direction of the negative y-axis. We take this into account by constraining the transformation between partial maps to a translation along all three axes and a rotation around the y-axis. The rigid transformation can thus be expressed as a 4-dimensional vector, as shown in equation \ref{eq:tau}. Reducing the degrees of freedom of the problem from 6 to 4 can improve the alignment.
+
+
+\begin{equation}
+    \label{eq:tau}
+    \tau = \underset{\tau}{argmin} \ e (\mathcal{P},\mathcal{Q}) = \begin{bmatrix}
+        \gamma \\
+        \bf{t}
+    \end{bmatrix} = \begin{bmatrix}
+        \gamma \\
+        t_x    \\
+        t_y    \\
+        t_z
+    \end{bmatrix}
+\end{equation}
+
+\begin{equation}
+    \label{eq:point2plane}
+    e = \sum_{k=1}^{K} || ((R(\gamma)\bf{p_k} + \bf{t}) - \bf{q_k})  \cdot \bf{n_k}||,\ \bf{p_k} \in \mathcal{P},\ \bf{q_k} \in \mathcal{Q}
+\end{equation}
+
+\cite{kubelka_gravity-constrained_2022} gives a method for restating gravity-constrained alignment between two sets of points as a system of equations, which is shown in equations \ref{eq:ck} and \ref{eq:at_b} (adapted to use y-axis instead of z-axis as the gravity direction). We can then solve this system of equations using least squares adjustment to find the optimal transformation \(\tau\).
+
+\begin{equation}
+    \label{eq:ck}
+    c_k = (\begin{bmatrix}
+        0  & 0 & 1 \\
+        0  & 0 & 0 \\
+        -1 & 0 & 0 \\
+    \end{bmatrix} \bf{p_k}) \cdot \bf{n_k}
+\end{equation}
+
+\begin{equation}
+    \label{eq:at_b}
+    \sum_{k=1}^{K} \begin{bmatrix}
+        c_k \\
+        n_k
+    \end{bmatrix}
+    \begin{bmatrix}
+        c_k & n_k
+    \end{bmatrix}
+    \tau = \sum_{k=1}^{K} \begin{bmatrix}
+        c_k \\
+        n_k
+    \end{bmatrix} (\bf{d_k} \cdot \bf{n_k}) \rightarrow A \tau = \bf{b}
+\end{equation}
+
+\begin{equation}
+    transform: (\mathbb{R}^{m \times 3},\ \mathbb{R}^{m \times 3}) \rightarrow \mathbb{R}^4,\ transform(\mathcal{P},\ \mathcal{Q}) = \tau
+\end{equation}
+
+The above is able to align two point clouds optimally if the correspondence between points is known exactly, meaning that the \(k\)-th point of both \(\mathcal{P}\) and \(\mathcal{Q}\) correspond to the same point in the real world. This is, however, usually not the case. This means that registration requires another two steps, global and local registration, which we will discuss below.
+
+\paragraph{Global registration}
+The purpose of global registration is to find a rough alignment between point clouds, which can then be further refined in the local registration step. To do so we use a RANSAC based approach. This algorithm works as follows. For every point in the point clouds \(\mathcal{P}\) and \(\mathcal{Q}\) compute a feature embedding that can be used to find similar points in the other point clouds. We use Fast Point Feature Histograms (FPFH) features, which are commonly used for this purpose. A description of how these are computed is outside of the scope of this thesis but can be found in (CITATION HERE). We then randomly select 3 points from \(\mathcal{P}\) and find the corresponding points in \(\mathcal{Q}\) which have the smallest distance in feature space. We then compare the triangles formed by both sets of points. If the edge lengths of both triangles are too dissimilar, meaning that the ratio of their lengths is outside of a predetermined range, then the selected points are discarded and new ones are selected. If not, we find the gravity-constrained rigid transformation between the 3 pairs. We then evaluate how well the rigid transformation aligns the two point clouds by finding the mean distance of every point in \(\mathcal{P}\) to its nearest neighbour in \(\mathcal{Q}\). If the mean distance is smaller than the previous smallest mean distance then we store the transformation.
+
+We repeat this for a set amount of iterations or until a mean distance threshold is reached. The rigid transformation with the smallest mean distance is then used for the next step, local registration.
+
+\begin{equation}
+    \tau_{global} \in \mathbb{R}^4
+\end{equation}
+
+\begin{algorithm}
+    \caption{RANSAC global registration}\label{alg:ransac}
+    \begin{algorithmic}
+
+    \Require \quad Point cloud \(\mathcal{P} \in \mathbb{R}^{m \times 3}\)
+    \Require \quad Point cloud \(\mathcal{Q} \in \mathbb{R}^{m \times 3}\)
+    \Require \quad Maximum iterations \(i_{max}\)
+    \Require \quad Triangle pair edge difference threshold \(t_{max}\)
+    \Require \quad Triangle edge length threshold \(d_{min}\)
+
+    \\
+    \State \(P = fpfh(\mathcal{P}),\ P \in \mathbb{R}^{m \times d}\)
+    \State \(Q = fpfh(\mathcal{Q}),\ Q \in \mathbb{R}^{m \times d}\)
+
+    \State $e_{min} = \infty$
+    \State \(i = 0\)
+    \While{$i < i_{max}$}
+        \State \(\bf{p} = \{p_1,\ p_2,\ p_3\},\ p_k \in [0,\ m],\ p_k \in \mathbb{Z}^+\) \Comment{Select the indices of three random points in \(\mathcal{P}\)}
+        \\
+        \State \(\mathcal{R} = \{(\mathcal{P}_k,\ \mathcal{Q}_l)\ |\ k \in \bf{p},\ Q_l = nearest(P_k,\ Q)\}\) \Comment{For every selected point, find the point in \(\mathcal{Q}\) with the smallest distance in feature space}
+        \\
+        \If{$polyfilter(\mathcal{R},\ t_{max}) \land distfilter(\mathcal{R},\ d_{min})$} \Comment{Filter out selections which are too close together or for which the matching triangles are too dissimilar}
+            \\
+            \State $\tau_{global} = transform(\mathcal{R})$ \Comment{Estimate transformation between matching points}
+            \State $e_i = error(\mathcal{P},\ \mathcal{Q},\ \tau_{global})$ \Comment{Compute error between point clouds after transformation}
+
+            \If{$e_{min} \geq e_i$} \Comment{If resultant error is lower than previous errors, save it}
+                \State $e_{min} = e_i$
+            \EndIf
+        \Else
+            \State $continue$
+        \EndIf
+        \State \(i = i + 1\)
+    \EndWhile
+    \end{algorithmic}
+\end{algorithm}
+
+
+\paragraph{Local registration}
+The purpose of local registration is to refine the alignment found in the global registration step. We use the iterative closest point (ICP) algorithm to achieve this. The ICP algorithm is widely used, a detailed description of how it works can be found in (CITATION HERE). The only major modification is that we use the gravity-aligned transformation described above at each iteration.
+
+\begin{equation}
+    \tau_{local} \in \mathbb{R}^4
+\end{equation}
+
+
+\paragraph{Transform concatenation}
+After finding the global and the local transformations, we can find the final transformation \(\tau\) by multiplying their transformation matrices (see equation \ref{eq:trans_mult}). Note that the order of multiplication is important, as matrix multiplication is not commutative.
+
+\begin{equation}
+    \label{eq:trans_mult}
+    T(\tau) = T(\tau_{local})T(\tau_{global}),\ T: \mathbb{R}^4 \rightarrow \mathbb{R}^{4 \times 4}
+\end{equation}
+
 \subsubsection{Geometric fusion}
-
-\paragraph{Iterative closest point}
-The iterative closest point (ICP) algorithm finds a transformation between two point clouds by iteratively aligning \(n\) random points from the source point cloud to the \(n\) points that are closest to them in the target point cloud using least squares adjustment. This approach is sensitive to local minima but can often lead to good results if enough data is available. Its simple nature also makes it easy to modify. For example, constraining the registration to only allow rotation around a single axis is a matter of changing the equations used in the least square adjustment step. This
-
-\paragraph{Deep closest point}
-Deep closest point is a variation on the ICP algorithm which uses deep learning to identify matching points instead of using the closest points. This approach is less sensitive to local minima and data quality. However, constraining the registration is difficult as it requires retraining the network.
-
-After finding a transformation between every match outliers that represent an incorrect registration are removed. We then find the mean of the remaining transformations and apply this to the source map. The result is a global topometric map \(\mathcal{T}_{global}\).
+We apply the above steps to the geometry of each room and its match. If the error between the two point clouds is still too large then we discard the match, as it is unlikely to be correct if registration fails. We then merge the remaining rooms and their matches and perform registration again. This gives us the global alignment between the two partial maps. Finally, we perform another local registration on the two complete partial maps using the previous global alignment. 
 
 \subsubsection{Topological fusion}
 

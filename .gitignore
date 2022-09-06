@@ -1,5 +1,6 @@
 .vscode
 .idea
+.aux
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -163,6 +164,13 @@ doc/notes/discussion.aux
 doc/notes/implementation_details.aux
 doc/notes/introduction.aux
 doc/notes/main.aux
+doc/notes/main.blg
+doc/notes/main.fdb_latexmk
+doc/notes/main.fls
+doc/notes/main.pdf
+doc/notes/discussion.aux
+doc/notes/main.aux
+doc/notes/main.bbl
 doc/notes/main.blg
 doc/notes/main.fdb_latexmk
 doc/notes/main.fls
