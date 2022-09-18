@@ -88,7 +88,13 @@ class TopometricMap():
         return self.graph.neighbors(node)
     
     def to_voxel_grid(self):
-        return VoxelGrid.merge(self.geometry())
+        from model.point_cloud import PointCloud
+        from functools import reduce
+        
+        pcds = [g.to_pcd() for g in self.geometry()]
+        pcd: PointCloud = reduce(lambda a, b: a.merge(b), pcds)
+        
+        return pcd.voxelize(self.geometry()[0].cell_size)
 
     def geometry(self):
         return [n.geometry for n in self.nodes(False)]
@@ -148,7 +154,7 @@ class TopometricMap():
 
         # Get incident edges for every node in the map and add them to the
         # corresponding nodes in the transformed map
-        incident_edges = [self.incident_edges(n) for n in self.nodes(False)]
+        incident_edges = [self.incident_edges(n, data=True) for n in self.nodes(False)]
         for edges in incident_edges:
             for n_a, n_b, data in edges:
                 map_transformed.add_edge(
@@ -255,7 +261,6 @@ class TopometricMap():
                 for nb in cur_nbs:
                     if nb not in visited:
                         unvisited.put((cur_k+1,nb))
-                    
                 yield cur
             else:
                 continue
@@ -286,7 +291,93 @@ class TopometricMap():
     def graph_edit_distance(self, other: TopometricMap, iterations: int = 0) -> int:
         ismags = networkx.isomorphism.ISMAGS(self.graph, other.graph)
         largest_common_subgraph = list(ismags.largest_common_subgraph())
-        
-        print(largest_common_subgraph)
 
+        print(largest_common_subgraph)
+        
+    def merge_similar_nodes(self, threshold: float):
+
+        self_nodes = self.get_node_level()
+        merged_nodes = set()
+        result_map = TopometricMap()
+        
+        for a in self_nodes:
+            for b in self_nodes:
+                overlap = a.geometry.symmetric_overlap(b.geometry)
+                
+                if not a is b and overlap > threshold \
+                    and a not in merged_nodes and b not in merged_nodes:
+                        
+                    c = VoxelGrid.merge([a.geometry, b.geometry])
+                    c.colorize(random_color())
+                    
+                    c_node = TopometricNode(geometry = c)
+                    result_map.add_node(c_node)
+
+                    merged_nodes.add(a)
+                    merged_nodes.add(b)
+                    
+        for n in self_nodes:
+            if n not in merged_nodes:
+                result_map.add_node(n)
+        
+        return result_map
             
+            
+
+    def edge_transfer(self, other: TopometricMap) -> TopometricMap:
+        matches = self.match_nodes(other)
+        
+        node_mapping = {}
+        for node_a, node_b in matches.keys():
+            node_a, node_b = self.graph.nodes()[node_a], other.graph.nodes()[node_b]
+            
+            node_mapping[node_b] = node_a
+            
+        edges = other.graph.edges()
+        for u, v in edges:
+            if u in node_mapping and v in node_mapping:
+                self.add_edge(node_mapping[u], node_mapping[v], directed=False)
+
+    
+    def merge(self, other: TopometricMap) -> TopometricMap:
+        matches = self.match_nodes(other)
+        
+        global_map = TopometricMap()
+        
+        nodes = {}
+        node_to_global = {}
+        for node_a, node_b in matches.keys():
+            
+            if matches[node_a, node_b] < 0.05:
+                continue
+            
+            node_a, node_b = self.get_node_level()[node_a], other.get_node_level()[node_b]
+        
+            merged_geometry = node_a.geometry.to_pcd().merge(node_b.geometry.to_pcd()).voxelize(node_a.geometry.cell_size)
+            merged_geometry.colorize(random_color())
+            merged_node = TopometricNode(geometry=merged_geometry)
+            
+            nodes[merged_node] = (node_a, node_b)
+            
+            node_to_global[node_a] = merged_node
+            node_to_global[node_b] = merged_node
+
+            global_map.add_node(merged_node)
+            
+        for e_a, e_b in self.graph.edges():
+            if e_a in node_to_global and e_b in node_to_global:
+                global_map.add_edge(node_to_global[e_a], 
+                                            node_to_global[e_b],
+                                            directed=False)
+            
+        for e_a, e_b in other.graph.edges():
+            if e_a in node_to_global and e_b in node_to_global:
+                global_map.add_edge(node_to_global[e_a], 
+                                            node_to_global[e_b],
+                                            directed=False)
+
+                            
+        return global_map
+
+
+        

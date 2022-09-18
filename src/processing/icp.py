@@ -103,10 +103,8 @@ def registration_RANSAC(source: np.array, target: np.array, source_feature: np.a
                 opt_rmse = rmse
                 opt_t = transform
                 
-                logging.info(f"{i}/{max_iteration}: {rmse}")
+        logging.info(f"{i}/{max_iteration}: {rmse}")
 
-
-    
     return opt_t
 
 
@@ -210,15 +208,15 @@ def estimate_normals(pcd, n_neighbours):
     return normals
 
 
-def align_global(A, B, n_neighbours=8):
+def align_global(A, B, n_neighbours=8, ransac_iterations=1000):
     normals = estimate_normals(A, n_neighbours)
     global_transformation = registration_RANSAC(
-        A, B, fpfh_features(A), fpfh_features(B), normals)
+        A, B, fpfh_features(A), fpfh_features(B), normals, max_iteration=ransac_iterations)
 
     return global_transformation
 
 
-def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8):
+def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8, ransac_iterations=1000, global_align: bool=True):
     '''
     Adapted from: https://github.com/ClayFlannigan/icp
 
@@ -252,10 +250,11 @@ def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8):
 
     # initialize
         
-    logging.info(f"Finding global alignment")
-    global_transformation = align_global(A, B)
-    src = np.dot(global_transformation, src)
-    transformations.append(global_transformation)
+    if global_align:
+        logging.info(f"Finding global alignment")
+        global_transformation = align_global(A, B, ransac_iterations=ransac_iterations)
+        src = np.dot(global_transformation, src)
+        transformations.append(global_transformation)
 
     logging.info(f"Finding local alignment")
     prev_error = math.inf

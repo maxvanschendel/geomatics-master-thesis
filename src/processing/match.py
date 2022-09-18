@@ -11,7 +11,7 @@ from model.point_cloud import PointCloud
 
 from model.topometric_map import *
 from processing.fuse import cluster_transform
-from processing.registration import align_least_squares
+from processing.registration import align_least_squares, iterative_closest_point
 from utils.array import replace_with_unique
 from utils.datasets import PartialMap, SimulatedPartialMap
 from utils.visualization import visualize_matches, visualize_point_cloud
@@ -24,7 +24,7 @@ def product_matrix(func, a, b):
     return mat
 
 
-def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost_matrix: np.array, d_max: float = 1, t_max: float = 2.5):
+def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost_matrix: np.array, d_max: float = 1, t_max: float = 2.5, min_similarity: float=0.3):
     LARGE_NUM = 2**32
 
     def align_hypothesis(h):
@@ -35,6 +35,9 @@ def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost
         return align_least_squares(c_a, c_b)
 
     hypothesis = set()  # Q
+    if cost_matrix[map_a.node_index(start_pair[0]), map_b.node_index(start_pair[1])] > min_similarity:
+        return hypothesis
+    
     visited = set()
 
     pairs = {(start_pair)}
@@ -180,9 +183,9 @@ def feature_embedding(tmap: TopometricMap, k_max: int, models: List[str], w: flo
     nodes = tmap.get_node_level()
 
     embed = {n: embed_geometry(n.geometry, models) for n in nodes}
-    # embed_1step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(n, 1)]) if len(list(tmap.knbr(n, 1))) else n.geometry, models) for n in nodes}
-    # embed_2step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(n, 2)]) if len(list(tmap.knbr(n, 2))) else n.geometry, models) for n in nodes}
-    # embed = {n: np.hstack([embed[n], 0.5*embed_1step[n], 0.25*embed_2step[n]]) for n in nodes}
+    embed_1step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(n, 1)]) if len(list(tmap.knbr(n, 1))) else n.geometry, models) for n in nodes}
+    embed_2step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(n, 2)]) if len(list(tmap.knbr(n, 2))) else n.geometry, models) for n in nodes}
+    embed = {n: np.hstack([embed[n], 0.5*embed_1step[n], 0.25*embed_2step[n]]) for n in nodes}
 
     # graph convolution
     for _ in range(k_max):
@@ -248,7 +251,20 @@ def grow_hypotheses(map_a, map_b, initial_matches, cost_matrix):
 
 
 def hypothesis_quality(h):
-    return len(h)
+    if not len(h):
+        return math.inf
+    
+    matches_a, matches_b = zip(*h)
+    geometry_a, geometry_b = [n.geometry for n in matches_a], [n.geometry for n in matches_b]
+    geometry_a, geometry_b = VoxelGrid.merge(geometry_a), VoxelGrid.merge(geometry_b)
+    
+    _, e = iterative_closest_point(
+        source=geometry_a.level_of_detail(1).to_pcd(),
+        target=geometry_b.level_of_detail(1).to_pcd(),
+        ransac_iterations=1000,
+        voxel_size=geometry_a.cell_size)
+    
+    return e
 
 
 def match(maps: List[TopometricMap], partial_maps: List[PartialMap], k_max=0, min_node_size: int = 4096, models: Iterable[str] = ['deep'], grow: bool = True, min_similarity: float = 1, **kwargs):
@@ -283,7 +299,7 @@ def match(maps: List[TopometricMap], partial_maps: List[PartialMap], k_max=0, mi
                     map_a, map_b, assignment, cost_matrix)
 
                 _, sorted_hypotheses = sort_by_func(
-                    hypotheses, hypothesis_quality, reverse=True)
+                    hypotheses, hypothesis_quality, reverse=False)
                 best_hypothesis = sorted_hypotheses[0]
             else:
                 best_hypothesis = [
@@ -328,6 +344,8 @@ def match_read(kwargs):
 def match_visualize(topometric_maps, matches, kwargs):
     i = 0
     for a, b in matches:
+        print(list(matches[a, b].values()))
+        
         mapfn = kwargs["topometric_maps"][i] + '_matches.jpg'
         visualize_matches(a, b, matches[a, b].keys(), mapfn)
 

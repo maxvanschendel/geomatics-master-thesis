@@ -61,13 +61,11 @@ def pointnet_lk(source: PointCloud, target: PointCloud, **kwargs) -> np.array:
 
 
 
-def iterative_closest_point(source: PointCloud, target: PointCloud, **kwargs) -> np.array:
+def iterative_closest_point(source: PointCloud, target: PointCloud, global_align: bool = True, ransac_iterations = 1000, **kwargs) -> np.array:
     from processing.icp import icp
 
     smallest_size = source.size if source.size < target.size else target.size
-    icp_transform, error = icp(source.points[:smallest_size,], target.points[:smallest_size,],  max_iterations=200, tolerance=0.001)
-    
-    visualize_point_clouds([source, target, source.transform(icp_transform)])
+    icp_transform, error = icp(source.points[:smallest_size,], target.points[:smallest_size,],  max_iterations=200, tolerance=0.001, global_align=global_align, ransac_iterations=ransac_iterations)
 
     return icp_transform, error
 

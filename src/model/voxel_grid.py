@@ -29,7 +29,8 @@ filterwarnings('ignore')
 class VoxelGrid:
     cluster_attr: str = 'cluster'
     color_attr: str = 'color'
-    ground_truth_attr = 'room'
+    ground_truth_attr: str = 'room'
+    nav_attr: str = 'navigable'
 
     def __init__(self,
                  cell_size: float = 1,
@@ -69,10 +70,6 @@ class VoxelGrid:
         # check if voxel grids can be merged, voxel grids with differing voxel sizes or origins cannot be merged
         cell_sizes = [vg.cell_size for vg in voxel_grids]
         origins = [tuple(vg.origin) for vg in voxel_grids]
-
-        if not all_same(cell_sizes) or not all_same(origins):
-            raise ValueError(
-                "All input voxel grids must have same origin and voxel size when  merging.")
 
         # sum up the voxels of each voxel grid
         voxels = {}
@@ -215,6 +212,10 @@ class VoxelGrid:
 
         voxel_attributes = [list(self.voxels[v].keys()) for v in self.voxels]
         return np.unique(flatten_list(voxel_attributes))
+    
+    def clear_attributes(self) -> None:
+        for voxel in self.voxels:
+            self.voxels[voxel] = {}
 
     def to_2d_array(self) -> np.array:
         arr = np.zeros((self.size, 3), dtype=np.int32)
@@ -648,7 +649,7 @@ class VoxelGrid:
     def shape_dna(self, kernel, k):
         laplacian = self.laplacian_matrix(kernel)
         laplacian_eigenvalues = np.linalg.eigvals(laplacian / np.max(laplacian))
-        sorted_eigenvalues = np.real(np.sort(laplacian_eigenvalues))
+        sorted_eigenvalues = np.real(np.sort(laplacian_eigenvalues)[::-1])
         
         if len(sorted_eigenvalues) > k:
             first_k_eigenvalues = sorted_eigenvalues[:k]
@@ -657,8 +658,6 @@ class VoxelGrid:
             
         # Fit line through eigenvalues (y = ax + b)
         a, b = np.polyfit(np.arange(len(sorted_eigenvalues)), sorted_eigenvalues, 1)
-        
-        print(first_k_eigenvalues.shape)
         return first_k_eigenvalues / a
 
     def laplacian_matrix(self, kernel):

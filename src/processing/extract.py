@@ -100,7 +100,7 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
         )
 
         logging.info(f'Segmenting rooms')
-        map_rooms = room_segmentation(
+        map_rooms = segment_rooms(
             isovists=visibilities,
             map_voxel=segmentation_lod,
             clustering=visibility_clustering
@@ -118,7 +118,7 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
         map_rooms_split = map_rooms.split_by_attr(VoxelGrid.cluster_attr)
 
         connection_kernel = Kernel.sphere(r=2)
-        connected_clusters = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
+        room_segmentation = VoxelGrid(map_rooms.cell_size, map_rooms.origin)
 
         n_cluster = 0
         for room in map_rooms_split:
@@ -127,36 +127,48 @@ def extract(leaf_voxels: VoxelGrid, p: MapExtractionParameters, **kwargs) -> Top
             for c in room_components:
                 c.set_attr_uniform(attr=VoxelGrid.cluster_attr, val=n_cluster)
                 n_cluster += 1
-                connected_clusters += c
+                room_segmentation += c
 
         logging.info(f'Extracting topometric map')
-        topology = traversability_graph(
-            map_segments=connected_clusters,
-            floor_voxels=nav_volume_voxel,
-            min_voxels=p.min_voxels)
-
-        node_dict = {n: TopometricNode(
-            geometry=topology.graph.nodes[n]['geometry']) for n in topology.graph.nodes}
-
-        for node in node_dict:
-            topometric_map.add_node(node_dict[node])
-
-        for node in node_dict:
-            node_edges = topology.graph.edges(node)
-            for a, b in node_edges:
-                if a != b:
-                    topometric_map.add_edge(
-                        node_dict[a], node_dict[b], directed=False)
-                    
-        for node in topometric_map.get_node_level():
-            if not len(list(topometric_map.neighbours(node))):
-                topometric_map.graph.remove_node(node)
-        
-
+        topometric_map = extract_topometric_map(p.min_voxels, nav_volume_voxel, room_segmentation)
         return topometric_map
+    
     except Exception as e:
         logging.error(f"Failed to extract topometric map: {e}")
         raise e
+
+def extract_topometric_map(min_voxels, nav_manifold, room_segmentation, connected=True):
+    topometric_map = TopometricMap()
+    
+    topology = traversability_graph(
+            map_segments=room_segmentation,
+            floor_voxels=nav_manifold,
+            min_voxels=min_voxels)
+
+    node_dict = {n: TopometricNode(
+            geometry=topology.graph.nodes[n]['geometry']) for n in topology.graph.nodes}
+
+    for node in node_dict:
+        topometric_node = node_dict[node]
+            
+        for v in topometric_node.geometry.get_voxels():
+            topometric_node.geometry[v][VoxelGrid.nav_attr] = v in nav_manifold                   
+                    
+        topometric_map.add_node(topometric_node)
+
+    for node in node_dict:
+        node_edges = topology.graph.edges(node)
+        for a, b in node_edges:
+            if a != b:
+                topometric_map.add_edge(
+                        node_dict[a], node_dict[b], directed=False)
+                    
+    if connected:
+        for node in topometric_map.get_node_level():
+            if not len(list(topometric_map.neighbours(node))):
+                topometric_map.graph.remove_node(node)
+            
+    return topometric_map
 
 
 def segment_floor_area(voxel_map: VoxelGrid, kernel_scale: float = 0.05, voxel_size: float = 0.1) -> SpatialGraph:
@@ -275,7 +287,7 @@ def cluster_graph_mcl(distance_matrix, weight_threshold: float, min_inflation: f
     return labeling
 
 
-def room_segmentation(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clustering: np.ndarray, min_observations: int = 0) -> VoxelGrid:
+def segment_rooms(isovists: List[VoxelGrid], map_voxel: VoxelGrid, clustering: np.ndarray, min_observations: int = 0) -> VoxelGrid:
     map_segmented = map_voxel.clone()
     for v in map_segmented.voxels:
         map_segmented[v]['clusters'] = Counter()

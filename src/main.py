@@ -96,7 +96,7 @@ def run(**kwargs):
         kwargs["fuse_visualize"],
         kwargs["fuse_analyse"],
 
-        lambda args: fuse_create(matches, args),
+        lambda args: fuse_create(matches, extract_cfg, partial_maps, args),
         fuse_write,
         fuse_read,
         fuse_visualize,
@@ -138,13 +138,13 @@ if __name__ == "__main__":
 
                 # map matching
                 match=False,
-                write_match=True,
+                write_match=False,
                 visualize_match=False,
                 analyse_match=False,
 
                 # map fusion
                 fuse=True,
-                write_fuse=False,
+                write_fuse=True,
                 fuse_visualize=False,
                 fuse_analyse=False,
 
@@ -155,6 +155,7 @@ if __name__ == "__main__":
                 trajectories=dataset.trajectories,
                 topometric_maps=dataset.topometric_maps,
                 matches=dataset.matches,
+                fuse_fn=dataset.fuse,
             )
         except Exception as e:
-            raise e
+            logging.error(f'Pipeline failed for dataset {dataset}: {e}')
