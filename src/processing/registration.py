@@ -74,8 +74,6 @@ def iterative_closest_point(source: PointCloud, target: PointCloud, global_align
     
     icp_transform, error = icp(source_points, target_points,  max_iterations=200, tolerance=0.001, global_align=global_align, ransac_iterations=ransac_iterations)
     
-    visualize_point_clouds([source.transform(icp_transform), target])
-
     return icp_transform, error
 
 

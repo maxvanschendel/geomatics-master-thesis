@@ -46,7 +46,7 @@ def fuse(matches, registration_method: str, extract_cfg, partial_maps: List[Simu
     """
 
     min_similarity = 10000
-    max_error = .15
+    max_error = .2
     ransac_iterations = 10000
     initial_rotation = 0
 
@@ -115,6 +115,7 @@ def fuse(matches, registration_method: str, extract_cfg, partial_maps: List[Simu
 
             print(np.mean(distances))
             if np.mean(distances) < min_error:
+                min_error = np.mean(distances)
                 best_transform_cluster = local_transform
                 
                 
@@ -122,20 +123,20 @@ def fuse(matches, registration_method: str, extract_cfg, partial_maps: List[Simu
         result, target = map_a.to_voxel_grid().to_pcd().transform(best_transform_cluster), map_b.to_voxel_grid().to_pcd()
         visualize_point_cloud(result.merge(target))
             
-        global_transform, global_error = iterative_closest_point(
-            source=result,
-            target=target,
-            global_align=False,
-            voxel_size=a_geometry.cell_size)
+        # global_transform, global_error = iterative_closest_point(
+        #     source=result,
+        #     target=target,
+        #     global_align=False,
+        #     voxel_size=a_geometry.cell_size)
 
-        print(global_error)
-        # Concatenate local and global transform into final map transform that aligns partial map a with partial map b
-        map_transform = global_transform.dot(best_transform_cluster)
+        # print(global_error)
+        # # Concatenate local and global transform into final map transform that aligns partial map a with partial map b
+        # map_transform = global_transform.dot(best_transform_cluster)
 
-        partial_map_a, partial_map_b = partial_maps[0].voxel_grid, partial_maps[1].voxel_grid
-        partial_map_c = VoxelGrid.merge([partial_map_a.transform(rot_to_transform(180)).transform(map_transform), partial_map_b])
+        # partial_map_a, partial_map_b = partial_maps[0].voxel_grid, partial_maps[1].voxel_grid
+        # partial_map_c = VoxelGrid.merge([partial_map_a.transform(rot_to_transform(180)).transform(map_transform), partial_map_b])
         
-        visualize_voxel_grid(partial_map_c, 'global')
+        # visualize_voxel_grid(partial_map_c, 'global')
 
         # global_map = extract(partial_map_c.voxelize(
         #     extract_cfg.leaf_voxel_size), extract_cfg)
