@@ -1,3 +1,4 @@
+import logging
 from typing import Callable
 
 
@@ -16,6 +17,7 @@ def process_step(create: bool, write: bool, visualize: bool, analyse: bool,
 
     if create:
         try:
+            logging.info(f"Executing {create_func}")
             created = create_func(kwargs)
         except Exception as e:
             step_failed = True
@@ -23,12 +25,14 @@ def process_step(create: bool, write: bool, visualize: bool, analyse: bool,
 
         if write:
             try:
+                logging.info(f"Executing {write_func}")
                 write_func(created, kwargs)
             except Exception as e:
                 step_failed = True
                 raise e
     else:
         try:
+            logging.info(f"Executing {read_func}")
             created = read_func(kwargs)
         except Exception as e:
             step_failed = True
@@ -36,6 +40,7 @@ def process_step(create: bool, write: bool, visualize: bool, analyse: bool,
 
     if analyse:
         try:
+            logging.info(f"Executing {analyse_func}")
             analyse_func(created, kwargs)
         except Exception as e:
             step_failed = True
@@ -43,6 +48,7 @@ def process_step(create: bool, write: bool, visualize: bool, analyse: bool,
 
     if visualize:
         try:
+            logging.info(f"Executing {created}")
             visualize_func(created, kwargs)
         except Exception as e:
             step_failed = True

@@ -100,10 +100,10 @@ def registration_RANSAC(source: np.array, target: np.array, source_feature: np.a
             opt_t = transform
         else:
             if rmse < opt_rmse:
+                print(f"{i},{rmse}")
+                
                 opt_rmse = rmse
                 opt_t = transform
-                
-        logging.info(f"{i}/{max_iteration}: {rmse}")
 
     return opt_t
 
@@ -162,7 +162,13 @@ def nearest_neighbor(src, dst):
         indices: dst indices of the nearest neighbor
     '''
 
-    assert src.shape == dst.shape
+    if src.shape != dst.shape:
+        smallest_size = len(src) if len(src) < len(dst) else len(dst)
+    
+        src = src[:smallest_size,]
+        dst = dst[:smallest_size,]
+        np.random.shuffle(src)
+        np.random.shuffle(dst)
 
     neigh = NearestNeighbors(n_neighbors=1)
     neigh.fit(dst)
@@ -274,8 +280,6 @@ def icp(A, B, max_iterations=1000, tolerance=0.001, n_neighbours=8, ransac_itera
         if prev_error - mean_error < tolerance:
             break
         prev_error = mean_error
-        
-        logging.info(f"{i}/{max_iterations}: {mean_error}")
 
     composite_transformation = reduce(
         lambda a, b: a.dot(b), reversed(transformations))

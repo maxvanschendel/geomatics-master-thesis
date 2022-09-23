@@ -288,7 +288,7 @@ s3dis_area_6_dataset_5cm = Dataset(
     topometric_maps=("../data/s3dis/area_6/area_6_topo_01_5cm.pickle",
                      "../data/s3dis/area_6/area_6_topo_02_5cm.pickle",
                      ),
-    matches="../data/s3dis/area_6/area_6_matches.pickle",
+    matches="../data/s3dis/area_6/area_6_matches_spectral.pickle",
     fuse="../data/s3dis/area_6/area_6_fuse.pickle"
 )
 
@@ -309,7 +309,7 @@ other_elspeet_dataset = Dataset(
     fuse="../data/other/elspeet/elspeet_fuse.pickle"
 )
 
-s3dis_datasets = [s3dis_area_1_dataset, s3dis_area_2_dataset, s3dis_area_3_dataset, s3dis_area_4_dataset, s3dis_area_5_dataset, s3dis_area_6_dataset]
+s3dis_datasets = [s3dis_area_1_dataset, s3dis_area_2_dataset, s3dis_area_3_dataset, s3dis_area_6_dataset]
 s3dis_5cm_datasets = [s3dis_area_1_dataset_5cm, s3dis_area_2_dataset_5cm, s3dis_area_3_dataset_5cm, s3dis_area_4_dataset_5cm, s3dis_area_5_dataset_5cm, s3dis_area_6_dataset_5cm]
 cslam_datasets = [cslam_flat_dataset, cslam_house_dataset, cslam_lab_dataset]
 various_datasets = [other_elspeet_dataset]

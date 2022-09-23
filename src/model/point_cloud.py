@@ -14,6 +14,7 @@ from sklearn.decomposition import PCA
 
 
 def vector_element_product(vector):
+    from functools import reduce
     return reduce(lambda x, y: x * y, vector)
 
 
@@ -381,7 +382,7 @@ class PointCloud:
     def roughness(self, k):
         sum_plane_distance = 0
         for p in self.points:
-            nbs_i = self.sindex.query(p, k)[1]
+            nbs_i = self.kdt.query(p, k)[1]
 
             if len(nbs_i) >= 3:
                 nbs = self.points[nbs_i]

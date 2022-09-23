@@ -39,14 +39,15 @@ class VoxelGrid:
 
         self.cell_size: float = cell_size
         self.origin: np.array = origin
-        self.voxels: Dict[Tuple[int, int, int], Dict[str,
-                                                     object]] = voxels if voxels is not None else {}
+        
+        # Store voxel indices (x, y, z) as key in dictionary, with attributes as {'attr_name': attr_value} values
+        self.voxels: Dict[Tuple[int, int, int], Dict[str, object]] = voxels if voxels else {}
 
-        if self.voxels:
-            self.size: int = len(voxels)
-            self.svo: SVO = self.generate_svo()
-        else:
-            self.size, self.svo = 0, None
+        # Set size of voxel grid to 0 if it contains no voxels (is empty)
+        self.size = len(voxels) if self.voxels else 0
+
+        # Generate sparse voxel octree if voxel grid is not empty
+        self.svo = self.generate_svo() if self.voxels else None
 
         # Easy lookup from Morton code to voxel index
         self.morton_index = {morton_code(
@@ -212,7 +213,7 @@ class VoxelGrid:
 
         voxel_attributes = [list(self.voxels[v].keys()) for v in self.voxels]
         return np.unique(flatten_list(voxel_attributes))
-    
+
     def clear_attributes(self) -> None:
         for voxel in self.voxels:
             self.voxels[voxel] = {}
@@ -650,14 +651,16 @@ class VoxelGrid:
         laplacian = self.laplacian_matrix(kernel)
         laplacian_eigenvalues = np.linalg.eigvals(laplacian / np.max(laplacian))
         sorted_eigenvalues = np.real(np.sort(laplacian_eigenvalues)[::-1])
-        
+
         if len(sorted_eigenvalues) > k:
             first_k_eigenvalues = sorted_eigenvalues[:k]
         else:
-            first_k_eigenvalues = np.hstack((sorted_eigenvalues[:k], np.zeros(k - len(sorted_eigenvalues))))
-            
+            first_k_eigenvalues = np.hstack(
+                (sorted_eigenvalues[:k], np.zeros(k - len(sorted_eigenvalues))))
+
         # Fit line through eigenvalues (y = ax + b)
-        a, b = np.polyfit(np.arange(len(sorted_eigenvalues)), sorted_eigenvalues, 1)
+        a, b = np.polyfit(np.arange(len(sorted_eigenvalues)),
+                          sorted_eigenvalues, 1)
         return first_k_eigenvalues / a
 
     def laplacian_matrix(self, kernel):

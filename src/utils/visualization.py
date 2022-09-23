@@ -34,7 +34,7 @@ class MultiViewScene:
 
         return mat
 
-    def __init__(self, maps: List[List[SceneObject]], name: str = "", run: bool = True):
+    def __init__(self, maps: List[List[SceneObject]], name: str = "", run: bool = False):
         app = o3d.visualization.gui.Application.instance
         app.initialize()
 

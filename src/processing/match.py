@@ -24,7 +24,7 @@ def product_matrix(func, a, b):
     return mat
 
 
-def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost_matrix: np.array, d_max: float = 1, t_max: float = 2.5, min_similarity: float=0.3):
+def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost_matrix: np.array, d_max: float = 1000000, t_max: float = 2.5, min_similarity: float = 1000000):
     LARGE_NUM = 2**32
 
     def align_hypothesis(h):
@@ -37,7 +37,7 @@ def grow_hypothesis(map_a: TopometricMap, map_b: TopometricMap, start_pair, cost
     hypothesis = set()  # Q
     if cost_matrix[map_a.node_index(start_pair[0]), map_b.node_index(start_pair[1])] > min_similarity:
         return hypothesis
-    
+
     visited = set()
 
     pairs = {(start_pair)}
@@ -139,12 +139,10 @@ def engineered_features(pcd: PointCloud):
         pcd.height(),
         pcd.projected_area(),
         pcd.mean_distance_to_centroid(),
-
         pcd.quotient_of_eigenvalues(),
         pcd.svd()[2],
         pcd.svd()[2] / (pcd.svd()[0] + pcd.svd()[1]),
         pcd.svd()[0] / pcd.svd()[1],
-
         np.dot(np.array([0, 0, 1]), abs(pcd.pca()[0]
                * pcd.explained_variance_ratio()[0])),
         pcd.roughness(k=32),
@@ -161,12 +159,10 @@ def max_pool(ar):
 
 
 def embed_geometry(geometry: VoxelGrid, feature: Iterable[str]):
-    logging.info(f"Computing {feature} embedding for node {geometry}")
-
     feature_func = {
         # deep learning
         'deep': lambda n: lpdnet(n.level_of_detail(0).to_pcd().center().normalize(-1, 1).points, 4096),
-        'spectral': lambda n: n.level_of_detail(1).shape_dna(Kernel.nb26(), 256),
+        'spectral': lambda n: n.level_of_detail(1).shape_dna(Kernel.nb6(), 512),
         'engineered': lambda n: engineered_features(n.to_pcd())
     }
 
@@ -182,10 +178,19 @@ def feature_embedding(tmap: TopometricMap, k_max: int, models: List[str], w: flo
     # geometrical feature embedding
     nodes = tmap.get_node_level()
 
+    print("Embedding 1-step")
     embed = {n: embed_geometry(n.geometry, models) for n in nodes}
-    embed_1step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(n, 1)]) if len(list(tmap.knbr(n, 1))) else n.geometry, models) for n in nodes}
-    embed_2step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(n, 2)]) if len(list(tmap.knbr(n, 2))) else n.geometry, models) for n in nodes}
-    embed = {n: np.hstack([embed[n], 0.5*embed_1step[n], 0.25*embed_2step[n]]) for n in nodes}
+
+    print("Embedding 2-step")
+    embed_1step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(
+        n, 1)] + [n.geometry]).level_of_detail(1), models) for n in nodes}
+
+    # print("Embedding 3-step")
+    # embed_2step = {n: embed_geometry(VoxelGrid.merge([nbr.geometry for nbr in tmap.knbr(
+    #     n, 1)] + [n.geometry] + [nbr.geometry for nbr in tmap.knbr(n, 2)]).level_of_detail(2), models) for n in nodes}
+
+    embed = {n: np.hstack([embed[n], embed_1step[n]])
+             for n in nodes}
 
     # graph convolution
     for _ in range(k_max):
@@ -253,21 +258,23 @@ def grow_hypotheses(map_a, map_b, initial_matches, cost_matrix):
 def hypothesis_quality(h):
     if not len(h):
         return math.inf
-    
+
     matches_a, matches_b = zip(*h)
-    geometry_a, geometry_b = [n.geometry for n in matches_a], [n.geometry for n in matches_b]
-    geometry_a, geometry_b = VoxelGrid.merge(geometry_a), VoxelGrid.merge(geometry_b)
-    
+    geometry_a, geometry_b = [n.geometry for n in matches_a], [
+        n.geometry for n in matches_b]
+    geometry_a, geometry_b = VoxelGrid.merge(
+        geometry_a), VoxelGrid.merge(geometry_b)
+
     _, e = iterative_closest_point(
         source=geometry_a.level_of_detail(1).to_pcd(),
         target=geometry_b.level_of_detail(1).to_pcd(),
         ransac_iterations=1000,
         voxel_size=geometry_a.cell_size)
-    
+
     return e
 
 
-def match(maps: List[TopometricMap], partial_maps: List[PartialMap], k_max=0, min_node_size: int = 4096, models: Iterable[str] = ['deep'], grow: bool = True, min_similarity: float = 1, **kwargs):
+def match(maps: List[TopometricMap], partial_maps: List[PartialMap], k_max=0, min_node_size: int = 4096, models: Iterable[str] = ['spectral'], grow: bool = True, min_similarity: float = 30000, **kwargs):
     for i, m in enumerate(maps):
         undersized_nodes = m.filter_nodes(
             lambda n: n.geometry.size < min_node_size)
@@ -281,10 +288,11 @@ def match(maps: List[TopometricMap], partial_maps: List[PartialMap], k_max=0, mi
     for map_a, map_b in combinations(maps, 2):
         if map_a != map_b:
             # compute distance in feature space between every pair of nodes
-            f_a, f_b = features[map_a], features[map_b]
+            f_a, f_b = np.vstack(features[map_a]), np.vstack(features[map_b])
 
             # create initial pairing by finding least cost assignment between nodes
             cost_matrix = euclidean_distances(f_a, f_b)
+
             assignment = linear_assign(cost_matrix)
 
             # sort assignment by cost
@@ -294,12 +302,14 @@ def match(maps: List[TopometricMap], partial_maps: List[PartialMap], k_max=0, mi
             if grow:
                 logging.info("Growing hypotheses")
 
+                print(assignment)
+
                 # from initial pairing, grow hypotheses along navigation graph
                 hypotheses = grow_hypotheses(
                     map_a, map_b, assignment, cost_matrix)
 
                 _, sorted_hypotheses = sort_by_func(
-                    hypotheses, hypothesis_quality, reverse=False)
+                    hypotheses, len, reverse=True)
                 best_hypothesis = sorted_hypotheses[0]
             else:
                 best_hypothesis = [
@@ -328,15 +338,14 @@ def match_create(topometric_maps, partial_maps, kwargs):
 
 def match_write(matches, kwargs):
     from pickle import dump
-    
+
     with open(kwargs['matches'], 'wb') as match_file:
         dump(matches, match_file)
-    
 
 
 def match_read(kwargs):
     from pickle import load
-    
+
     with open(kwargs['matches'], 'rb') as matches:
         return load(matches)
 
@@ -345,7 +354,7 @@ def match_visualize(topometric_maps, matches, kwargs):
     i = 0
     for a, b in matches:
         print(list(matches[a, b].values()))
-        
+
         mapfn = kwargs["topometric_maps"][i] + '_matches.jpg'
         visualize_matches(a, b, matches[a, b].keys(), mapfn)
 

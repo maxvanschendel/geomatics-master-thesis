@@ -110,7 +110,7 @@ if __name__ == "__main__":
     extract_cfg_fn: str = './config/map_extract.yaml'
     merge_cfg_fn: str = './config/map_merge.yaml'
 
-    datasets = s3dis_datasets
+    datasets = [s3dis_area_1_dataset]
 
     # Read configuration from YAML files in config directory
     extract_cfg = MapExtractionParameters.read(extract_cfg_fn)
@@ -144,8 +144,8 @@ if __name__ == "__main__":
 
                 # map fusion
                 fuse=True,
-                write_fuse=True,
-                fuse_visualize=False,
+                write_fuse=False,
+                fuse_visualize=True,
                 fuse_analyse=False,
 
                 # dataset
@@ -158,4 +158,4 @@ if __name__ == "__main__":
                 fuse_fn=dataset.fuse,
             )
         except Exception as e:
-            logging.error(f'Pipeline failed for dataset {dataset}: {e}')
+            raise e
