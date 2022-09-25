@@ -57,24 +57,22 @@ We define the set of all connected components as \(\mathcal{V}_{cc}=\{\mathcal{V
 
 \begin{algorithm}
     \caption{Region growing connected components}\label{alg:cap}
+    \hspace*{\algorithmicindent} \textbf{Input} Voxel grid \(\mathcal{V}\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Connectivity kernel \(\mathcal{K}\) \\
+    \hspace*{\algorithmicindent} \textbf{Output} Connected components \(\mathcal{V}_{cc}\) \\
+
     \begin{algorithmic}
 
-    \Require \quad Voxel grid \(\mathcal{V}\)
-    \Require \quad Connectivity kernel \(\mathcal{K}\)
-    \Ensure \quad Connected components \(\mathcal{V}_{cc}\)
-
-    \State \(\mathcal{G}_{\mathcal{V},\ \mathcal{K}} = (V,\ E),\ V \in \mathcal{V}\) \Comment{Convert voxel grid to neighbourhood graph using specified kernel}
+    \State \(\mathcal{G}_{\mathcal{V},\ \mathcal{K}} = (V,\ E),\ V \in \mathcal{V}\) \Comment{Convert voxel grid to neighbourhood graph}
     \State \(V_{unvisited} = V\)
     \State \(\mathcal{V}_{cc} = \{\}\)
     
-    \State \(i = 0\)
     \While{$|V_{visited}| \neq 0$}
         \State Select random node \(n\) from \(V_{unvisited}\)
-        \State \(n_{BFS} = BFS(n)\) \Comment{Use breadth-first search to find all nodes connected to \(n\)}
+        \State \(n_{BFS} = BFS(n)\) \Comment{Breadth-first search to find connected nodes}
         \State Remove \(n_{BFS}\) from \(V_{unvisited}\)
         \State \(\mathcal{G}_i = (n_{BFS},\ E)\)
-        \State Add \(\mathcal{V}_{c,\ i}\) to \(\mathcal{V}_{cc}\)
-        \State \(i = i + 1\)
+        \State Add \(\mathcal{V}_{c}\) to \(\mathcal{V}_{cc}\)
     \EndWhile
     \end{algorithmic}
 \end{algorithm}
@@ -103,13 +101,10 @@ We denote the horizontal distance of a given voxel \(\voxel\) as \(d_{\voxel}\).
 
 \begin{algorithm}
     \caption{Horizontal distance field}
+    \hspace*{\algorithmicindent} \textbf{Input} Navigation voxel grid \(\mathcal{V}_{navigation}\) \\
+    \hspace*{\algorithmicindent} \textbf{Output} Horizontal distance field \(HDF = \{dist(\voxel) \mid \voxel \in \voxelgrid_{navigation}\}\) \\
+
     \begin{algorithmic}
-
-    \Require \quad Navigation voxel grid \(\mathcal{V}_{navigation}\)
-    \Ensure \quad Horizontal distance field \(HDF = \{dist(\voxel) \mid \voxel \in \voxelgrid_{navigation}\}\)
-
-    \\
-
     \ForEach {$\boldsymbol{v} \in \mathcal \voxelgrid_{navigation} $}
         \State \(r=1\)
         \State Create \(\mathcal{K}_{circle}\) with radius \(r\)
@@ -134,19 +129,16 @@ We use the following algorithm to compute \(views\).
 
 \begin{algorithm}
     \caption{Horizontal Distance Field Maxima}
+
+    \hspace*{\algorithmicindent} \textbf{Input} Navigation voxel grid \(\mathcal{V}_{navigation}\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Horizontal distance field \(HDF\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Radius \(r \in \mathbb{R}^+\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Scanning height \(h \in \mathbb{R}\) \\
+    \hspace*{\algorithmicindent} \textbf{Output} Estimated optimal views $views \in \mathbb{R}^3$ \\
+
     \begin{algorithmic}
 
-    \Require \quad Navigation voxel grid \(\mathcal{V}_{navigation}\)
-    \Require \quad Horizontal distance field \(HDF\)
-    \Require \quad Radius \(r \in \mathbb{R}^+\)
-    \Require \quad Scanning height \(h \in \mathbb{R}\)
-
-    \Ensure \quad Estimated optimal views $views \in \mathbb{R}^3$
-
-    \\
-
     \State $views = \{\}$
-
     \ForEach {$\boldsymbol{v} \in \mathcal \voxelgrid_{navigation} $}
         \State \(neighbourhood = radius(\boldsymbol{v},\ r)\)
         \If{$d_{\voxel} \geq \max{\{d_{nb} \mid neighbourhood\}}$} \Comment{Check if voxel's horizontal distance is equal or greater than the horizontal distance of every voxel in its neighbourhood}
@@ -201,12 +193,12 @@ The below pseudocode shows how the visibility computation works.
 
 \begin{algorithm}
     \caption{Visibility}
+    \hspace*{\algorithmicindent} \textbf{Input} Voxel grid \(\voxelgrid\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Origin \(o \in \mathbf{R}^3\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Range \(r_{visibility} \in \mathbb{R}^+\) \\
+    \hspace*{\algorithmicindent} \textbf{Output} $visibility \in \mathbb{Z}^{3}$ \\
+    
     \begin{algorithmic}
-
-    \Require \quad Voxel grid \(\voxelgrid\)
-    \Require \quad Origin \(o \in \mathbf{R}^3\)
-    \Require \quad Range \(r_{visibility} \in \mathbb{R}^+\)
-    \Ensure \quad $visibility \in \mathbb{Z}^{3}$
 
     \State $visibility = \{\voxel_c \mid \voxel_c \in radius(o, r_{visibility}) \land DDA(\voxelgrid,\ o,\ centroid(\voxel_c)) = \voxel_c\}$
 
@@ -216,13 +208,11 @@ The below pseudocode shows how the visibility computation works.
 % https://math.stackexchange.com/questions/83990/line-and-plane-intersubsection-in-3d
 \begin{algorithm}
     \caption{DDA (Digital Differential Analyzer)}
+    \hspace*{\algorithmicindent} \textbf{Input} Voxel grid \(\voxelgrid\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Ray origin \(\boldsymbol{o} \in \mathbf{R}^3, \boldsymbol{o} \in [\voxelgrid_{min}, \voxelgrid_{max}]\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Ray target \(\boldsymbol{t} \in \mathbf{R}^3\) \\
+    \hspace*{\algorithmicindent} \textbf{Output} $hit \in \mathbb{Z}^{3}$ \Comment{First encountered collision} \\
     \begin{algorithmic}
-
-    \Require \quad Voxel grid \(\voxelgrid\)
-    \Require \quad Ray origin \(\boldsymbol{o} \in \mathbf{R}^3, \boldsymbol{o} \in [\voxelgrid_{min}, \voxelgrid_{max}]\)
-    \Require \quad Ray target \(\boldsymbol{t} \in \mathbf{R}^3\)
-
-    \Ensure \quad $hit \in \mathbb{Z}^{3}$ \Comment{First encountered collision}
 
     \State $\boldsymbol{p}_{current} = \boldsymbol{o}$
     \State $\voxel_{\boldsymbol{o}} = (\boldsymbol{o} - \voxelgrid_{min})//\voxelgrid_{e}$
@@ -287,15 +277,7 @@ Computing the Jaccard index for every combination of visibilities gives us a sim
     \label{fig:similarity_graph}
 \end{figure}
 
-We can also consider \(S^{n \times n}\) as an undirected weighted graph \(\graph_S\), where every node represents a visibility and the edges the Jaccard index of two visibilities. This means we can treat visibility clustering as a weighted graph clustering problem. To solve this problem we used the Markov Cluster (MCL) algorithm (CITE MCL), which has been shown by previous research to be state-of-the-art for visibility clustering. 
-
-
-The main parameter of the MCL algorithm is inflation. By varying this parameter between an approximate range of \([1.2, 2.5]\) we get different clustering results. We find the optimal value for inflation within this range by maximizing the clustering's modularity. This value indicates the difference between the fraction of edges within a given cluster and the expected number of edges for that cluster if edges are randomly distributed. 
-
-% TODO: Give mathematical description of MCL
-% TODO: Give mathematical equation of modularity
-
-We denote the clustering of \(visibility_{views}\) that results from the MCL algorithm as 
+We can also consider \(S^{n \times n}\) as an undirected weighted graph \(\graph_S\), where every node represents a visibility and the edges the Jaccard index of two visibilities. This means we can treat visibility clustering as a weighted graph clustering problem. To solve this problem we used the Markov Cluster (MCL) algorithm, which has been shown by previous research to be state-of-the-art for visibility clustering. The main parameter of the MCL algorithm is inflation. By varying this parameter between an approximate range of \([1.2, 2.5]\) we get different clustering results. We find the optimal value for inflation within this range by maximizing the clustering's modularity. This value indicates the difference between the fraction of edges within a given cluster and the expected number of edges for that cluster if edges are randomly distributed. We denote the clustering of \(visibility_{views}\) that results from the MCL algorithm as 
 
 \begin{equation}
     \label{eq:c_visibility}
@@ -320,12 +302,12 @@ This often results in noisy results, with small, disconnected islands of rooms s
 
 \begin{algorithm}
     \caption{Label propagation}
-    \begin{algorithmic}
+    \hspace*{\algorithmicindent} \textbf{Input} Voxel grid \(\voxelgrid\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Initial labeling \(label^{(0)}: \mathbb{Z}^{3+} \mapsto \mathbb{Z}\) \\
+    \hspace*{\algorithmicindent} \textbf{Input}  Kernel \(\mathcal{K}\) \\
+    \hspace*{\algorithmicindent} \textbf{Output} Propagated labeling after \(t\) steps \(label^{(t)}: \mathbb{Z}^{3+} \mapsto \mathbb{Z}\) \\
 
-    \Require \quad Voxel grid \(\voxelgrid\)
-    \Require \quad Initial labeling \(label^{(0)}: \mathbb{Z}^{3+} \mapsto \mathbb{Z}\)
-    \Require \quad Kernel \(\mathcal{K}\)
-    \Ensure \quad Propagated labeling after \(t\) steps \(label^{(t)}: \mathbb{Z}^{3+} \mapsto \mathbb{Z}\)
+    \begin{algorithmic}
 
     \State $t=0$
 
@@ -354,23 +336,18 @@ The above steps segment the map into multiple non-overlapping rooms based on vis
 
 \begin{algorithm}
     \caption{Topology extraction}
+    \hspace*{\algorithmicindent} \textbf{Input} Voxel grid \(\voxelgrid\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Voxel grid navigation subset \(\voxelgrid_{navigation}\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Room segmentation \(room: \voxel \mapsto \integers\) \\
+    \hspace*{\algorithmicindent} \textbf{Output} Topological graph \(\widetilde{\mathcal{G}}_{topology} = (V_{topology},\ E_{topology})\) \\
+
     \begin{algorithmic}
 
-    \Require \quad Voxel grid \(\voxelgrid\)
-    \Require \quad Voxel grid navigation subset \(\voxelgrid_{navigation}\)
-    \Require \quad Room segmentation \(room: \voxel \mapsto \integers\)
-    \Require \quad Adjacency kernel $\mathcal{K}_{adjacency}$
-
-    \Ensure \quad Topological spatial graph \(\widetilde{\mathcal{G}}_{topology} = (V_{topology},\ E_{topology})\)
-    \Ensure \quad Node embedding \(f_{node}: V \mapsto \mathbb{R}^3\)
-
     \State $\widetilde{\mathcal{G}}_{topology} = (\{\},\ \{\})$
-
     \State Get each unique room label \(\mathbf{R} = \{room(\voxel) \mid \voxel \in \voxelgrid\}\)
     \State Split \(\voxelgrid\) by label, such that \(\mathbf{V} = \{\voxelgrid \cap \{\voxel \mid \voxel \in \voxelgrid \land room(\voxel) = r\} \mid r \in \mathbf{R}\}\)
     \State Store room label associated with each voxel grid \(room_{\voxelgrid}: r \mapsto \voxelgrid\)
     \State $V_{topology} = \mathbf{V}$
-    \State $f_{node}(v) = centroid(v),\ v \in V_{topology}$
 
     \ForEach($\voxel \in \voxelgrid_{navigation}$)
         \State $v_r = room(\voxel)$

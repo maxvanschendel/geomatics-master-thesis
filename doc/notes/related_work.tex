@@ -1,44 +1,14 @@
 \section{Related work}
-Previous research on mapping and map merging has used various map representations are used depending on the map's intended purpose \citep{tomatis_hybrid_2003,huang_topological_2005,bonanni_3-d_2017,gholamishahbandi_2d_2019}. According to \citet{andersone_heterogeneous_2019} and \citet{yu_review_2020} these representations can be subdivided into three types: metric-, feature-, and topological maps. Hybrid maps that are combinations of two or more map types also exist, such as topological-metric maps \citep{yu_review_2020}. Map types that are not one of the three main types or a hybrid are rarely used \citep{yu_review_2020}. In this section we will discuss the characteristics of the metric, topological and topological-metric map representations and the work that has been done on extracting and merging them.
 
-\subsection{Metric Maps}
-\label{section:metric_map_merging}
-Metric map merging is a mature area of research and thus various approaches have been proposed, many of which use a variation of the Iterative Closest Point (ICP) algorithm. This algorithm finds the transformation between partial maps by iteratively applying rigid transformations that minimize the distance between point-pairs \citep{rusinkiewicz_efficient_2001}. Since its first introduction a number of variations on the ICP algorithm have been proposed that improve its accuracy and performance. An example of this is the NICP algorithm, which improves data-association by taking into account the normal vector of a point's neighbourhood \citep{serafin_nicp_2015}.  
+\subsection{Topometric map extraction}
+\subsubsection{Voronoi graphs}
+\subsubsection{Visibility clustering}
 
-Another group of approaches to metric map merging use feature matching to identify overlaps between maps. These approaches try to extract distinctive features in the metric map, such as corners, lines, planes or other points of interest, e.g. SIFT, SURF or Harris points \citep{andersone_heterogeneous_2019}. Feature matching approaches have the advantage over ICP-based approaches with regards to required computational power \citep{andersone_heterogeneous_2019}. Some feature matching approaches are better suited for different environments and input data. For example, the feature extractor approach by \citet{li_general_2010} is scale-independent and the approach of \citet{yang_fast_2016} is able to deal with differences in resolution. \citet{yang_fast_2016} also proposes a combination of feature-based and ICP-based metric map merging that uses features to find a rough alignment which is then further refined using a variation on the ICP algorithm, as shown in figure \ref{fig:feature}.
+\subsection{Map matching}
+\subsubsection{Topological matching}
+\subsubsection{Spectral features}
+\subsubsection{Deep features}
 
-\begin{figure}
-    \centering
-    \includegraphics*[width=\textwidth]{./fig/feature_matching.png}
-    \caption{Illustration of combined feature-based and ICP metric map merging approach from \citet{yang_fast_2016}.}
-    \label{fig:feature}
-\end{figure}
-
-In conclusion, much work has been done on the merging of metric maps using brute-force ICP-based methods. However, these methods have several downsides and are thus losing popularity in favour of feature-based approaches. Research on many different kinds of features is available, with state-of-the-art approaches being able to handle large differences in appearance of features. Both approaches can also be combined to compensate for their respective downsides.
-                        
-\subsection{Topological(-Metric) Maps}
-Various approaches for extracting topological maps from raw sensor data or metric maps have been proposed. \citet{kuipers_robot_1991} proposes identifying distinctive places, vertices of the topological map, directly from sensor data by finding local maxima of a distinctiveness measure within a neighbourhood. Edges are identified by having the robot try to move between vertices, if this is possible an edge is created. Local metric information in the form of an occupancy grid is associated with the nearest vertex in the graph, resulting in a hybrid topological-metric map. Note that this approach is dependent on the mapping agent's exploration strategy. As heterogeneous agents can't be assumed to behave in a similar way, approaches based on exploration strategy are not directly applicable for the purposes of this thesis. 
-
-\citet{thrun_learning_1998} extracts a 2D topological map from a 2D metric map by identifying narrow passages with the use of a Voronoi diagram. They then partition the metric map into areas divided by passages, which are respectively the vertices and the edges of the graph. Again, metric information is associated to create a hybrid topological-metric map. This is the first approach that is independent of exploration strategy. 
-
-
-\citet{ochmann_towards_2014} describes extracting hierarchical topological-metric maps directly from point clouds. In the case of \citet{ochmann_towards_2014} the hierachy is divided into four encapsulating layers, building - storey - room - object. Entities within the graph are represented as vertices, with edges representing the topological and spatial relationships between entities. Each vertex is linked to a local metric map of the entity's geometry. All entities are also linked to the layer above them that they are in, e.g. objects are linked to their encompassing room, which is in turn linked to the storey it is in. 
-
-\citet{gorte_navigation_2019} provides a novel approach for extracting the walkable floor space from a 3D occupancy grid across multiple storeys. They do so by first applying a 3D convolution filter using a stick-shaped structuring element to extract the parts of the floor without obstructions. They then apply an upwards dilation to connect steps of stairways into a connected volume. Because the topology of the environment depends on the traversability between spaces, the extraction of navigable floor space is essential for the extraction of topological maps.
-
-\citet{he_hierarchical_2021} describes an approach for extracting a hierarchical topological-metric map with three layers: storey - region - volume, from an occupancy grid map. To extract the map they use a novel approach to room segmentation using raycasting. A downside of their methodology is that it depends on the presence of ceilings in the metric map, which are often not captured in practice when using handheld scanners. They also describe a novel approach for storey segmentation using a peak detector on the metric map's histogram of z-coordinates. The results of their approach are shown in figure \ref{fig:topometric_map}. \\\\
-In comparison, relatively little work has been done on the subject of topological(-metric) map merging. \citet{dudek_topological_1998} first proposes an approach to topological map merging which depends on a robot meeting strategy to merge partial maps created by each robot. When new distinctive places are recognized at the frontier of the global map the other robots will travel towards it and synchronize their maps. As with other early approaches to map extraction and map merging, this one also depends on a coordinated exploration strategy, making it unsuitable for the purposes of this thesis.
-
-The work of \citet{huang_topological_2005} is a significant milestone in topological map merging, demonstrating that topological maps can be merged using both map structure and map geometry. They first identify vertex matches by comparing the similarity of their attributes, such as their degree, and the spatial relationships of incident edges. Vertex matches are then expanded using a region growing approach, where every added edge and vertex is compared for similarity and rejected if too dissimilar. The results are multiple hypotheses for overlapping areas between partial maps. They then estimate a rigid transformation between the partial maps based on each hypothesis. Afterwards, hypotheses that result in similar transformations are grouped into hypothesis clusters. They then select the most appropriate hypothesis cluster by using a heuristic that includes the number of vertices in the cluster, the error between matched vertices after transformation and the number of hypotheses in the cluster.
-
-\citet{bonanni_3-d_2017} provides a unique approach to topological-metric map merging using the pose graph of mapping agents as the topological component and the point cloud captured at each node as the metric component. Matches between nodes are identified by computing the similarity of their associated point cloud. In comparison to most other map merging approaches they fuse the maps using a non-rigid transformation, meaning the partial maps are deformed to improve their alignment. This gives their approach the ability to correct inconsistencies between partial maps that might be caused by differences between scanning agents.
-
-To conclude, a variety of representations of topological and topological-metric maps have been proposed, as well as ways of extracting them from metric maps. Early approaches to topological and topological-metric map extraction depend on coordinated robot exploration strategies and only work in 2D, making them unsuitable for the purposes of this thesis. State-of-the art approaches are trending towards 3D hierarchical representations of buildings as technology improves and more ways of dealing with 3-dimensional data are discovered. However, little work has been done on extracting topological maps from heterogeneous metric maps, as well as on extracting them from incomplete partial maps. 
-Relative to the amount of work on the extraction of topological(-metric) maps of indoor environments, less has been done on merging them. Most approaches compare labels of vertices and their incident edges to find matches. To our knowledge, \citet{bonanni_3-d_2017} is the only work that identifies vertex matching by comparing local metric map geometry. It is also the only approach that is able to handle deformed partial maps. 
-
-
-
-
-
-
-
+\subsection{Map fusion}
+\subsubsection{Point cloud registration}
+\subsubsection{Non-rigid registration}

@@ -65,7 +65,7 @@ In the context of indoor mapping data is usually aligned to gravity, with the di
     transform: (\mathbb{R}^{m \times 3},\ \mathbb{R}^{m \times 3}) \rightarrow \mathbb{R}^4,\ transform(\mathcal{P},\ \mathcal{Q}) = \tau
 \end{equation}
 
-The above is able to align two point clouds optimally if the correspondence between points is known exactly, meaning that the \(k\)-th point of both \(\mathcal{P}\) and \(\mathcal{Q}\) correspond to the same point in the real world. This is, however, usually not the case. This means that registration requires another two steps, global and local registration, which we will discuss below.
+The above is able to align two point clouds optimally if the correspondence between points is known exactly, meaning that the \(k\)-th point of both \(\mathcal{P}\) and \(\mathcal{Q}\) correspond to the same point in the real world. This is, however, usually not the case in real world scenarios. This means that registration requires another two steps, global and local registration, which we will discuss below.
 
 \paragraph{Global registration}
 The purpose of global registration is to find a rough alignment between point clouds, which can then be further refined in the local registration step. To do so we use a RANSAC based approach. This algorithm works as follows. For every point in the point clouds \(\mathcal{P}\) and \(\mathcal{Q}\) compute a feature embedding that can be used to find similar points in the other point clouds. We use Fast Point Feature Histograms (FPFH) features, which are commonly used for this purpose. A description of how these are computed is outside of the scope of this thesis but can be found in (CITATION HERE). We then randomly select 3 points from \(\mathcal{P}\) and find the corresponding points in \(\mathcal{Q}\) which have the smallest distance in feature space. We then compare the triangles formed by both sets of points. If the edge lengths of both triangles are too dissimilar, meaning that the ratio of their lengths is outside of a predetermined range, then the selected points are discarded and new ones are selected. If not, we find the gravity-constrained rigid transformation between the 3 pairs. We then evaluate how well the rigid transformation aligns the two point clouds by finding the mean distance of every point in \(\mathcal{P}\) to its nearest neighbour in \(\mathcal{Q}\). If the mean distance is smaller than the previous smallest mean distance then we store the transformation.
@@ -78,15 +78,16 @@ We repeat this for a set amount of iterations or until a mean distance threshold
 
 \begin{algorithm}
     \caption{RANSAC global registration}\label{alg:ransac}
+    \hspace*{\algorithmicindent} \textbf{Input} Point cloud \(\mathcal{P} \in \mathbb{R}^{m \times 3}\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Point cloud \(\mathcal{Q} \in \mathbb{R}^{m \times 3}\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Maximum iterations \(i_{max}\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Triangle pair edge difference threshold \(t_{max}\) \\
+    \hspace*{\algorithmicindent} \textbf{Input} Triangle edge length threshold \(d_{min}\) \\
+
+    \hspace*{\algorithmicindent} \textbf{Output} \(\tau_{global} \in \mathbb{R}^4\) \\
+
     \begin{algorithmic}
 
-    \Require \quad Point cloud \(\mathcal{P} \in \mathbb{R}^{m \times 3}\)
-    \Require \quad Point cloud \(\mathcal{Q} \in \mathbb{R}^{m \times 3}\)
-    \Require \quad Maximum iterations \(i_{max}\)
-    \Require \quad Triangle pair edge difference threshold \(t_{max}\)
-    \Require \quad Triangle edge length threshold \(d_{min}\)
-
-    \\
     \State \(P = fpfh(\mathcal{P}),\ P \in \mathbb{R}^{m \times d}\)
     \State \(Q = fpfh(\mathcal{Q}),\ Q \in \mathbb{R}^{m \times d}\)
 
@@ -115,11 +116,7 @@ We repeat this for a set amount of iterations or until a mean distance threshold
 
 
 \paragraph{Local registration}
-The purpose of local registration is to refine the alignment found in the global registration step. We use the iterative closest point (ICP) algorithm to achieve this. The ICP algorithm is widely used, a detailed description of how it works can be found in (CITATION HERE). The only major modification is that we use the gravity-aligned transformation described above at each iteration.
-
-\begin{equation}
-    \tau_{local} \in \mathbb{R}^4
-\end{equation}
+The purpose of local registration is to refine the alignment found in the global registration step. We use the iterative closest point (ICP) algorithm to achieve this. The ICP algorithm is widely used, a detailed description of how it works can be found in (CITATION HERE). The only major modification is that we use the gravity-aligned transformation with the point-to-plane error function described above at each iteration.
 
 
 \paragraph{Transform concatenation}
@@ -131,7 +128,8 @@ After finding the global and the local transformations, we can find the final tr
 \end{equation}
 
 \subsubsection{Geometric fusion}
-We apply the above steps to the geometry of each room and its match. If the error between the two point clouds is still too large then we discard the match, as it is unlikely to be correct if registration fails. We then merge the remaining rooms and their matches and perform registration again. This gives us the global alignment between the two partial maps. Finally, we perform another local registration on the two complete partial maps using the previous global alignment. 
+We apply the above steps to the geometry of each room and its match if their distance in feature space is below a threshold. This gives us a 4-dimensional vector representing the transformation between matches. We discard the matches where the registration error is too high and cluster the remaining transformations using the DBSCAN algorithm. This gives us multiple clusters of transformations that, within a cluster, result in a similar alignment between partial maps. For each of these clusters we find the mean transformation, apply it to the partial map and compute the point-to-plane error between the partial maps. We then select the cluster with the lowest error and use its mean transformation to align the geometry of the partial topometric maps. 
 
 \subsubsection{Topological fusion}
+After the geometric fusion step the geometry of the topometric maps is brought into alignment but their graphs haven't been fused yet. Fusing the graphs directly using the identified matches is possible but does not guarantuee a good global topometric map. This is because the geometric fusion may have changed the partial maps in a way that the global geometric map's topology is greater than the sum of the partial maps' topology. As a result, we have to reextract the topology from the results of the geometric fusion. To do so, we reuse the navigation graphs of the partial maps as the navigation graph of the global map. We also reuse the optimal viewpoints from both partial maps. This means that only the room segmentation step needs to be redone. The result is a global topometric map created from the fusion of two partial topometric maps.
 

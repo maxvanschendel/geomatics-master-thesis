@@ -26,7 +26,7 @@ To generate a voxel grid we divide a 3D axis-aligned volume \(V\), defined by mi
 \boldsymbol{v}_{max} = \boldsymbol{v}_{min} + e_{l}
 \end{equation}
 
-The minimum and maximum bounds of this subvolume are given by equation \ref{eq:vmin} and \ref{eq:vmax}. The voxel's centroid is given by \ref{eq:vc}. Given a point \(\boldsymbol{p}\) within the bounds of \(V\), the corresponding voxel is given by equation \ref{eq:vp} . 
+The minimum and maximum bounds of this subvolume are given by equation \ref{eq:vmin} and \ref{eq:vmax}. The voxel's centroid is given by equation \ref{eq:vc}. Given a point \(\boldsymbol{p}\) within the bounds of \(V\), the corresponding voxel is given by equation \ref{eq:vp} . 
 \begin{equation}
     \label{eq:vc}
     \boldsymbol{v_c} = (\boldsymbol{v_{min}} + \boldsymbol{v_{max}})*0.5
@@ -39,7 +39,7 @@ The minimum and maximum bounds of this subvolume are given by equation \ref{eq:v
 
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=\textwidth]{./fig/voxels_basic.png}
+    \includegraphics*[width=\textwidth]{./fig/voxel_basics.pdf}
     \caption{A voxel grid and its components.}
     \label{fig:vg_basic}
 \end{figure}
@@ -62,6 +62,13 @@ We define a voxel grid as a set of occupied voxels with an associated bounded vo
 \paragraph{Sparse Voxel Octree}
 Several operations on voxel grids benefit from using a spatial index, including range searching, radius searching and level of detail generation. We use a data structure called a sparse voxel octree (SVO) to achieve this. A normal octree recursively subdivides a volume into 8 cells, called octants. This operation results in a tree data structure, with nodes representing octants at a certain level of subsidivision. The root node of the tree structure represents the entire volume while the leaf nodes represent batches of 1 or more data points. In the case of a voxel octree, the leaf nodes represent individual voxels. In a sparse voxel octree only the octants which are occupied are represented in the tree. 
 
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.7\textwidth]{./fig/morton_code.pdf}
+    \caption{2D example of morton codes.}
+    \label{fig:vg_morton}
+\end{figure}
+
 To generate the SVO we first create a Morton Order for the voxel grid. A Morton order maps the three-dimensional coordinates of the voxels to one dimension while preserving locality. It does by interleaving the binary representation of the voxel's coordinates into a single binary string which is interpreted as a positive integer. This is a Morton code. The ordered vector of Morton codes gives us the Morton order. We denote the Morton order of a voxel grid according to equation \ref{eq:morton}
 
 \begin{equation}
@@ -71,11 +78,22 @@ To generate the SVO we first create a Morton Order for the voxel grid. A Morton 
     
 We divide the Morton order into buckets with size 8, such that each bucket contains at most 8 Morton codes, with a maximum difference of 8, in Morton order. Each non-empty bucket represents a parent node of at most 8 child nodes in the octree. By recursively performing this step until only one bucket remains, the root node, a sparse voxel octree is constructed. 
 
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.5\textwidth]{./fig/svo.pdf}
+    \caption{Example of a sparse voxel octree generated from the above Morton codes.}
+    \label{fig:vg_svo}
+\end{figure}
+
+
+
 We denote the function that returns all \(n\) voxels within range \(r\) of a voxel as follows.
 
 \begin{equation}
     radius: \mathbb{Z}^{3+},\ \mathbb{R} \mapsto \voxelset
 \end{equation}
+
+The voxels within a sphere around a point can be found by recursively intersecting the sphere with the octants of the SVO. If the sphere does not intersect with an octant then none of its leaf nodes do and the corresponding voxels are not within the sphere. If an octant does intersect with the sphere then its children are tested for intersection. The algorithm returns all leaf nodes that do intersect with the sphere.
 
 \paragraph{Voxel convolution}
 Voxel convolution involves moving a sliding window, or kernel, over each voxel in the grid to retrieve its neighbourhood and then computing a new value for the voxel based on computing a function  over its neighbours.
@@ -114,6 +132,17 @@ The property after convolution is then given by \(\mathcal{K}_f(\mathcal{K}_{w})
 
 If the property is left out it is implied to be occupancy.
 
+\paragraph{Neighbourhood graph}
+
+The neighbourhood graph of a voxel grid represents the connectivity between voxels as undirected, unweighted graph. The nodes of the neighbourhood graph correspond to individual voxels and the edges to whether two voxels can be considered neighbours. Whether two voxels are neighbours is defined by a connectivity kernel \(\mathcal{K}_c\), which has only 1 or 0-valued weights. If, when applying the kernel to a voxel, another voxel within that kernel is occupied and the kernel's weight for that position is 1, then the two voxels are neighbours.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.7\textwidth]{./fig/voxel_neighbourhood.pdf}
+    \caption{Two common connectivity kernels. Note that the center voxel's weight is 0, as a voxel does not neighbour with itself.}
+    \label{fig:vg_nbs}
+\end{figure}
+
 
 \subsubsection{Topological map}
 Topological maps are a qualitative graph representation of an environment's structure, where vertices represent locally distinctive places, often rooms, and edges represent traversable paths between them  (see figure \ref{fig:topo_ex}) \citep{thrun_learning_1998,kuipers_robust_1988}. Topological maps are inspired by the fact that humans are capable of spatial learning despite limited sensory and processing capability and only having partial knowledge of the environment. This is based on observations that cognitive maps, the mental maps used by humans to navigate within an environment, consist of multiple layers with a topological description of the environment being a fundamental component \citep{kuipers_robust_1988,kuipers_modeling_1978}. We denote the topology of an environment as a graph \(G\), where nodes \(N\) represent distinctive places \(n\) and edges \(E\) represent the presence of a path between neighbouring pairs of places \((v_j,v_k)\) that does not pass through any other places.
@@ -131,7 +160,16 @@ Topological maps are a qualitative graph representation of an environment's stru
     E=\{(n_j,n_k)_i\}_{i=1}^m, n_j \in N,\ n_k \in N
 \end{equation}
 
-In the context of indoor mapping the graph is often embedded in 2D or 3D euclidean space as a spatial graph. We denote he spatial graph of \(G\) as \(\widetilde{G}\). Each vertex in \(\widetilde{G}\) has an associated 3D coordinate describing its position in the coordinate frame of the map. 
+Figure \ref{fig:topomap} shows an example topological map of a house with five rooms and their connectivity.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.3\textwidth]{./fig/topological_map.pdf}
+    \caption{Example of a topological map.}
+    \label{fig:topomap}
+\end{figure}
+
+\pagebreak
 
 \subsubsection{Topometric map}
 A hybrid map representation combining both the topological and metric characteristics of the environment. This map representation allows the end-user to use either topological or metric information depending on the needs of the situation, e.g. the topological layer can be used for large-scale navigation and abstract reasoning while the metric layer can be used for landmark detection or obstacle avoidance. In the context of this thesis a topometric map refers to a 3D representation of an environment containing both a metric voxel grid map representing its geometry and a topological graph representing the adjacency relationship between distinctive places. 
@@ -145,4 +183,13 @@ A hybrid map representation combining both the topological and metric characteri
     G=(N,\ E),\ N=\{n_i\}_{i=1}^k,\ n \subset \voxelgrid
 \end{equation}
 
-Each node \(n \in N\) has an associated variable \(m(v)\) representing a subset of the full metric map describing that place.
+Each node \(n \in N\) has an associated variable \(m(v)\) representing a subset of the full metric map describing that place. Figure \ref{fig:topometricmap} shows an example of a topometric map of an indoor environment.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.8\textwidth]{./fig/area_1_topo_01.png}
+    \caption{Example of a topometric map.}
+    \label{fig:topometricmap}
+\end{figure}
+
+

@@ -53,81 +53,37 @@ Geometric feature embedding transforms a geometric object, in our case a voxel g
     embed_{geometry}(n) = \prescript{n}{}{f_{geometry}}
 \end{equation}
 
-We denote the function that embeds a set of voxels into a feature vector as in equation \ref{eq:embed_geometry_01}. We implement this function using three different approaches, which we discuss below.
-
-\subsubsection{Engineered Features}
-The first approach uses a number of manually engineered features to construct the feature vector from a room's geometry. These features include, for example, the height of the room and its volume. A full list of features and their explanation is given below. More features were tried, but only the ones that were found to contribute to the accuracy of the clustering by trial and error are included here. The features are computed using a point cloud derived from centroids of the occupied voxels of the voxel grid, which we will denote here as \(\mathbf{P}\).
-
-\paragraph{Volume}
-The axis aligned bounding box (aabb) of \(\mathbf{P}\) is given by the minimum and maximum value along each axis. This results in two 3-dimensional vectors \(aabb_{min}\) and \(aabb_{max}\). With these vectors we compute the length of each axis of the aabb by computing \(\mathbf{l} = aabb_{max} - aabb_{min}\). We then find the volume of the aabb by finding the product of each element of \(\mathbf{l}\).
-
-\paragraph{Height} 
-Using the same approach as described above we compute the length of each axis of the aabb, \(\mathbf{l}\). The height of the point cloud is simply the y-value of \(\mathbf{l}\).
-
-\paragraph{Horizontal Area} 
-Once again we first compute \(\mathbf{l}\). To find the horizontal area of \(\mathbf{P}\) we multiply the x- and y-values of \(\mathbf{l}\). 
-
-\paragraph{Mean distance to centroid} 
-To compute the centroid \(\mathbf{c}\) of \(\mathbf{P}\) we compute the mean value of each axis of all points in \(\mathbf{P}\). We then compute the Euclidean distance of each point in \(\mathbf{P}\) to \(\mathbf{c}\) and compute the mean distance. This metric is closely correlated with an object's volume. 
-
-\paragraph{Number of points} 
-To compute this value we simply count the number of points in the point cloud. Larger objects will generally contain more points.
-
-\paragraph{Quotient of eigenvalues} 
-By using principal component analysis we can determine the 3 eigenvectors and eigenvalues of \(\mathbf{P}\), which indicate the directions of maximal variance in the point cloud and the amount of variance along those directions. If all eigenvalues are approximately equal then no direction dominates. We compute if this is the case by finding the quotient of eigenvalues (the first eigenvalue divided by the second and third). If the quotient is close to 1 then no direction dominates.
-
-\paragraph{Ratio of smallest eigenvalue to sum of two largest eigenvalues} 
-We take the two largest eigenvalues and find their sum, then we divide the smallest eigenvalue by it. Objects for which the largest two eigenvalues are much larger than the smallest eigenvector have a single direction that is non-dominant.
-
-\paragraph{Verticality of largest eigenvector} 
-We take the largest eigenvector, normalize it, and then find the dot product of the eigenvector and the unit vector in the z-direction. This gives us the degree to which the point cloud is vertically aligned. If the largest eigenvalue is non-vertical then the object is mostly horizontal, which is the case for fences, buildings and cars. If the largest eigenvalue is vertical then the object is vertical, which is the case for poles and trees.
-
-\paragraph{Roughness}
-For each point we find their \(n\) nearest neighbours. We then fit a plane through the point's neighbourhood, we do this by finding the eigenvectors of the neighbourhood. The smallest eigenvector gives us the normal vector of the neighbourhood, which along with the neighbourhood's centroid gives us the best fit plane. We then determine the sum distance of each point in the neighbourhood in the plane. The roughness of the point cloud is then given by the mean of the sum distance of each point's neighbourhood to its best fit plane. 
+We denote the function that embeds a set of voxels into a feature vector as in equation \ref{eq:embed_geometry_01}. We implement this function using two different approaches, which we discuss below.
 
 \subsubsection{Spectral Features}
-Another approach to feature embedding uses the first \(n\) sorted nonzero eigenvalues of the adjacency or Laplacian matrix of a graph. In our case, the graph refers to the neighbourhood graph of the voxel grid associated with each node in the topometric map. By adjusting the size of the kernel used to construct the neighbourhood graph we can adjust the number of edges, which influences the resulting embedding. We use singular value decomposition to find the eigenvalues.
+Our first approach to geometric feature embedding uses spectral shape analysis. This approach uses the eigenvalues of the graph laplacian, the graph in our case being the neighbourhood graph of a voxel grid, to find a low-dimensional global descriptor of a shape. 
+
+The laplacian matrix of a graph can be found by subtracting its adjacency matrix from its degree matrix, as shown in equation \ref{eq:laplacian_matrix}.
+
+\begin{equation}
+    \label{eq:laplacian_matrix}
+L = D - A
+\end{equation}
+
+After computing the Laplacian matrix we then find its \(n\) smallest 
+non-zero eigenvalues which gives us a global descriptor of the voxel grid. 
+
 
 \subsubsection{Deep Learning}
-Our final approach to feature embedding is deep learning. In this approach, the geometry of the nodes is fed into a neural network that is trained on a specific task, such as semantic segmentation or classification, and the intermediate output of a hidden layer is used as a feature vector. We use an architecture called Point Completion Network (PCN), which is an autoencoder used for the specific task of completing incomplete point clouds. Autoencoders consist of two components: an encoder and a decoder. The encoder component is responsible for reducing the dimensionality of the input data into a single n-dimensional feature vector which captures the input's defining characteristics. The decoder is responsible for recovering the input data from the encoder's output as accurately as possible. For our purposes, only the output of the encoder is required. The advantage of using an autoencoder network is that they are trained in an unsupervised manner, so no manually labelled data is required. We train our model on the Stanford 3D Indoor Scene dataset (see results section). To generate incomplete views we compute visibilities from one or multiple random poses in each room.
+Our second approach to geometric feature embedding uses deep learning. Specifically, we use the LPDNet neural network architecture. This architecture is used for place recognition, it does so by learning embeddings, typically 2048 or 4096-dimensional, of point clouds that are theoretically independent of transformation, perspective and completeness. It does so by computing a feature embedding for every point in the point cloud and aggregrating them into a global feature embedding. The LPDNet model we use is trained on outdoor maps which have different characteristics from indoor maps. However, the authors of LPDNet claim that a model trained on outdoor data can also effectively be used for indoor data. Figure \ref{fig:lpdnet_architecture} shows the network architecture of LPDNet.
 
-\subsubsection{Attributed Node Embedding}
-Attributed node embedding aims to find a feature embedding for each node in a graph that uses both an attribute of the node, in our case a geometrical feature embedding, and the node's relationship to the rest of the graph. We denote the function that embeds a node's attribute \(f_{attr}\) and its graph into a \(l\)-dimensional feature vector.
+% network architecture w/figure
+% training data / transfer learning
 
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/network_architecture.png}
+    \caption{Diagram showing LPDNet network architecture.}
+    \label{fig:lpdnet_architecture}
+\end{figure}
 
-\begin{equation}
-    \label{eq:embed_node_01}
-embed_{node}: \mathbb{R}^m,\ \graph \mapsto \mathbb{R}^l
-\end{equation}
-\begin{equation}
-    \label{eq:embed_node_02}
-    embed_{node}(\prescript{n}{}{f_{attr}},\ \graph) = \prescript{n}{node}{f_{attr}},\ n \in N
-\end{equation}
+\subsubsection{Contextual Embedding}
 
-Finding the attributed node embedding of a node \(n\) in the topometric map \(\topometricmap\) with topological graph \(\graph_{T}\) is then equal to computing 
-
-\begin{equation}
-    \label{eq:f_node}
-    \prescript{n}{node}{f_{geometry}}=embed_{node}(\prescript{n}{}{f_{geometry}},\ \graph_{T})
-\end{equation}
-
-
-We compute the attributed node embedding using graph convolution. This means that for every node, we find its adjacent nodes and add their feature vectors weighted by a factor \(w\) to the origin node's feature vector. If we denote the adjacent nodes of \(v\) in graph \(G\) as 
-
-\begin{equation}
-    \label{eq:N_G}
-    N_{G}(v) = \{v_i\}_{i=1}^{k}
-\end{equation}
-
-Then each node's feature vector after graph convolution becomes 
-
-\begin{equation}
-    \label{eq:graph_convolve}
-    v^{t+1} = v^t + \sum_{i=1}^k wN_{G}(v^t)_i
-\end{equation}
-
-
-By repeating this step the embedding of a node's neighbourhood is integrated in each node's embedding, making nodes that have a similar neighbourhood more similar and vice versa. Increasing the number of iterations also increases the distance at which a neighbour influences a node's embedding. Changing the value of \(w\) increases the influence of neighbours. 
 
 \subsubsection{Map Matching}
 The above steps are applied to both partial maps. This gives us two sets of feature vectors \(\mathcal{E}_A,\ \mathcal{E}_B\) representing the embedding of the nodes of both topometric maps.
@@ -159,6 +115,8 @@ We can then find unbalanced assignment using various approaches, in our case the
     \mathbf{M} = \{(i,\ j,\ d) \mid  |V_a| \geq i,\ |V_b|\geq j,\ d = \mathbf{C}_{ij}\}
 \end{equation}
 
+\subsubsection{Hypothesis growing}
+
 In practice it is unlikely that every match in \(\mathbf{M}\) is correct. However, we can use them as seeds to generate hypotheses similar to the approach described in Huang \citep{huang_topological_2005}. Starting at each match 
 
 \begin{equation}
@@ -168,5 +126,3 @@ In practice it is unlikely that every match in \(\mathbf{M}\) is correct. Howeve
 
 
 we get the neighbourhood of both nodes. We then construct a new cost matrix from the Euclidean distance between the embeddings of both neighbourhoods, again creating a weighted bipartite graph for which we can solve the assignment problem. By doing this we identify which neighbours of the nodes in the match are most likely to also match. We recursively apply this step to the matching neighbours to grow our initial matches into hypotheses. To decrease the risk of incorrectly identifying neighbourhood matches we constrain hypothesis growing in two ways. First, the cost of two potential matches must be below a given threshold \(c_{max}\). Second, a newly identified match may not bring the existing matching too much out of alignment. To check this, we perform coarse registration between the centroids of the geometry of the identified matches at every step of the hypothesis growing using least squares adjustment. If the error increases between steps, and the increase is too large such that \(\triangle e \geq \triangle e_{max} \), then the matching is rejected. By adjusting the values of \(c_{max}\) and \(\triangle e_{max}\) more or less uncertainty is allowed when growing hypotheses.
-
-The hypothesis growing step produces multiple hypotheses, one for every initial matching. As described in Huang \citep{huang_topological_2005} we then cluster the hypotheses by similarity and compatibility. Two hypotheses are compatible if there are no contradicting matches between them. They are similar if the distance between their coarse registration computed during the hypothesis growing process is small. If two hypotheses are incompatible their distance is set to infinite. We use the OPTICS algorithm to cluster hypotheses. After clustering the hypotheses multiple hypotheses might still remain. We select the hypothesis with the largest number of matches as the most likely hypothesis. If there are multiple hypotheses with an equal largest number of matches then the hypothesis with the lowest mean distance in feature space between matches is selected.

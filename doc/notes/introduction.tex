@@ -1,14 +1,55 @@
 %TODO: MODIFY INTRO TO WORK WITH CHANGE OF SCOPE AND CONTENTS
 
 \section{Introduction}
-Collaborative mapping allows multiple agents to work together to create a single, global map of their environment. By working together large areas can be mapped in a short amount of time. Collaborative mapping of indoor environments is especially challenging, because external positioning signals are highly attenuated. In this case, a global map can only be created by merging the partial maps of the environment created by each agent individually based on their overlapping areas. This is called map merging (see figure \ref{fig:map_merging}). Partial maps might represent the environment at different a different scale, resolution or accuracy, which further complicates map merging as overlapping areas may not appear the same between partial maps.
+
+% why is it important
+3D maps of indoor environments are used for a wide variety of purposes ranging from vacuuming robots to industrial security. These maps are captured by a variety of agents, from humans using a 3D scanner to autonomous robots with integrated sensors. 3D maps can be used to provide comprehension of the environment to humans through cartography or for automated scene understanding that enables complex robot behaviour. In many cases it is advantageous for multiple mapping agents to collaboratively create a map, such as during rescue operations where the location of the subject(s) is unknown. By working together larger areas can be mapped in a shorter amount of time. Each agent may map the environment using a different approach, resulting in a more complete whole.
 
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=\textwidth]{./fig/map_merging.png}
-    \caption{Partial maps (1) captured by three different agents and resultant global map (2) after map merging.}
+    \includegraphics*[width=.7\textwidth]{./fig/overview_diagrams-Page-4.drawio.pdf}
+    \caption{The map merging problem. How do you combine partial maps if relative positions are unknown?}
     \label{fig:map_merging}
 \end{figure}
 
-% the method of solving the problem, often stated as a claim or a working thesis;
-In this thesis we propose to use both the topological relationships of indoor environments, meaning the connectivity between distinctive places, and their metric characteristics, the geometry of the environment, to solve the map merging problem.  We do this by extracting hybrid 3D topometric maps from heterogeneous partial maps. We then use both the topological and metric characteristics of the partial maps to robustly identify overlapping areas that might appear differently.  Our hypothesis is that the connectivity of places within the environment are identifiable between heterogeneous partial maps. We further hypothesize that using the metric characteristics of the environment in conjunction with its topological characteristics will improve identification of overlapping areas over a purely topological approach, despite geometrical differences between heterogeneous partial maps. The most important contributions of our work are: 1) applying 3D topometric map merging to indoor environments. 2) extracting 3D topometric maps from heterogeneous partial maps.
+% what is it
+The problem of creating a single, global map from multiple, partial maps is called map merging. Map merging is challenging in scenarios where the relative positions of agents are unknown because the relative positions could be used to align the maps directly. This is often the case in indoor environments because external positioning signals, e.g. GNSS are highly attenuated. This means that the global map must be created using only the properties of the partial maps. Map merging can be subdivided into two subproblems. The first is map matching, the identification of overlapping areas between partial maps. The second is map fusion, the alignment and merging of the partial maps based on the identified matches. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.8\textwidth]{./fig/overview_diagrams-Page-2.drawio.pdf}
+    \caption{Extraction of topometric maps from raw data.}
+    \label{fig:overview}
+\end{figure}
+
+
+% how do we do it
+Map matching is essentially a problem of place recognition; identifying the same place in different maps. Human place recognition uses a combination of the characteristics of that place and its relationship to its context. To illustrate, when asked to describe a room someone may answer that it has an L-shape, but also that the hallway leading upto it is shaped like a parallelogram or that the room has two opposing neighbouring rooms. A complete description of a place thus includes both its visible properties, such as its shape, and the topological structure of its environment. In this thesis we propose an approach to map matching that uses both of these aspects to identify matching rooms between partial maps. To achieve this we also propose an approach for extracting topometric maps, which represent both the environment's geometry and its topological structure, from point clouds. Finally, we also propose an approach to fuse the geometry and topology of topometric maps by using the identified matches.
+
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.8\textwidth]{./fig/overview_diagrams-Page-3.drawio.pdf}
+    \caption{Map matching using both geometric and topological properties.}
+    \label{fig:overview_diagram}
+
+\end{figure}
+
+
+We hypothesize that the connectivity of places within the environment are consistently identifiable between partial maps. We further hypothesize that using the metric characteristics of the environment in conjunction with its topological characteristics will improve identification of overlapping areas over a purely geometric approach. Finally, we hypothesize that the identified matches can be used to fuse both the geometry and topology of the partial topometric maps into a global topometric map.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/overview_diagrams-Page-1.drawio.pdf}
+    \caption{Fusion of partial topometric maps into a global topometric map.}
+    \label{fig:overview_diagram}
+\end{figure}
+
+% main contributions
+The most important contributions of our work are:
+
+\begin{enumerate}
+    \item Extraction of topometric maps from point clouds
+    \item Map matching using both the geometric and topological properties
+    \item Map fusion of topometric maps
+\end{enumerate}
