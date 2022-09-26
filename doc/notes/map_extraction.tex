@@ -27,7 +27,7 @@ The first step of navigation graph extraction uses voxel convolution with a stic
 
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=0.5\textwidth]{./fig/structuring_element.png}
+    \includegraphics*[width=0.5\textwidth]{./fig/structuring_element.drawio.pdf}
     \caption{Illustration of stick kernel with top and side views.}
     \label{fig:stick_kernel}
 \end{figure}
@@ -140,13 +140,21 @@ The next step in the room segmentation algorithm is to compute the visibility fr
     visibility: \mathbb{R},\ \voxelset \mapsto \mathbb{Z}^{m \times 3},\ m \in \mathbb{R},\ n \geq m
 \end{equation}
 
-A target voxel is visible from a position if a ray cast from the position towards the centroid of the voxel does not intersect with any other voxel. To compute this we use the digital differential analyzer (DDA) algorithm to rasterize the ray onto the voxel grid in 3D (see algorithm \ref{algo:dda}). We then check if any of the voxels that the ray enters- except the target voxel- is occupied. If none are, the target voxel is visible from the point. Figure \ref{fig:voxel_raycast} shows a 2D representation of how the DDA algorithm works.
+A target voxel is visible from a position if a ray cast from the position towards the centroid of the voxel does not intersect with any other voxel. To compute this we use the digital differential analyzer (DDA) algorithm to rasterize the ray onto the voxel grid in 3D (see algorithm \ref{algo:dda}). We then check if any of the voxels that the ray enters- except the target voxel- is occupied. If none are, the target voxel is visible from the point. Figure \ref{fig:voxel_raycast} shows a 2D representation of how the DDA algorithm works. Figure \ref{fig:visibility} shows a 2D representation of a visibility computation.
 
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=.5\textwidth]{./fig/voxel_raycast.pdf}
+    \includegraphics*[width=.5\textwidth]{./fig/dda.pdf}
     \caption{2D representation of voxel raycasting.}
     \label{fig:voxel_raycast}
+
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.7\textwidth]{./fig/visibility.pdf}
+    \caption{2D representation of visibility computation.}
+    \label{fig:visibility}
 
 \end{figure}
 

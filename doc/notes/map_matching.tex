@@ -37,9 +37,16 @@ Geometric feature embedding transforms a geometric object, in our case a voxel g
     embed_{geometry}: \voxelset \mapsto \mathbb{R}^m,\ embed_{geometry}(n) = \prescript{n}{}{f_{geometry}}
 \end{equation}
 
-We denote the function that embeds a set of voxels into a feature vector as in equation \ref{eq:embed_geometry_01}. We implement this function using two different approaches, which we discuss below.
+We denote the function that embeds a set of voxels into a feature vector as in equation \ref{eq:embed_geometry_01}. We implement this function using two different approaches, which we discuss below. The concept of geometric feature embedding is shown in figure \ref{fig:geometric_embedding}.
 
-\subsubsection{Spectral Features}
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.8\textwidth]{./fig/embed_geometry.pdf}
+    \caption{Diagram showing geometric feature embedding.}
+    \label{fig:geometric_embedding}
+\end{figure}
+
+\paragraph{Spectral Features}
 Our first approach to geometric feature embedding uses spectral shape analysis. This approach uses the first \(n\) sorted, non-zero eigenvalues of the graph Laplacian, in our case of the neighbourhood graph of a room's geometry, as a geometric descriptor. To compute this we first convert each room's neighbourhood graph \(\mathcal{G}\) to an adjacency matrix \(A\) and a degree matrix \(D\). We then find the Laplacian matrix of the neighbourhood graph by subtracting its adjacency matrix from its degree matrix, as shown in equation \ref{eq:laplacian_matrix}.
 
 \begin{equation}
@@ -50,7 +57,7 @@ L = D - A
 After computing the Laplacian matrix we find its eigenvalues, sort them in ascending order and use the first 256 non-zero values as the descriptor. 
 
 
-\subsubsection{Deep Learning}
+\paragraph{Deep Learning}
 Our second approach to geometric feature embedding uses deep learning. Specifically, we use the LPDNet neural network architecture. This architecture is used for place recognition, it does so by learning descriptors, typically 2048 or 4096-dimensional, of point clouds that are theoretically independent of transformation, perspective and completeness. It does so by computing a local descriptor for every point in the point cloud and aggregrating them into a global descriptor. The LPDNet model we use is trained on outdoor maps which have different characteristics from indoor maps. However, the authors of LPDNet claim that a model trained on outdoor data can also effectively be used for indoor data. Figure \ref{fig:lpdnet_architecture} shows the network architecture of LPDNet.
 
 % network architecture w/figure
@@ -64,12 +71,21 @@ Our second approach to geometric feature embedding uses deep learning. Specifica
 \end{figure}
 
 \subsubsection{Contextual Embedding}
-After computing a descriptor for each individual room we augment them by taking into account the descriptor of the neighbourhood. For every room we find their neighbours and merge their geometry into one voxel grid, for which we compute a new descriptor. We do this step multiple times for neighbours that are at most one or multiple steps away from the room. We then append the descriptors of the neighbourhood to the room's descriptor. By doing so we can distinguish between rooms with similar geometry but dissimilar neighbourhoods, which are often present in indoor environments.
+After computing a descriptor for each individual room we augment them by taking into account the descriptor of the neighbourhood. For every room we find their neighbours and merge their geometry into one voxel grid, for which we compute a new descriptor. We do this step multiple times for neighbours that are at most one or multiple steps away from the room. We then append the descriptors of the neighbourhood to the room's descriptor. By doing so we can distinguish between rooms with similar geometry but dissimilar neighbourhoods, which are often present in indoor environments. The concept of contextual embedding is illustrated in figure \ref{fig:contextual_embedding}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/embed_context.pdf}
+    \caption{Diagram showing contextual embedding.}
+    \label{fig:contextual_embedding}
+\end{figure}
 
 \subsubsection{Initial Matching}
 The above steps are applied to both partial maps. This gives us two sets of descriptors \(\mathcal{E}_A,\ \mathcal{E}_B\) representing the embedding of the geometry of the rooms of both topometric maps.
 
-To identify the most likely overlapping rooms between the partial maps we find the one-to-one mapping between the elements of \(\mathcal{E}_A\) and \(\mathcal{E}_B\) that maximizes the similarity (or minimizes the distances) between the chosen pairs. This is an example of the unbalanced assignment problem, which consists of finding a matching in a weighted bipartite graph that minimizes the sum of its edge weights. It is unbalanced because there may be more nodes in one part of the bipartite graph than the other, which means it is not possible to assign every node in one part to a node in the other. 
+To identify the most likely overlapping rooms between the partial maps we find the one-to-one mapping between the elements of \(\mathcal{E}_A\) and \(\mathcal{E}_B\) that maximizes the similarity (or minimizes the distances) between the chosen pairs. This is an example of the unbalanced assignment problem, which consists of finding a matching in a weighted bipartite graph that minimizes the sum of its edge weights. It is unbalanced because there may be more nodes in one part of the bipartite graph than the other, which means it is not possible to assign every node in one part to a node in the other. This is illustrated in figure \ref{fig:assignment}.
+
+
 
 To construct the weighted bipartite graph we first find the Cartesian product of the feature vectors 
 
@@ -96,6 +112,20 @@ We can then find unbalanced assignment using the Jonker-Volgenant algorithm. We 
     \mathbf{M} = \{(i,\ j,\ d) \mid  |V_a| \geq i,\ |V_b|\geq j,\ d = \mathbf{C}_{ij}\}
 \end{equation}
 
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.9\textwidth]{./fig/assignment.drawio.pdf}
+    \caption{Illustration of unbalanced assignment problem.}
+    \label{fig:assignment}
+\end{figure}
+
 \subsubsection{Hypothesis growing}
 
-In practice it is unlikely that every match in \(\mathbf{M}\) is correct. However, we can use them as seeds to generate hypotheses similar to the approach described in Huang \citep{huang_topological_2005}. Starting at each initial match we get the neighbourhood of both nodes. We then construct a new cost matrix from the Euclidean distance between the embeddings of both neighbourhoods, again creating a weighted bipartite graph for which we can solve the assignment problem. By doing this we identify which neighbours of the nodes in the match are most likely to also match. We recursively apply this step to the matching neighbours to grow our initial matches into hypotheses. To decrease the risk of incorrectly identifying neighbourhood matches we constrain hypothesis growing in two ways. First, the cost of two potential matches must be below a given threshold \(c_{max}\). Second, a newly identified match may not bring the existing matching too much out of alignment. To check this, we perform a registration (see next section) between the centroids of the geometry of the identified matches at every step of the hypothesis growing. If the error increases between steps, and the increase is too large such that \(\triangle e \geq \triangle e_{max} \), then the matching is rejected. By adjusting the values of \(c_{max}\) and \(\triangle e_{max}\) more or less uncertainty is allowed when growing hypotheses.
+In practice it is unlikely that every match in \(\mathbf{M}\) is correct. However, we can use them as seeds to generate hypotheses similar to the approach described in Huang \citep{huang_topological_2005}. Starting at each initial match we get the neighbourhood of both nodes. We then construct a new cost matrix from the Euclidean distance between the embeddings of both neighbourhoods, again creating a weighted bipartite graph for which we can solve the assignment problem. By doing this we identify which neighbours of the nodes in the match are most likely to also match. We recursively apply this step to the matching neighbours to grow our initial matches into hypotheses. To decrease the risk of incorrectly identifying neighbourhood matches we constrain hypothesis growing in two ways. First, the cost of two potential matches must be below a given threshold \(c_{max}\). Second, a newly identified match may not bring the existing matching too much out of alignment. To check this, we perform a registration (see next section) between the centroids of the geometry of the identified matches at every step of the hypothesis growing. If the error increases between steps, and the increase is too large such that \(\triangle e \geq \triangle e_{max} \), then the matching is rejected. By adjusting the values of \(c_{max}\) and \(\triangle e_{max}\) more or less uncertainty is allowed when growing hypotheses. Hypothesis growing is illustrated in figure \ref{fig:hgrowing}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/hypothesis_growing.drawio.pdf}
+    \caption{Illustration of hypothesis growing.}
+    \label{fig:hgrowing}
+\end{figure}
