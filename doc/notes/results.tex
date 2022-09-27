@@ -27,83 +27,125 @@ The Collaborative SLAM Dataset (CSLAMD) is a dataset meant specifically for coll
 \subsubsection{Various Sources}
 Finally, we also include datasets from various sources. These include a two-storey house with basement and an office conference room, both captured using high-end 3D scanners. We annotated these datasets by hand according to our interpretation of the spaces and their segmentation into rooms and manually create the topological graph. 
 
-\pagebreak
-\pagebreak
-
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=.6\textwidth]{./fig/area_1_partial_01.png}
+    \includegraphics*[width=\textwidth]{./fig/area_1_partial.pdf}
     \caption{First simulated partial map extracted from S3DIS area 1 dataset.}
     \label{fig:area_1_partial_01}
 \end{figure}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics*[width=.6\textwidth]{./fig/area_1_partial_02.png}
-    \caption{Second simulated partial map extracted from S3DIS area 1 dataset.}
-    \label{fig:area_1_partial_02}
-\end{figure}
+\pagebreak
 
 \subsection{Map Extraction}
-In this section we show the results of our map extraction approach. To evaluate the results of our map extraction approach we compare the extracted topometric partial maps to the ground truth global map. For each node's geometry in a topometric map we find its Jaccard index with every node in the global map's geometry. This gives us a weighted bipartite graph, one part being the nodes in the partial map and the other being the nodes in the global map, with the weight representing the Jaccard index between nodes' geometry. We then assign each node in the partial map to a single node in the global map such that the sum of weights is maximized using linear assignment as described in the map matching section. This gives us the correspondence between nodes in the partial map and nodes in the global map. Afterwards, we compute the mean Jaccard index of the correspondences. This metric is called Mean Intersection over Union (MIoU). 
+In this section we show the results of our map extraction approach. To evaluate the results of our map extraction approach we compare the extracted topometric partial maps to the ground truth global map. For each node's geometry in a topometric map we find its Jaccard index with every node in the global map's geometry. This gives us a weighted bipartite graph, one part being the nodes in the partial map and the other being the nodes in the global map, with the weight representing the Jaccard index between nodes' geometry. We assign each node in the partial map to a single node in the global map using linear assignment, as is described in the map matching section. This gives us the correspondence between nodes in the partial map and nodes in the global map.
+
+\paragraph{Room segmentation}
+After finding the correspondences between the partial maps and the ground truth global map we compute the mean Jaccard index of the correspondences. This metric is called Mean Intersection over Union (MIoU) and it measures the quality of our room segmentation. Figure \ref{fig:map_extract_perf} shows the MIoU for each of the partial maps in the S3DIS dataset. Partial maps where map extraction has completely failed are indicated by a dash pattern.
 
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=\textwidth]{./fig/map_extract_performance_10cm.pdf}
+    \includegraphics*[width=\textwidth]{./fig/map_extract_chart.pdf}
     \caption{First topometric map extracted from S3DIS area 1 dataset.}
     \label{fig:map_extract_perf}
 \end{figure}
 
-    \begin{figure}[h]
-        \centering
-        \includegraphics*[width=.6\textwidth]{./fig/area_1_topo_01.png}
-        \caption{First topometric map extracted from S3DIS area 1 dataset.}
-        \label{fig:area_1_topo_01}
-    \end{figure}
-    
-    \begin{figure}[h]
-        \centering
-        \includegraphics*[width=.6\textwidth]{./fig/area_1_topo_02.png}
-        \caption{Second topometric map extracted from S3DIS area 1 dataset.}
-        \label{fig:area_1_topo_02}
-    \end{figure}
+\paragraph{Sparse voxel octree}
+To measure the impact that the sparse voxel octree data structure has on ball query performance we compare its computation time for balls of different radii versus using a hash table to check each if each voxel in the ball is occupied. The results of this measurement are shown in figure \ref{fig:svo_perf}.
 
-\pagebreak
-\pagebreak
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/svo_chart.pdf}
+    \caption{First topometric map extracted from S3DIS area 1 dataset.}
+    \label{fig:svo_perf}
+\end{figure}
+
+\paragraph{Result maps}
+The results of our map extraction approach are plotted as top-down views in figures \ref{fig:area_1_topo_01} and \ref{fig:area_1_topo_02}. Each room is coloured using a unique random colour. The topological edges between rooms are shown as solid black lines.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/area_1_topo.pdf}
+    \caption{First topometric map extracted from S3DIS area 1 dataset.}
+    \label{fig:area_1_topo_01}
+\end{figure}
 
 \subsection{Map Matching}
-In this section we show the results of our map matching approach. Using to partial map to global map node correspondences described in the previous section we can distinguish incorrect matches from correct matches; a match between two partial maps is correct if both nodes in the match correspond to the same node in the global map. With this information we evaluate our map matching approach based on four metrics: precision, accuracy, recall and F1. 
+In this section we show the results of our map matching approach. Using to partial map to global map node correspondences described in the previous section we can distinguish incorrect matches from correct matches; a match between two partial maps is correct if both nodes in the match correspond to the same node in the global map. 
+
+\paragraph{Matching precision}
+Figures \ref{fig:lpdnet_match} and \ref{fig:shapedna_match} show the precision of our map matching approaches divided by descriptor type, the number of steps included in the contextual embedding and whether hypothesis growing was used. 
 
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=\textwidth]{./fig/map_match_precision_10cm.pdf}
+    \includegraphics*[width=\textwidth]{./fig/match_charts.pdf}
     \caption{First topometric map extracted from S3DIS area 1 dataset.}
-    \label{fig:map_match_precision}
+    \label{fig:lpdnet_match}
 \end{figure}
+
+
+\paragraph{Matching results}
+Figure \ref{fig:area_1_match} shows the matches between the partial maps of area 1 of the S3DIS dataset, the same partial maps as in the previous sections. Each match is given a unique random colour, with a room in the first partial map having the same colour as its match in the second. These matches were generated using hypothesis growing and a one step contextual embedding with ShapeDNA descriptors
+
 
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=.6\textwidth]{./fig/area_1_match_01.png}
+    \includegraphics*[width=\textwidth]{./fig/area_1_match.pdf}
     \caption{First topometric map extracted from S3DIS area 1 dataset.}
-    \label{fig:area_1_match_01}
+    \label{fig:area_1_match}
 \end{figure}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics*[width=.6\textwidth]{./fig/area_1_match_02.png}
-    \caption{Second topometric map extracted from S3DIS area 1 dataset.}
-    \label{fig:area_1_match_02}
-\end{figure}
-
-\pagebreak
 \pagebreak
 
 \subsection{Map Fusion}
-In this section we show the results of our map merging approach. We evaluate the performance of our map merging approach by comparing the computed transformation to the transformations applied to the ground truth when simulating the partial maps. 
+In this section we show the results of our map merging approach. 
+
+\paragraph{Transformation error}
+We evaluate the performance of our map merging approach by finding the difference between the computed transformation and the transformation applied to the ground truth when simulating the partial maps. We split the difference into two parts, translation and rotation error. The translation error is given in meters and is computed by finding the magnitude of the difference between the computed and ground truth translation. The rotation error is the difference between computed and the ground truth rotation around the y-axis and is given in degrees.
+
+\paragraph{Relationship between descriptor and registration error}
+Figure \ref{fig:lpdnet_registration} shows the relationship between the distance in feature space between two rooms and their point-to-plane distance error after registration. This measures the degree to which descriptor similarity predicts how well two rooms align. Both results use two step context embedding.
+
 
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=.6\textwidth]{./fig/area_1_global.jpg}
+    \includegraphics*[width=\textwidth]{./fig/registration_charts.pdf}
+    \caption{First topometric map extracted from S3DIS area 1 dataset.}
+    \label{fig:lpdnet_registration}
+\end{figure}
+
+\paragraph{RANSAC}
+Figure \ref{fig:ransac_results} shows the number of optimal transformations that were found by RANSAC within a range of iterations. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/ransac_optima.pdf}
+    \caption{Second topometric map extracted from S3DIS area 1 dataset.}
+    \label{fig:ransac_results}
+\end{figure}
+
+\paragraph{ICP}
+Figure \ref{fig:icp_convergence} shows the relationship between the number of iterations of the iterative closest point algorithm and the point-to-plane error for a large number of matches. Individual iterative closest point runs are coloured in grey, the mean of all runs is coloured in red.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/icp_convergence.pdf}
+    \caption{Second topometric map extracted from S3DIS area 1 dataset.}
+    \label{fig:icp_convergence}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/map_fuse_chart.pdf}
     \caption{Second topometric map extracted from S3DIS area 1 dataset.}
     \label{fig:area_1_match_02}
+\end{figure}
+
+\paragraph{Fuse results}
+Figure \ref{fig:area_1_global} shows the global map created by fusing the partial maps of area 1 of the S3DIS dataset. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/area_1_global.jpg}
+    \caption{Second topometric map extracted from S3DIS area 1 dataset.}
+    \label{fig:area_1_global}
 \end{figure}

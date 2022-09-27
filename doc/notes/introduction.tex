@@ -3,7 +3,7 @@
 \section{Introduction}
 
 % why is it important
-3D maps of indoor environments are used for a wide variety of purposes ranging from vacuuming robots to industrial security. These maps are captured by a variety of agents, from humans using a 3D scanner to autonomous robots with integrated sensors. 3D maps can be used to provide comprehension of the environment to humans through cartography or for automated scene understanding that enables complex robot behaviour. In many cases it is advantageous for multiple mapping agents to collaboratively create a map, such as during rescue operations where the location of the subject(s) is unknown. By working together larger areas can be mapped in a shorter amount of time. Each agent may map the environment using a different approach, resulting in a more complete whole.
+3D \gls{map}s of indoor environments are used for a wide variety of purposes ranging from vacuuming robots to industrial security. These maps are captured by a variety of \gls{agent}s, from humans using a 3D scanner to autonomous robots with integrated sensors. 3D maps can be used to provide comprehension of the environment to humans through cartography or for automated scene understanding that enables complex robot behaviour. In many cases it is advantageous for multiple mapping agents to collaboratively create a map, such as during rescue operations where the location of the subject(s) is unknown. By working together larger areas can be mapped in a shorter amount of time. Each agent may map the environment using a different approach, resulting in a more complete whole.
 
 \begin{figure}[h]
     \centering
@@ -13,7 +13,7 @@
 \end{figure}
 
 % what is it
-The problem of creating a single, global map from multiple, partial maps is called map merging. Map merging is challenging in scenarios where the relative positions of agents are unknown because the relative positions could be used to align the maps directly. This is often the case in indoor environments because external positioning signals, e.g. GNSS are highly attenuated. This means that the global map must be created using only the properties of the partial maps. Map merging can be subdivided into two subproblems. The first is map matching, the identification of overlapping areas between partial maps. The second is map fusion, the alignment and merging of the partial maps based on the identified matches. 
+The problem of creating a single, \gls{globalmap} from multiple, \gls{partialmap}s is called \gls{mapmerging}. Map merging is challenging in scenarios where the relative positions of agents are unknown because the relative positions could be used to align the maps directly. This is often the case in indoor environments because external positioning signals, e.g. GNSS are highly attenuated. This means that the global map must be created using only the properties of the partial maps. Map merging can be subdivided into two subproblems. The first is map matching, the identification of overlapping areas between partial maps. The second is map fusion, the alignment and merging of the partial maps based on the identified matches. 
 
 \begin{figure}[h]
     \centering
@@ -24,7 +24,7 @@ The problem of creating a single, global map from multiple, partial maps is call
 
 
 % how do we do it
-Map matching is essentially a problem of place recognition; identifying the same place in different maps. Human place recognition uses a combination of the characteristics of that place and its relationship to its context. To illustrate, when asked to describe a room someone may answer that it has an L-shape, but also that the hallway leading upto it is shaped like a parallelogram or that the room has two opposing neighbouring rooms. A complete description of a place thus includes both its visible properties, such as its shape, and the topological structure of its environment. In this thesis we propose an approach to map matching that uses both of these aspects to identify matching rooms between partial maps. To achieve this we also propose an approach for extracting topometric maps, which represent both the environment's geometry and its topological structure, from point clouds. Finally, we also propose an approach to fuse the geometry and topology of topometric maps by using the identified matches.
+Map matching is essentially a problem of place recognition; identifying the same place in different maps. Human place recognition uses a combination of the characteristics of that place and its relationship to its context. To illustrate, when asked to describe a room someone may answer that it has an L-shape, but also that the hallway leading upto it is shaped like a parallelogram or that the room has two opposing neighbouring rooms. A complete description of a place thus includes both its visible properties, such as its shape, and the topological structure of its environment. In this thesis we propose an approach to map matching that uses both of these aspects to identify matching rooms between partial maps. To achieve this we also propose an approach for extracting \gls{topometricmap}s, which represent both the environment's geometry and its topological structure, from \gls{pointcloud}s. Finally, we also propose an approach to fuse the geometry and topology of topometric maps by using the identified matches.
 
 
 \begin{figure}[h]

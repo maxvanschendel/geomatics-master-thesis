@@ -18,7 +18,7 @@ A voxel is the 3D equivalent of a pixel. A voxel represents a single cell in a b
     \boldsymbol{v} = (x, y, z) \in \mathbb{Z}^{3+}
 \end{equation}
 
-We define a voxel grid as a set of voxels with an associated edge length \(e_{l}\), as shown in equation \ref{eq:voxelgrid}. Figure \ref{fig:vg_basic} shows an example voxel grid and its components.
+We define a \gls{voxelgrid} as a set of voxels with an associated edge length \(e_{l}\), as shown in equation \ref{eq:voxelgrid}. Figure \ref{fig:vg_basic} shows an example voxel grid and its components.
 
 \begin{equation}
     \label{eq:voxelgrid}
@@ -138,7 +138,7 @@ The neighbourhood graph of a voxel grid represents the connectivity between voxe
 
 
 \subsubsection{Topological map}
-Topological maps are a graph representation of an environment's structure, where vertices represent locally distinctive places, often rooms, and edges represent traversable paths between them  (see figure \ref{fig:topo_ex}) \citep{thrun_learning_1998,kuipers_robust_1988}. Topological maps are based on observations that cognitive maps, the mental maps used by humans to navigate within an environment, consist of multiple layers with a topological description of the environment being a fundamental component \citep{kuipers_robust_1988,kuipers_modeling_1978}. 
+\Gls{topologicalmap} are a graph representation of an environment's structure, where vertices represent locally distinctive places, often rooms, and edges represent traversable paths between them  (see figure \ref{fig:topo_ex}) \citep{thrun_learning_1998,kuipers_robust_1988}. Topological maps are based on observations that cognitive maps, the mental maps used by humans to navigate within an environment, consist of multiple layers with a topological description of the environment being a fundamental component \citep{kuipers_robust_1988,kuipers_modeling_1978}. 
 
 We denote a topological map as shown in equations \ref{eq:G}, \ref{eq:V} and \ref{eq:E}. The topological map consists of a graph \(G\), where nodes \(N\) represent distinctive places \(n\) and edges \(E\) represent the presence of a navigable path between neighbouring pairs of places \((v_j,v_k)\) that does not pass through any other places. Whether a path is navigable depends on who or what is navigating. For the purpose of this thesis a navigable path is a path that can be reasonably used by humans to walk from one room to another. Following this definition, only a part of the environment can be used as a navigable path. This includes the parts of the floor that are at sufficient distance from a wall or ceiling, stairs, and ramps.
 

@@ -1,6 +1,36 @@
 \begin{thebibliography}{}
 
 \bibitem [\protect \citeauthoryear {%
+Elfes%
+}{%
+Elfes%
+}{%
+{\protect \APACyear {1990}}%
+}]{%
+elfes_occupancy_1990}
+\APACinsertmetastar {%
+elfes_occupancy_1990}%
+\begin{APACrefauthors}%
+Elfes, A.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{1990}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Occupancy {Grids}: {A} {Stochastic} {Spatial}
+  {Representation} for {Active} {Robot} {Perception}} {Occupancy {Grids}: {A}
+  {Stochastic} {Spatial} {Representation} for {Active} {Robot}
+  {Perception}}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{arXiv:1304.1098 [cs]}{}{}{}.
+\newblock
+\begin{APACrefURL} [{2021-12-21}]\url{http://arxiv.org/abs/1304.1098}
+  \end{APACrefURL}
+\newblock
+\APACrefnote{arXiv: 1304.1098}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
 Huang%
 \ \BBA {} Beevers%
 }{%
@@ -119,6 +149,33 @@ Kuipers, B.%
   {Learning}}.{\BBCQ}
 \newblock
 
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Russell%
+, Norvig%
+\BCBL {}\ \BBA {} Davis%
+}{%
+Russell%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2010}}%
+}]{%
+russell_artificial_2010}
+\APACinsertmetastar {%
+russell_artificial_2010}%
+\begin{APACrefauthors}%
+Russell, S\BPBI J.%
+, Norvig, P.%
+\BCBL {}\ \BBA {} Davis, E.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYear{2010}.
+\newblock
+\APACrefbtitle {Artificial intelligence: a modern approach} {Artificial
+  intelligence: a modern approach}\ (\PrintOrdinal{3rd ed}\ \BEd).
+\newblock
+\APACaddressPublisher{Upper Saddle River}{Prentice Hall}.
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%

@@ -14,6 +14,69 @@
 \usepackage{glossaries}
 \usepackage{afterpage}
 
+\makenoidxglossaries
+
+\newglossaryentry{map}
+{
+    name=map,
+    description={A symbolic representation of an environment which contains information about its characteristics.}
+}
+
+\newglossaryentry{maprepresentation}
+{
+    name=map representation,
+    description={The choice of characteristics of the environment that a map shows. Hybrid map representations are representations that shows a combination of multiple characteristics of the environment, e.g. a hybrid topological-metric map containing both the environment's large-scale structure and small-scale geometry.}
+}
+
+\newglossaryentry{agent}
+{
+    name=agent,
+    description={According to \citet{russell_artificial_2010} "An agent is anything that can be viewed as perceiving its environment through sensors and
+    acting upon that environment through actuators.". In the context of this thesis an agent specifically refers to any human or robot that is capable of creating a 3D map of an environment and.}
+}
+
+\newglossaryentry{partialmap}
+{
+    name=partial map,
+    description={A collection of maps without a common coordinate frame that each represent a part of the environment.}
+}
+
+\newglossaryentry{globalmap}
+{
+    name=global map,
+    description={A single, more complete map constructed by merging multiple partial maps.}
+}
+
+\newglossaryentry{mapmerging}
+{
+    name=map merging,
+    description={}
+}
+
+\newglossaryentry{topologicalmap}
+{
+    name=topological map,
+    description={Topological maps are a qualitative graph representation of an environment's structure, where vertices represent locally distinctive places, often rooms, and edges represent traversable paths between them  \citep{thrun_learning_1998,kuipers_robust_1988}. Topological maps are inspired by the fact that humans are capable of spatial learning despite limited sensory and processing capability and only having partial knowledge of the environment. This is based on observations that cognitive maps, the mental maps used by humans to navigate within an environment, consist of multiple layers with a topological description of the environment being a fundamental component \citep{kuipers_robust_1988}.}
+}
+
+\newglossaryentry{pointcloud}
+{
+    name=point cloud,
+    description={An unordered collection of points representing the geometry of an object or environment in 3D euclidean space \citep{volodine_point_2007}.}
+}
+
+\newglossaryentry{voxelgrid}
+{
+    name=voxel grid,
+    description={Also known as an occupancy grid, a voxel grid is a "multi-dimensional (typically 2D or 3D) tesselation of space into cells, where each cell stores a probabilistic estimate of its state." \citep{elfes_occupancy_1990}.}
+}
+
+\newglossaryentry{topometricmap}
+{
+    name=topometric map,
+    description={A hybrid map representation combining both the topological and metric characteristics of the environment. This map representation allows the end-user to use either topological or metric information depending on the needs of the situation, e.g. the topological layer can be used for large-scale navigation and abstract reasoning while the metric layer can be used for landmark detection or obstacle avoidance.}
+}
+
 \title{Extraction and Merging of Topometric Maps}
 
 \author{
@@ -44,6 +107,8 @@
 The merging of multiple partial \gls{map}s of indoor environments created by teams of human or robot agents into a single global map is a key problem that, when solved, can enable co-localization and collaborative mapping of large environments. Existing map merging approaches generally depend on external signals which are not available indoors or only use the  geometric properties of an environment. Inspired by the human understanding of environments in relationship to their context we propose a map merging system that extracts and uses topometric maps, a map representation containing both the geometrical and topological characteristics of an environments, to solve the map merging problem in indoor spaces. In this research we demonstrate an intuitive approach to extracting topometric maps of 3D, multi-floor, indoor environments. We then use both the topological and geometric characteristics contained in the topometric maps to perform context-aware map matching and fusion. 
 
 
+\clearpage
+\printnoidxglossaries
 
 \include{introduction}
 % research background
@@ -60,10 +125,6 @@ The merging of multiple partial \gls{map}s of indoor environments created by tea
 
 \bibliographystyle{apacite}
 \bibliography{bibliography}
-
-
-\clearpage
-\printglossaries
 
 
 

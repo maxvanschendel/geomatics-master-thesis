@@ -1,82 +1,96 @@
 \babel@toc {english}{}\relax 
 \contentsline {paragraph}{abstract}{1}{}%
-\contentsline {section}{\numberline {1}Introduction}{2}{}%
-\contentsline {section}{\numberline {2}Research Questions}{4}{}%
-\contentsline {subsection}{\numberline {2.1}Main question}{4}{}%
-\contentsline {subsection}{\numberline {2.2}Subquestions}{4}{}%
-\contentsline {subsection}{\numberline {2.3}Scope}{4}{}%
-\contentsline {section}{\numberline {3}Related work}{5}{}%
-\contentsline {subsection}{\numberline {3.1}Topometric map extraction}{5}{}%
-\contentsline {subsubsection}{\numberline {3.1.1}Voronoi graphs}{5}{}%
-\contentsline {subsubsection}{\numberline {3.1.2}Visibility clustering}{5}{}%
-\contentsline {subsection}{\numberline {3.2}Map matching}{5}{}%
-\contentsline {subsubsection}{\numberline {3.2.1}Topological matching}{5}{}%
-\contentsline {subsubsection}{\numberline {3.2.2}Spectral features}{5}{}%
-\contentsline {subsubsection}{\numberline {3.2.3}Deep features}{5}{}%
-\contentsline {subsection}{\numberline {3.3}Map fusion}{5}{}%
-\contentsline {subsubsection}{\numberline {3.3.1}Point cloud registration}{5}{}%
-\contentsline {subsubsection}{\numberline {3.3.2}Non-rigid registration}{5}{}%
-\contentsline {section}{\numberline {4}Methodology}{6}{}%
-\contentsline {paragraph}{Map extraction}{6}{}%
-\contentsline {paragraph}{Map matching}{6}{}%
-\contentsline {paragraph}{Map fusion}{6}{}%
-\contentsline {subsection}{\numberline {4.1}Map Representations}{8}{}%
-\contentsline {subsubsection}{\numberline {4.1.1}Point Cloud}{8}{}%
-\contentsline {subsubsection}{\numberline {4.1.2}Voxel Grid}{8}{}%
-\contentsline {paragraph}{Sparse Voxel Octree}{9}{}%
-\contentsline {paragraph}{Voxel convolution}{10}{}%
-\contentsline {paragraph}{Neighbourhood graph}{11}{}%
-\contentsline {subsubsection}{\numberline {4.1.3}Topological map}{12}{}%
-\contentsline {subsubsection}{\numberline {4.1.4}Topometric map}{13}{}%
-\contentsline {subsection}{\numberline {4.2}Map Extraction}{14}{}%
-\contentsline {subsubsection}{\numberline {4.2.1}Overview}{14}{}%
-\contentsline {subsubsection}{\numberline {4.2.2}Navigation graph}{15}{}%
-\contentsline {paragraph}{Convolution}{15}{}%
-\contentsline {paragraph}{Upwards dilation}{15}{}%
-\contentsline {paragraph}{Connected components}{16}{}%
-\contentsline {subsubsection}{\numberline {4.2.3}Room segmentation}{16}{}%
-\contentsline {paragraph}{Maximum visibility estimation}{16}{}%
-\contentsline {paragraph}{Visibility computation}{18}{}%
-\contentsline {paragraph}{Visibility clustering}{20}{}%
-\contentsline {paragraph}{Label propagation}{22}{}%
-\contentsline {subsubsection}{\numberline {4.2.4}Topometric map extraction}{24}{}%
-\contentsline {subsection}{\numberline {4.3}Map Matching}{25}{}%
-\contentsline {subsubsection}{\numberline {4.3.1}Overview}{25}{}%
-\contentsline {subsubsection}{\numberline {4.3.2}Geometric descriptor}{26}{}%
-\contentsline {paragraph}{Spectral Features}{27}{}%
-\contentsline {paragraph}{Deep Learning}{27}{}%
-\contentsline {subsubsection}{\numberline {4.3.3}Contextual Embedding}{28}{}%
-\contentsline {subsubsection}{\numberline {4.3.4}Initial Matching}{28}{}%
-\contentsline {subsubsection}{\numberline {4.3.5}Hypothesis growing}{29}{}%
-\contentsline {subsection}{\numberline {4.4}Map Fusion}{31}{}%
-\contentsline {subsubsection}{\numberline {4.4.1}Overview}{31}{}%
-\contentsline {subsubsection}{\numberline {4.4.2}Registration}{31}{}%
-\contentsline {paragraph}{Global registration}{32}{}%
-\contentsline {paragraph}{Local registration}{33}{}%
-\contentsline {paragraph}{Transform concatenation}{33}{}%
-\contentsline {subsubsection}{\numberline {4.4.3}Geometric fusion}{33}{}%
-\contentsline {subsubsection}{\numberline {4.4.4}Topological fusion}{34}{}%
-\contentsline {section}{\numberline {5}Results}{35}{}%
-\contentsline {subsection}{\numberline {5.1}Datasets}{35}{}%
-\contentsline {subsubsection}{\numberline {5.1.1}Simulated Scan}{35}{}%
-\contentsline {subsubsection}{\numberline {5.1.2}Stanford 3D Indoor Scene Dataset}{36}{}%
-\contentsline {subsubsection}{\numberline {5.1.3}Collaborative SLAM Dataset}{36}{}%
-\contentsline {subsubsection}{\numberline {5.1.4}Various Sources}{36}{}%
-\contentsline {subsection}{\numberline {5.2}Map Extraction}{37}{}%
+\contentsline {section}{\numberline {1}Introduction}{3}{}%
+\contentsline {section}{\numberline {2}Research Questions}{5}{}%
+\contentsline {subsection}{\numberline {2.1}Main question}{5}{}%
+\contentsline {subsection}{\numberline {2.2}Subquestions}{5}{}%
+\contentsline {subsection}{\numberline {2.3}Scope}{5}{}%
+\contentsline {section}{\numberline {3}Related work}{6}{}%
+\contentsline {subsection}{\numberline {3.1}Topometric map extraction}{6}{}%
+\contentsline {subsubsection}{\numberline {3.1.1}Voronoi graphs}{6}{}%
+\contentsline {subsubsection}{\numberline {3.1.2}Visibility clustering}{6}{}%
+\contentsline {subsection}{\numberline {3.2}Map matching}{6}{}%
+\contentsline {subsubsection}{\numberline {3.2.1}Topological matching}{6}{}%
+\contentsline {subsubsection}{\numberline {3.2.2}Spectral features}{6}{}%
+\contentsline {subsubsection}{\numberline {3.2.3}Deep features}{6}{}%
+\contentsline {subsection}{\numberline {3.3}Map fusion}{6}{}%
+\contentsline {subsubsection}{\numberline {3.3.1}Point cloud registration}{6}{}%
+\contentsline {subsubsection}{\numberline {3.3.2}Non-rigid registration}{6}{}%
+\contentsline {section}{\numberline {4}Methodology}{7}{}%
+\contentsline {paragraph}{Map extraction}{7}{}%
+\contentsline {paragraph}{Map matching}{7}{}%
+\contentsline {paragraph}{Map fusion}{7}{}%
+\contentsline {subsection}{\numberline {4.1}Map Representations}{9}{}%
+\contentsline {subsubsection}{\numberline {4.1.1}Point Cloud}{9}{}%
+\contentsline {subsubsection}{\numberline {4.1.2}Voxel Grid}{9}{}%
+\contentsline {paragraph}{Sparse Voxel Octree}{10}{}%
+\contentsline {paragraph}{Voxel convolution}{11}{}%
+\contentsline {paragraph}{Neighbourhood graph}{12}{}%
+\contentsline {subsubsection}{\numberline {4.1.3}Topological map}{13}{}%
+\contentsline {subsubsection}{\numberline {4.1.4}Topometric map}{14}{}%
+\contentsline {subsection}{\numberline {4.2}Map Extraction}{15}{}%
+\contentsline {subsubsection}{\numberline {4.2.1}Overview}{15}{}%
+\contentsline {subsubsection}{\numberline {4.2.2}Navigation graph}{16}{}%
+\contentsline {paragraph}{Convolution}{16}{}%
+\contentsline {paragraph}{Upwards dilation}{16}{}%
+\contentsline {paragraph}{Connected components}{17}{}%
+\contentsline {subsubsection}{\numberline {4.2.3}Room segmentation}{17}{}%
+\contentsline {paragraph}{Maximum visibility estimation}{17}{}%
+\contentsline {paragraph}{Visibility computation}{19}{}%
+\contentsline {paragraph}{Visibility clustering}{21}{}%
+\contentsline {paragraph}{Label propagation}{23}{}%
+\contentsline {subsubsection}{\numberline {4.2.4}Topometric map extraction}{25}{}%
+\contentsline {subsection}{\numberline {4.3}Map Matching}{26}{}%
+\contentsline {subsubsection}{\numberline {4.3.1}Overview}{26}{}%
+\contentsline {subsubsection}{\numberline {4.3.2}Geometric descriptor}{27}{}%
+\contentsline {paragraph}{Spectral Features}{28}{}%
+\contentsline {paragraph}{Deep Learning}{28}{}%
+\contentsline {subsubsection}{\numberline {4.3.3}Contextual Embedding}{29}{}%
+\contentsline {subsubsection}{\numberline {4.3.4}Initial Matching}{29}{}%
+\contentsline {subsubsection}{\numberline {4.3.5}Hypothesis growing}{30}{}%
+\contentsline {subsection}{\numberline {4.4}Map Fusion}{32}{}%
+\contentsline {subsubsection}{\numberline {4.4.1}Overview}{32}{}%
+\contentsline {subsubsection}{\numberline {4.4.2}Registration}{32}{}%
+\contentsline {paragraph}{Global registration}{33}{}%
+\contentsline {paragraph}{Local registration}{34}{}%
+\contentsline {paragraph}{Transform concatenation}{34}{}%
+\contentsline {subsubsection}{\numberline {4.4.3}Geometric fusion}{34}{}%
+\contentsline {subsubsection}{\numberline {4.4.4}Topological fusion}{35}{}%
+\contentsline {section}{\numberline {5}Results}{36}{}%
+\contentsline {subsection}{\numberline {5.1}Datasets}{36}{}%
+\contentsline {subsubsection}{\numberline {5.1.1}Simulated Scan}{36}{}%
+\contentsline {subsubsection}{\numberline {5.1.2}Stanford 3D Indoor Scene Dataset}{37}{}%
+\contentsline {subsubsection}{\numberline {5.1.3}Collaborative SLAM Dataset}{37}{}%
+\contentsline {subsubsection}{\numberline {5.1.4}Various Sources}{37}{}%
+\contentsline {subsection}{\numberline {5.2}Map Extraction}{38}{}%
+\contentsline {paragraph}{Room segmentation}{38}{}%
+\contentsline {paragraph}{Sparse voxel octree}{38}{}%
+\contentsline {paragraph}{Result maps}{38}{}%
 \contentsline {subsection}{\numberline {5.3}Map Matching}{39}{}%
-\contentsline {subsection}{\numberline {5.4}Map Fusion}{40}{}%
-\contentsline {section}{\numberline {6}Discussion}{43}{}%
-\contentsline {subsection}{\numberline {6.1}Map Extraction}{43}{}%
-\contentsline {subsection}{\numberline {6.2}Map Matching}{44}{}%
-\contentsline {paragraph}{Feature embedding}{44}{}%
-\contentsline {paragraph}{Hypothesis growing}{45}{}%
-\contentsline {subsection}{\numberline {6.3}Map Fusion}{45}{}%
-\contentsline {subsection}{\numberline {6.4}Future Works}{45}{}%
-\contentsline {subsubsection}{\numberline {6.4.1}Map extraction}{46}{}%
-\contentsline {paragraph}{Room segmentation}{46}{}%
-\contentsline {paragraph}{Robust topological graph extraction}{46}{}%
-\contentsline {paragraph}{Hierarchical topological representation}{46}{}%
-\contentsline {paragraph}{Volumetric representation}{47}{}%
-\contentsline {subsubsection}{\numberline {6.4.2}Map Matching}{47}{}%
-\contentsline {subsubsection}{\numberline {6.4.3}Map Fusion}{47}{}%
-\contentsline {subsection}{\numberline {6.5}Conclusion}{48}{}%
+\contentsline {paragraph}{Matching precision}{39}{}%
+\contentsline {paragraph}{Matching results}{40}{}%
+\contentsline {subsection}{\numberline {5.4}Map Fusion}{41}{}%
+\contentsline {paragraph}{Transformation error}{41}{}%
+\contentsline {paragraph}{Relationship between descriptor and registration error}{41}{}%
+\contentsline {paragraph}{RANSAC}{42}{}%
+\contentsline {paragraph}{ICP}{42}{}%
+\contentsline {paragraph}{Fuse results}{42}{}%
+\contentsline {section}{\numberline {6}Discussion}{46}{}%
+\contentsline {subsection}{\numberline {6.1}Map Extraction}{46}{}%
+\contentsline {subsection}{\numberline {6.2}Map Matching}{47}{}%
+\contentsline {paragraph}{Descriptors}{47}{}%
+\contentsline {paragraph}{Contextual embedding}{47}{}%
+\contentsline {paragraph}{Hypothesis growing}{47}{}%
+\contentsline {subsection}{\numberline {6.3}Map Fusion}{48}{}%
+\contentsline {paragraph}{Registration}{48}{}%
+\contentsline {paragraph}{Transformation clustering}{48}{}%
+\contentsline {paragraph}{Global topometric map}{48}{}%
+\contentsline {subsection}{\numberline {6.4}Future Works}{48}{}%
+\contentsline {subsubsection}{\numberline {6.4.1}Map extraction}{49}{}%
+\contentsline {paragraph}{Room segmentation}{49}{}%
+\contentsline {paragraph}{Robust topological graph extraction}{49}{}%
+\contentsline {paragraph}{Hierarchical topological representation}{49}{}%
+\contentsline {paragraph}{Volumetric representation}{50}{}%
+\contentsline {subsubsection}{\numberline {6.4.2}Map Matching}{50}{}%
+\contentsline {subsubsection}{\numberline {6.4.3}Map Fusion}{50}{}%
+\contentsline {subsection}{\numberline {6.5}Conclusion}{51}{}%
