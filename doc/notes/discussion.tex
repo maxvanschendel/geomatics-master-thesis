@@ -1,4 +1,5 @@
 \section{Discussion}
+In this section we will discuss the results of each of the steps of our methodology.
 
 \subsection{Map Extraction}
 \label{section:map_extraction}
@@ -10,7 +11,16 @@ A common failure mode of our approach, which causes room segmentation to fail co
 
 Another way that room segmentation may fail is when stairs have very shallow treads and steep rises (respectively the horizontal and vertical part of its steps). This causes the stick kernel approach to fail to label the stairs' voxels as navigable, which means it will not be included in the navigation graph. This is because the wide part of the stick kernel placed on one step may intersect with the next step. If there are no other connections between two storeys then this will cause one or multiple storeys to become disconnected from the navigation graph, excluding it from the extracted topometric map. This problem can be resolved by changing the dimensions of the stick kernel. However, this may in turn cause other problems. Increasing the height of the thin part of the stick kernel causes low elevated surfaces with sloping sides to be included in the navigation graph, as described in the previous paragraph. Decreasing the radius of the stick kernel's wide part will include parts of the map that are not actually navigable in the navigation graph. The problem can also be solved by increasing the size of the kernel used to construct the navigable voxels' neighbourhood graph to force the stairs'  voxels to become connected even though some are missing but this causes the same issues as described in the previous paragraph.
 
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.8\textwidth]{./fig/segmentation_failure.drawio.pdf}
+    \caption{Diagram showing segmentation failure where a hallway and a room meet.}
+    \label{fig:seg_fail}
+\end{figure}
+
 Differences between the ground truth topological graph and the extracted topological graph are caused by differences in room segmentation. One such case is when a hallway connected to a room is split into multiple rooms around the opening towards the connected room. This will result in a triangular subgraph between the two parts of the hallway and the connected room, which in reality should just be a single edge between the hallway and the room. 
+
+\pagebreak
 
 
 % TODO: add figures illustrating each problem
@@ -26,15 +36,26 @@ In the results section we show a comparison between the two different descriptor
 We also measured the difference in map matching precision when using contextual embedding versus without. Both descriptors show an improvement in precision when using one-step contextual embedding. LPDNet descriptors also benefit from two-step contextual embedding but ShapeDNA descriptors do not. In both cases two-step contextual embedding still performs better than no contextual embedding.
 
 \paragraph{Hypothesis growing}
-Based on our results we find that hypothesis growing has the potential to significantly improve map matching performance. However, its performance greatly depends on the quality of the descriptor. If the initial matching is completely incorrect then hypothesis growing also fails. Even if some initial matches are correct, the performance of hypothesis growing still depends on the quality of the feature embedding. An exception to this is when the initial match used to grow a hypothesis is at the end of a linear chain of rooms. In this case the growing step will succesfully match all rooms in the chain given that the feature embedding between two matches does not fall under the similarity threshold. 
+Based on our results we find that hypothesis growing has the potential to significantly improve map matching performance. However, its performance greatly depends on the quality of the descriptor. If the initial matching is completely incorrect then hypothesis growing also fails. Even if some initial matches are correct, the performance of hypothesis growing still depends on the quality of the feature embedding. An exception to this is when the initial match used to grow a hypothesis is at the end of a linear chain of rooms (see figure \ref{fig:hypothesis_growing_chain}). In this case the growing step will succesfully match all rooms in the chain given that the feature embedding between two matches does not fall under the similarity threshold. 
 
 We also find that the transformation estimation step is able to constrain region growing to give more reasonable results by preventing matches from being made that would bring the existing matching out of alignment. Adjusting the transformation difference threshold upwards allows the region growing to grow further while increasing the risk that an incorrect match is made. In reverse, adjusting it downwards makes region growing more restrained and decreases the risk of incorrect matches. In the ideal case with no differences between partial maps and their segmentation the threshold could be set to zero as any correct match would align perfectly with the existing matches. However, incompleteness of data and error between partial maps causes the centroids of two matching rooms to be in different positions, introducing error into the alignment. From this it follows that incompleteness, and to a lesser degree error, also has a significant impact on the hypothesis growing.
+
+\pagebreak
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/hypothesis_Growing_ideal_chain.drawio.pdf}
+    \caption{Illustration of hypothesis growing in case of linear chain of rooms.}
+    \label{fig:hypothesis_growing_chain}
+
+\end{figure}
+
 
 
 \subsection{Map Fusion}
 
 \paragraph{Registration}
-Our results show that our approach to registration is able of finding a good alignment between room matches. 
+Our results show that our approach to registration is able of finding a good alignment between room matches. We find that there is a positive relationship between the similarity of room descriptors and the final registration error.  We further find that many incorrect matches can be filtered out based on their registration error. We also find that most RANSAC and ICP optima are found within 200 and 15 iterations respectively.
 
 \paragraph{Transformation clustering}
 Based on the results our approach for registration is able to succesfully find a transformation between partial maps by clustering the transformations between matches. It is able to do so across a wide range of overlap between partial maps. When no correct matches are identified map fusion fails, but this failure is detectable by its relatively high registration error.
@@ -42,14 +63,12 @@ Based on the results our approach for registration is able to succesfully find a
 \paragraph{Global topometric map}
 Our results show that our approach is able to fuse the geometry of the partial maps with sufficient accuracy to be able to re-extract a new topometric map from it. 
 
-% final map extraction performance
+\pagebreak
 
-
-
-\subsection{Future Works}
+\section{Future Works}
 In this section we discuss our recommendations for future developments of the three major components of this thesis: map extraction, map matching and map fusion. We make these recommendations based on the achieved results and our research during the creation of this thesis. 
 
-\subsubsection{Map extraction}
+\subsection{Map extraction}
 % TODO: make sure bleeding is referenced in discussion section
 
 % advanced room segmentation
@@ -68,19 +87,41 @@ Our current approach to map extraction results in a topometric map with a 'flat'
 % volumetric representation
 Our current approach only represents the surface of the geometry of the environment. This is because 3D scanners only capture that part of the environment. In reality, indoor environments are enclosed volumes. A possible improvement to our approach would be to describe the environment's geometry volumetrically, where each occupied voxel represents a volume within the building that is not obstructed. This would require a method to extract the volume from the surface geometry. Various research into this topic exists (REFERENCES HERE) but they fail when parts of the ceiling or floor are missing from the map, which is often the case. They also make assumptions such as constant storey height and only horizontal floors, which are often not the case in reality. Using a volumetric representation of the environment has a number of benefits. Navigation would no longer only be possible on the floor but throughout the entire volume. In reality most scanners use the floor to navigate but the advent of drones that operate indoors might change this. In addition, a volumetric representation might improve feature embedding performance as it describes the room more completely (DOES THIS MAKE SENSE?). Another avenue of research that moving to a volumetric approach would require would concern efficiently storing and processing the exponentially larger amount of data used in doing so. While this subject has been considered in this research by using sparse voxel octrees, variations on this or other data structures might be more effective. For example, implementations of sparse voxel octrees for GPUs exist.
 
-\subsubsection{Map Matching}
+\subsection{Map Matching}
 
-\subsubsection{Map Fusion}
+\paragraph{Deep learning descriptors}
+Most current research points to deep learning as the current state of the art for place recognition. This does not conform to the results of our research. Future research could look into applying different model architectures and compare their performance. Alternatively, if it is concluded that the problem is not related to model architecture then an existing model could be trained on indoor data which is segmented by room.
+
+\paragraph{Advanced spectral shape descriptors}
+ShapeDNA is a relatively early and simple method for spectral feature embedding. More recent research has suggested alternatively approaches that are purported to have better performance for incomplete geometry. These approaches have steep hardware requirements which were not available for this thesis. Future research should include these approaches and look into their computational feasibility.
+
+\paragraph{Graph features}
+Currently our descriptors are based on aggegrating the geometric descriptors within a neighbourhood. A more complete descriptor could also include the node's graph properties, such as its degree or centrality. Future research should look into which graph features are best used for this and whether the topology is consistent enough between partial maps to make it useful.
+
+\paragraph{Multiway matching}
+In our approach, every node in one partial map is matched to at most one node in the other partial map. In practice the segmentation is not perfectly equal between partial maps. This leads to cases where one node should reasonably be matched with multiple nodes. This would greatly complicate both map matching and fusion but could lead to better results. Future research should investigate methods for multi-node map matching and its effect on map matching performance.
+
+\subsection{Map Fusion}
+
+\paragraph{Non-rigid registration}
+Our approach assumes that the partial maps are only transformed rigidly. While this is a reasonable assumption to a dregree, it doesn't always hold for real-world data. Measurement error and error introduced during data processing can lead to deformations between partial maps that persist after rigid registration. These deformations could be corrected during map merging by finding a non-rigid registration between the partial maps, which deforms the source partial map in such a way that every matched room overlaps optimally. Future research should look into methods for estimating and applying non-rigid transformations and their effect on map fusion performance.
+
+\paragraph{Global registration}
+Our current approach uses FPFH features to match points during RANSAC global registration. This choice was made because an implementation was readily available and their computation is fast. Future research should try different approaches for local feature embedding, such as deep learning or spectral methods. A local feature with sufficient quality could make the local registration step completely unnecessary because enough correspondences are known between partial maps to register them directly.
+
+% non-rigid geometric fusion
+
+% direct topological fusion
 
 \pagebreak
 
-\subsection{Conclusion}
+\section{Conclusion}
 In our research, we tried to answer how the properties of 3D topometric maps of indoor environments can be applied to the map merging problem. In this section we will give our conclusion to each of our subquestions that together will answer our main question.
 
-Our first subquestion asked how to extract these topometric maps from point clouds. We conclude that a visibility clustering approach to segment the map, combined with voxel convolution using specialized kernels to extract the map's topology, can effectively be used to extract topometric maps. However, this approach is currently very sensitive to map quality which opens up new avenues of research.
+Our first subquestion asked how to extract these topometric maps from point clouds. We find that visibility clustering of synthetic scanning positions using the MCL algorithm, combined with some post-processing steps, can be used for room segmentation. We also find that plausible synthetic scanning positions can be found by computing the local maxima of the environment's navigation graph's horizontal distance field. We further find that this navigation graph can be extracted for multi-storey environments by applying voxel convolution using a stick kernel and that the room segmentation can be combined with the navigation graph to create a topometric map. However, this approach is currently sensitive to map quality, with failures occuring when the map of the environment is incomplete.
 
-Our second subquestion asked how to find matches between partial topometric maps to identify their overlapping areas. After comparing various descriptor approaches we conclude that the deep learning approach approach gives the best results. We also find that embedding the context of a room into the room's descriptor improves matching performance. So does hypothesis growing in the average case, but it may also cause map matching to fail completely. Based on the above we further conclude that the topological aspect of topometric maps can be used to increase map matching performance.  
+Our second subquestion asked how to find matches between partial topometric maps to identify their overlapping areas. After comparing various descriptor approaches we conclude that the spectral approach approach gives the best results. We also find that embedding the context of a room into the room's descriptor improves matching performance. So does hypothesis growing in the average case, but it may also cause map matching to fail completely. Based on the above we further conclude that the topological aspect of topometric maps can be used to increase map matching performance. Possible failure modes of this approach include similar rooms which have similar contexts and differences in segmentation between partial maps.
 
-Our third subquestion asked how to fuse the partial topometric maps after matches have been identified. We tried two registration approaches, ICP and DCP and found that ICP is better suited for its ability to constrain the transform without requiring retraining. We conclude that using ICP to register the room submaps can also be used to reject incorrect matchings. 
+Our third subquestion asked how to fuse the partial topometric maps after matches have been identified. We find that a combination of RANSAC based global registration using FPFH features and gravity-aligned ICP local registration can succesfully identify the transformation between rooms. We also find that DBSCAN can be used to cluster these transformations based on their similarity and that a correct final transformation can be computed based on this clustering. We further find that the above approach does have problems dealing with symmetry, which is common in indoor environments.
 
-With the above conclusions we can answer our main research question: partial topometric maps can be extracted from partial point clouds by using visibility clustering and voxel convolution, matches can are best found using a combination of deep learning descriptors, context embedding and hypothesis growing, using these matches the topometric map submaps can then be individually fused using ICP registration to create the global map and reject incorrect matches.
+With the above conclusions we can answer our main research question: partial topometric maps can be extracted from partial point clouds by using visibility clustering and voxel convolution. Matches can be found using a combination of spectral descriptors, contextual embedding and hypothesis growing. By using these matches we can succesfully find the transformation between rooms, from which the final transformation can be found by clustering them using DBSCAN. Based on our conclusions we identify multiple avenues for future research, for which the focus should lie on robust topometric map extraction, improved room descriptors and non-rigid map fusion.

@@ -72,6 +72,13 @@ The results of our map extraction approach are plotted as top-down views in figu
 \subsection{Map Matching}
 In this section we show the results of our map matching approach. Using to partial map to global map node correspondences described in the previous section we can distinguish incorrect matches from correct matches; a match between two partial maps is correct if both nodes in the match correspond to the same node in the global map. 
 
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/map_match_eval.drawio.pdf}
+    \caption{First topometric map extracted from S3DIS area 1 dataset.}
+    \label{fig:mapmatch_eval}
+\end{figure}
+
 \paragraph{Matching precision}
 Figures \ref{fig:lpdnet_match} and \ref{fig:shapedna_match} show the precision of our map matching approaches divided by descriptor type, the number of steps included in the contextual embedding and whether hypothesis growing was used. 
 
@@ -81,6 +88,8 @@ Figures \ref{fig:lpdnet_match} and \ref{fig:shapedna_match} show the precision o
     \caption{First topometric map extracted from S3DIS area 1 dataset.}
     \label{fig:lpdnet_match}
 \end{figure}
+
+
 
 
 \paragraph{Matching results}
