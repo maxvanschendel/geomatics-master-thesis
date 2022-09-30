@@ -50,8 +50,40 @@
 \newglossaryentry{mapmerging}
 {
     name=map merging,
-    description={}
+    description={The problem of identifying overlapping areas between partial maps and using these to combine the partial maps into a global map.}
 }
+
+\newglossaryentry{mapmatching}
+{
+    name=map matching,
+    description={The problem of identifying overlapping areas between partial maps.}
+}
+
+\newglossaryentry{mapfusion}
+{
+    name=map fusion,
+    description={The problem of combining multiple partial maps into a single global map based on their overlapping areas.}
+}
+
+\newglossaryentry{mapextraction}
+{
+    name=map extraction,
+    description={The problem of converting one map representation to another. For the purposes of this research this mostly refers to the extraction of topometric maps from voxel grids.}
+}
+
+
+\newglossaryentry{localdescriptor}
+{
+    name=local descriptor,
+    description={An n-dimensional vector representing the properties of a single point in a point cloud that can be used to find corresponding points between point clouds.}
+}
+
+\newglossaryentry{globaldescriptor}
+{
+    name=global descriptor,
+    description={An n-dimensional vector representing the properties of a whole point cloud which can be used to compare the similarity of point clouds.}
+}
+
 
 \newglossaryentry{topologicalmap}
 {
@@ -77,7 +109,13 @@
     description={A hybrid map representation combining both the topological and metric characteristics of the environment. This map representation allows the end-user to use either topological or metric information depending on the needs of the situation, e.g. the topological layer can be used for large-scale navigation and abstract reasoning while the metric layer can be used for landmark detection or obstacle avoidance.}
 }
 
-\title{Extraction and Merging of Topometric Maps}
+\newglossaryentry{registration}
+{
+    name=registration,
+    description={The problem of finding a transformation that optimally aligns two point clouds.}
+}
+
+\title{Extraction and Merging of Topometric Maps of Indoor Environments}
 
 \author{
   Maximiliaan van Schendel\\
@@ -89,8 +127,10 @@
   external supervisor: Robert Voûte \\
 }
 
-\date{24/01/2022}
+\date{30/09/2022}
 \begin{document}
+\pagenumbering{gobble}
+
 \include{commands.tex}
 \include{glossary.tex}
 \maketitle
@@ -104,7 +144,7 @@
 % abstract
 
 \paragraph{abstract}
-The merging of multiple partial \gls{map}s of indoor environments created by teams of human or robot agents into a single global map is a key problem that, when solved, can enable co-localization and collaborative mapping of large environments. Existing map merging approaches generally depend on external signals which are not available indoors or only use the  geometric properties of an environment. Inspired by the human understanding of environments in relationship to their context we propose a map merging system that extracts and uses topometric maps, a map representation containing both the geometrical and topological characteristics of an environments, to solve the map merging problem in indoor spaces. In this research we demonstrate an intuitive approach to extracting topometric maps of 3D, multi-floor, indoor environments. We then use both the topological and geometric characteristics contained in the topometric maps to perform context-aware map matching and fusion. 
+The merging of multiple partial \gls{map}s of indoor environments created by teams of human or robot agents into a single global map is a key problem that, when solved, can improve mapping speed and quality. Existing map merging approaches generally depend on external signals which are not available indoors or only use the geometric properties of an environment. Inspired by the human understanding of environments in relationship to their context we propose a map merging system that extracts and uses topometric maps, a map representation containing both the geometric and topological characteristics of an environments, to solve the map merging problem in indoor spaces. In this research we demonstrate an intuitive approach to extracting topometric maps of 3D, multi-floor, indoor environments and use both the topological and geometric characteristics contained in the topometric maps to perform context-aware map matching and fusion. 
 
 
 \clearpage

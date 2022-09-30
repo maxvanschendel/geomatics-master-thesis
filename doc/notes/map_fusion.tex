@@ -3,14 +3,14 @@
 \subsubsection{Overview}
 The final step of the map merging process is map fusion, in general this means the problem of combining multiple partial maps into a global map. In our case, it specifically refers to the fusion of two partial topometric maps at the geometric and topological level to produce a global topometric map. 
 
-To achieve geometric fusion we designate one partial map as the source and the other as the target and find a transformation that aligns the two maps. We constrain the transformation to a rotation around the y-axis and a translation because most 3D scans of indoor environments are gravity-aligned, which means that it is not necessary to consider rotations around the x- or z-axis. 
+To achieve geometric fusion we designate one partial map as the source and the other as the target and find a transformation that aligns the source map with the target map. We constrain the transformation to a rotation around the y-axis and a translation because most 3D scans of indoor environments are gravity-aligned, which means that it is not necessary to consider rotations around the x- or z-axis. 
 
 To find the transformation between the partial maps we first find the transformation between each pair of matched rooms. We do so by using RANSAC to find a global alignment which we then refine using the iterative closest point algorithm. Afterwards, we cluster the transformations and find the mean transformation of each cluster. We use the mean transformation which leads to the smallest difference between partial maps as our final rigid transformation. We then apply this transformation to the source map and fuse the geometry of the two maps into a global voxel grid map. Finally, we extract a new, global topometric map from the fused geometry. Figure \ref{fig:flowchart_fuse} shows an overview of our map fusion approach. In the rest of this section we will describe our map fusion approach in detail.
 
 \afterpage{
     \begin{figure}[h]
         \centering
-        \includegraphics*[width=.9\textwidth]{./fig/flowchart_fuse.pdf}
+        \includegraphics*[width=.9\textwidth]{./fig/flowchart_complete-Map fuse.drawio.pdf}
         \caption{Diagram showing overview of map fusion methodology.}
         \label{fig:flowchart_fuse}
     \end{figure}
@@ -18,7 +18,7 @@ To find the transformation between the partial maps we first find the transforma
 
 \subsubsection{Registration}
 
-The goal of registration is to find a rigid transformation \(\tau\) between two point clouds that minimizes the error, as defined by an error function \(e\), between them. For the error function we use point-to-plane distance, as shown in equation \ref{eq:point2plane}. In the context of indoor mapping data is usually aligned to gravity, with the direction of gravity being equal to the direction of the negative y-axis. We take this into account by constraining the transformation between partial maps to a translation along all three axes and a rotation around the y-axis. The rigid transformation can thus be expressed as a 4-dimensional vector, as shown in equation \ref{eq:tau}. Reducing the degrees of freedom of the problem from 6 to 4 can improve the alignment.
+The goal of \gls{registration} is to find a rigid transformation \(\tau\) between two point clouds that minimizes the error, as defined by an error function \(e\), between them. For the error function we use point-to-plane distance, as shown in equation \ref{eq:point2plane}. In the context of indoor mapping data is usually aligned to gravity, with the direction of gravity being equal to the direction of the negative y-axis. We take this into account by constraining the transformation between partial maps to a translation along all three axes and a rotation around the y-axis. The rigid transformation can thus be expressed as a 4-dimensional vector, as shown in equation \ref{eq:tau}. Reducing the degrees of freedom of the problem from 6 to 4 can improve the alignment \citep{kubelka_gravity-constrained_2022}.
 
 
 \begin{equation}
@@ -72,16 +72,16 @@ The goal of registration is to find a rigid transformation \(\tau\) between two 
 The above is able to align two point clouds optimally if the correspondence between points is known exactly, meaning that the \(k\)-th point of both \(\mathcal{P}\) and \(\mathcal{Q}\) correspond to the same point in the real world. This is, however, usually not the case in real world scenarios. This means that registration requires another two steps, global and local registration, which we will discuss below.
 
 \paragraph{Global registration}
-The purpose of global registration is to find a rough alignment between point clouds, which can then be further refined in the local registration step. To do so we use a RANSAC based approach. This algorithm works as follows. For every point in the point clouds \(\mathcal{P}\) and \(\mathcal{Q}\) compute a feature embedding that can be used to find similar points in the other point clouds. We use Fast Point Feature Histograms (FPFH) features, which are commonly used for this purpose. We then randomly select 3 points from \(\mathcal{P}\) and find the corresponding points in \(\mathcal{Q}\) which have the smallest distance in feature space. We then compare the triangles formed by both sets of points. If the edge lengths of both triangles are too dissimilar, meaning that the ratio of their lengths is outside of a predetermined range, then the selected points are discarded and new ones are selected. If not, we find the gravity-constrained rigid transformation between the 3 pairs. We then evaluate how well the rigid transformation aligns the two point clouds by finding the mean distance of every point in \(\mathcal{P}\) to its nearest neighbour in \(\mathcal{Q}\). If the mean distance is smaller than the previous smallest mean distance then we store the transformation.
+The purpose of global registration is to find a rough alignment between point clouds, which can then be further refined in the local registration step. To do so we use a RANSAC based approach based on the work of \citet{koguciuk_parallel_2017}. This algorithm works as follows. For every point in the point clouds \(\mathcal{P}\) and \(\mathcal{Q}\) compute a feature embedding that can be used to find similar points in the other point clouds. We use Fast Point Feature Histograms (FPFH) features, which are commonly used for this purpose \citep{rusu_fast_2009}. We then randomly select 3 points from \(\mathcal{P}\) and find the corresponding points in \(\mathcal{Q}\) which have the smallest distance in feature space. We then compare the triangles formed by both sets of points. If the edge lengths of both triangles are too dissimilar, meaning that the ratio of their lengths is outside of a predetermined range, then the selected points are discarded and new ones are selected. If not, we find the gravity-constrained rigid transformation between the 3 pairs. We then evaluate how well the rigid transformation aligns the two point clouds by finding the mean distance of every point in \(\mathcal{P}\) to its nearest neighbour in \(\mathcal{Q}\). If the mean distance is smaller than the previous smallest mean distance then we store the transformation.
 We repeat this for a set amount of iterations or until a mean distance threshold is reached. The rigid transformation with the smallest mean distance is then used for the next step, local registration.
 
 
 \paragraph{Local registration}
-The purpose of local registration is to refine the alignment found in the global registration step. We use the iterative closest point (ICP) algorithm to achieve this. The ICP algorithm is widely used, a detailed description of how it works can be found in (CITATION HERE). The only major modification is that we use the gravity-aligned transformation with the point-to-plane error function described above at each iteration.
+The purpose of local registration is to refine the alignment found in the global registration step. We use the iterative closest point (ICP) algorithm to achieve this. The only major modification is that we use the gravity-aligned transformation with the point-to-plane error function described above at each iteration.
 
 
 \paragraph{Transform concatenation}
-After finding the global and the local transformations we can find the final transformation \(\tau\) by multiplying their by 4 transformation matrices. We denote the function that converts \(\tau\) to a 4 by 4 transformation matrix as in equation \ref{eq:4by4}. Equation \ref{eq:trans_mult} shows how to compute the final transformation matrix, note that the order of multiplication is important, as matrix multiplication is not commutative.
+After finding the global and the local transformations we can find the final transformation \(\tau\) by multiplying their by 4 by 4 transformation matrices. We denote the function that converts \(\tau\) to a 4 by 4 transformation matrix as in equation \ref{eq:4by4}. Equation \ref{eq:trans_mult} shows how to compute the final transformation matrix, note that the order of multiplication is important, as matrix multiplication is not commutative.
 
 \begin{equation}
     \label{eq:4by4}
@@ -94,7 +94,22 @@ After finding the global and the local transformations we can find the final tra
 \end{equation}
 
 \subsubsection{Geometric fusion}
-We apply the above steps to the geometry of each room and its match if their distance in feature space is below a threshold. This gives us a 4-dimensional vector representing the transformation between matches. We discard the matches where the registration error is too high and cluster the remaining transformations using the DBSCAN algorithm. This gives us multiple clusters of transformations that, within a cluster, result in a similar alignment between partial maps. For each of these clusters we find the mean transformation, apply it to the partial map and compute the point-to-plane error between the partial maps. We then select the cluster with the lowest error and use its mean transformation to align the geometry of the partial topometric maps. 
+We apply the above steps to the geometry of each room and its match if their distance in feature space is below a threshold. This gives us a 4 by 4 transformation matrix for each match.
+
+\begin{equation}
+    \label{eq:room_t}
+    \mathbf{T} = \{T(\tau_i)\}_{i=1}^{|\mathbf{M}|},\ T(\tau_i) \in \mathbb{R}^{4 \times 4}
+\end{equation}
+
+We discard the matches where the registration error is too high and cluster the remaining transformations using the DBSCAN algorithm \citep{schubert_dbscan_2017}. This gives us multiple clusters of transformations that, within a cluster, result in a similar alignment between partial maps (see equation \ref{eq:t_clusters}). 
+
+\begin{equation}
+    \label{eq:t_clusters}
+    \mathbf{C}_{\mathbf{T}} = \{c_i\}_{i=1}^{|\mathbf{T}|},\ c_i \in \mathbb{Z}^+
+\end{equation}
+
+
+For each of these clusters we find the mean transformation, apply it to the partial map and compute the point-to-plane error between the partial maps. We then select the cluster \(h\) with the lowest error and use its mean transformation to align the geometry of the partial topometric maps. 
 
 \subsubsection{Topological fusion}
 After the geometric fusion step the geometry of the topometric maps is brought into alignment but their graphs haven't been fused yet. Fusing the graphs directly using the identified matches is possible but does not guarantuee a good global topometric map. This is because the geometric fusion may have changed the partial maps in a way that the global geometric map's topology is greater than the sum of the partial maps' topology. As a result, we have to reextract the topology from the results of the geometric fusion. To do so, we reuse the navigation graphs of the partial maps as the navigation graph of the global map. We also reuse the optimal viewpoints from both partial maps. This means that only the room segmentation step needs to be redone. The result is a global topometric map created from the fusion of two partial topometric maps.

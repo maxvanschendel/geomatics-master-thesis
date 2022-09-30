@@ -1,6 +1,33 @@
 \begin{thebibliography}{}
 
 \bibitem [\protect \citeauthoryear {%
+Amanatides%
+\ \BBA {} Woo%
+}{%
+Amanatides%
+\ \BBA {} Woo%
+}{%
+{\protect \APACyear {1987}}%
+}]{%
+amanatides_fast_1987}
+\APACinsertmetastar {%
+amanatides_fast_1987}%
+\begin{APACrefauthors}%
+Amanatides, J.%
+\BCBT {}\ \BBA {} Woo, A.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{1987}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {A {Fast} {Voxel} {Traversal} {Algorithm} for {Ray}
+  {Tracing}} {A {Fast} {Voxel} {Traversal} {Algorithm} for {Ray}
+  {Tracing}}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{}{}{}{6}.
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
 Ambrus%
 , Claici%
 \BCBL {}\ \BBA {} Wendt%
@@ -90,10 +117,6 @@ Aoki, Y.%
   {Point} {Cloud} {Registration} {Using} {PointNet}}.{\BBCQ}
 \newblock
 \BIn{} (\BPGS\ 7163--7172).
-\newblock
-\begin{APACrefURL}
-  [{2022-09-29}]\url{https://openaccess.thecvf.com/content_CVPR_2019/html/Aoki_PointNetLK_Robust__Efficient_Point_Cloud_Registration_Using_PointNet_CVPR_2019_paper.html}
-  \end{APACrefURL}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -126,10 +149,6 @@ Arandjelovic, R.%
   {Weakly} {Supervised} {Place} {Recognition}}.{\BBCQ}
 \newblock
 \BIn{} (\BPGS\ 5297--5307).
-\newblock
-\begin{APACrefURL}
-  [{2022-09-29}]\url{https://openaccess.thecvf.com/content_cvpr_2016/html/Arandjelovic_NetVLAD_CNN_Architecture_CVPR_2016_paper.html}
-  \end{APACrefURL}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -155,10 +174,46 @@ Arandjelovic, R.%
 {\BBOQ}\APACrefatitle {All {About} {VLAD}} {All {About} {VLAD}}.{\BBCQ}
 \newblock
 \BIn{} (\BPGS\ 1578--1585).
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Armeni%
+\ \protect \BOthers {.}}{%
+Armeni%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2016}}%
+}]{%
+armeni_3d_2016}
+\APACinsertmetastar {%
+armeni_3d_2016}%
+\begin{APACrefauthors}%
+Armeni, I.%
+, Sener, O.%
+, Zamir, A\BPBI R.%
+, Jiang, H.%
+, Brilakis, I.%
+, Fischer, M.%
+\BCBL {}\ \BBA {} Savarese, S.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2016}{{\APACmonth{06}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {{3D} {Semantic} {Parsing} of {Large}-{Scale} {Indoor}
+  {Spaces}} {{3D} {Semantic} {Parsing} of {Large}-{Scale} {Indoor}
+  {Spaces}}.{\BBCQ}
+\newblock
+\BIn{} \APACrefbtitle {2016 {IEEE} {Conference} on {Computer} {Vision} and
+  {Pattern} {Recognition} ({CVPR})} {2016 {IEEE} {Conference} on {Computer}
+  {Vision} and {Pattern} {Recognition} ({CVPR})}\ (\BPGS\ 1534--1543).
+\newblock
+\APACaddressPublisher{Las Vegas, NV, USA}{IEEE}.
 \newblock
 \begin{APACrefURL}
-  [{2022-09-29}]\url{https://www.cv-foundation.org/openaccess/content_cvpr_2013/html/Arandjelovic_All_About_VLAD_2013_CVPR_paper.html}
+  [{2022-09-30}]\url{http://ieeexplore.ieee.org/document/7780539/}
   \end{APACrefURL}
+\newblock
+\begin{APACrefDOI} \doi{10.1109/CVPR.2016.170} \end{APACrefDOI}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -303,6 +358,39 @@ Chen, J.%
   https://doi.org/10.1080/15230406.2019.1619482}
 \newblock
 \begin{APACrefDOI} \doi{10.1080/15230406.2019.1619482} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Dubé%
+\ \protect \BOthers {.}}{%
+Dubé%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2017}}%
+}]{%
+dube_segmatch_2017}
+\APACinsertmetastar {%
+dube_segmatch_2017}%
+\begin{APACrefauthors}%
+Dubé, R.%
+, Dugas, D.%
+, Stumm, E.%
+, Nieto, J.%
+, Siegwart, R.%
+\BCBL {}\ \BBA {} Cadena, C.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2017}{{\APACmonth{05}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {{SegMatch}: {Segment} based place recognition in {3D}
+  point clouds} {{SegMatch}: {Segment} based place recognition in {3D} point
+  clouds}.{\BBCQ}
+\newblock
+\BIn{} \APACrefbtitle {2017 {IEEE} {International} {Conference} on {Robotics}
+  and {Automation} ({ICRA})} {2017 {IEEE} {International} {Conference} on
+  {Robotics} and {Automation} ({ICRA})}\ (\BPGS\ 5266--5272).
+\newblock
+\begin{APACrefDOI} \doi{10.1109/ICRA.2017.7989618} \end{APACrefDOI}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -464,6 +552,37 @@ Gorte, B.%
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
+Han%
+, Jin%
+, Xie%
+, Wang%
+\BCBL {}\ \BBA {} Jiang%
+}{%
+Han%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2018}}%
+}]{%
+han_comprehensive_2018}
+\APACinsertmetastar {%
+han_comprehensive_2018}%
+\begin{APACrefauthors}%
+Han, X\BHBI F.%
+, Jin, J\BPBI S.%
+, Xie, J.%
+, Wang, M\BHBI J.%
+\BCBL {}\ \BBA {} Jiang, W.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2018}{}{}.
+\newblock
+{\BBOQ}\APACrefatitle {A comprehensive review of {3D} point cloud descriptors}
+  {A comprehensive review of {3D} point cloud descriptors}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{}{}{}{44}.
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
 He%
 , Sun%
 , Hou%
@@ -567,6 +686,38 @@ Huang, W\BPBI H.%
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
+Jonker%
+\ \BBA {} Volgenant%
+}{%
+Jonker%
+\ \BBA {} Volgenant%
+}{%
+{\protect \APACyear {1987}}%
+}]{%
+jonker_shortest_1987}
+\APACinsertmetastar {%
+jonker_shortest_1987}%
+\begin{APACrefauthors}%
+Jonker, R.%
+\BCBT {}\ \BBA {} Volgenant, A.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{1987}{{\APACmonth{12}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {A shortest augmenting path algorithm for dense and
+  sparse linear assignment problems} {A shortest augmenting path algorithm for
+  dense and sparse linear assignment problems}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Computing}{38}{4}{325--340}.
+\newblock
+\begin{APACrefURL} [{2022-09-30}]\url{https://doi.org/10.1007/BF02278710}
+  \end{APACrefURL}
+\newblock
+\begin{APACrefDOI} \doi{10.1007/BF02278710} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
 Koguciuk%
 }{%
 Koguciuk%
@@ -618,10 +769,6 @@ Komorowski, J.%
   {Place} {Recognition}}.{\BBCQ}
 \newblock
 \BIn{} (\BPGS\ 1790--1799).
-\newblock
-\begin{APACrefURL}
-  [{2022-09-29}]\url{https://openaccess.thecvf.com/content/WACV2021/html/Komorowski_MinkLoc3D_Point_Cloud_Based_Large-Scale_Place_Recognition_WACV_2021_paper.html}
-  \end{APACrefURL}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -744,6 +891,44 @@ Kuipers, B.%
   \end{APACrefURL}
 \newblock
 \begin{APACrefDOI} \doi{10.1016/0921-8890(91)90014-C} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Lajoie%
+, Ramtoula%
+, Wu%
+\BCBL {}\ \BBA {} Beltrame%
+}{%
+Lajoie%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2022}}%
+}]{%
+lajoie_towards_2022}
+\APACinsertmetastar {%
+lajoie_towards_2022}%
+\begin{APACrefauthors}%
+Lajoie, P\BHBI Y.%
+, Ramtoula, B.%
+, Wu, F.%
+\BCBL {}\ \BBA {} Beltrame, G.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2022}{{\APACmonth{03}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Towards {Collaborative} {Simultaneous} {Localization}
+  and {Mapping}: a {Survey} of the {Current} {Research} {Landscape}} {Towards
+  {Collaborative} {Simultaneous} {Localization} and {Mapping}: a {Survey} of
+  the {Current} {Research} {Landscape}}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Field Robotics}{2}{1}{971--1000}.
+\newblock
+\begin{APACrefURL} [{2022-09-30}]\url{http://arxiv.org/abs/2108.08325}
+  \end{APACrefURL}
+\newblock
+\APACrefnote{arXiv:2108.08325 [cs]}
+\newblock
+\begin{APACrefDOI} \doi{10.55417/fr.2022032} \end{APACrefDOI}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -1065,10 +1250,6 @@ Qi, C\BPBI R.%
   {Point} {Sets} for {3D} {Classification} and {Segmentation}}.{\BBCQ}
 \newblock
 \BIn{} (\BPGS\ 652--660).
-\newblock
-\begin{APACrefURL}
-  [{2022-09-29}]\url{https://openaccess.thecvf.com/content_cvpr_2017/html/Qi_PointNet_Deep_Learning_CVPR_2017_paper.html}
-  \end{APACrefURL}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -1268,6 +1449,114 @@ Rusu, R\BPBI B.%
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
+Rusu%
+\ \BBA {} Cousins%
+}{%
+Rusu%
+\ \BBA {} Cousins%
+}{%
+{\protect \APACyear {2011}}%
+}]{%
+rusu_3d_2011}
+\APACinsertmetastar {%
+rusu_3d_2011}%
+\begin{APACrefauthors}%
+Rusu, R\BPBI B.%
+\BCBT {}\ \BBA {} Cousins, S.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2011}{{\APACmonth{05}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {{3D} is here: {Point} {Cloud} {Library} ({PCL})} {{3D}
+  is here: {Point} {Cloud} {Library} ({PCL})}.{\BBCQ}
+\newblock
+\BIn{} \APACrefbtitle {2011 {IEEE} {International} {Conference} on {Robotics}
+  and {Automation}} {2011 {IEEE} {International} {Conference} on {Robotics} and
+  {Automation}}\ (\BPGS\ 1--4).
+\newblock
+\APACrefnote{ISSN: 1050-4729}
+\newblock
+\begin{APACrefDOI} \doi{10.1109/ICRA.2011.5980567} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Schubert%
+, Sander%
+, Ester%
+, Kriegel%
+\BCBL {}\ \BBA {} Xu%
+}{%
+Schubert%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2017}}%
+}]{%
+schubert_dbscan_2017}
+\APACinsertmetastar {%
+schubert_dbscan_2017}%
+\begin{APACrefauthors}%
+Schubert, E.%
+, Sander, J.%
+, Ester, M.%
+, Kriegel, H\BPBI P.%
+\BCBL {}\ \BBA {} Xu, X.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2017}{{\APACmonth{07}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {{DBSCAN} {Revisited}, {Revisited}: {Why} and {How} {You}
+  {Should} ({Still}) {Use} {DBSCAN}} {{DBSCAN} {Revisited}, {Revisited}: {Why}
+  and {How} {You} {Should} ({Still}) {Use} {DBSCAN}}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{ACM Transactions on Database
+  Systems}{42}{3}{19:1--19:21}.
+\newblock
+\begin{APACrefURL} [{2022-09-30}]\url{https://doi.org/10.1145/3068335}
+  \end{APACrefURL}
+\newblock
+\begin{APACrefDOI} \doi{10.1145/3068335} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Schuster%
+\ \protect \BOthers {.}}{%
+Schuster%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2020}}%
+}]{%
+schuster_arches_2020}
+\APACinsertmetastar {%
+schuster_arches_2020}%
+\begin{APACrefauthors}%
+Schuster, M\BPBI J.%
+, Müller, M\BPBI G.%
+, Brunner, S\BPBI G.%
+, Lehner, H.%
+, Lehner, P.%
+, Sakagami, R.%
+\BDBL {}Wedler, A.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2020}{{\APACmonth{10}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {The {ARCHES} {Space}-{Analogue} {Demonstration}
+  {Mission}: {Towards} {Heterogeneous} {Teams} of {Autonomous} {Robots} for
+  {Collaborative} {Scientific} {Sampling} in {Planetary} {Exploration}} {The
+  {ARCHES} {Space}-{Analogue} {Demonstration} {Mission}: {Towards}
+  {Heterogeneous} {Teams} of {Autonomous} {Robots} for {Collaborative}
+  {Scientific} {Sampling} in {Planetary} {Exploration}}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{IEEE Robotics and Automation
+  Letters}{5}{4}{5315--5322}.
+\newblock
+\APACrefnote{Conference Name: IEEE Robotics and Automation Letters}
+\newblock
+\begin{APACrefDOI} \doi{10.1109/LRA.2020.3007468} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
 Serafin%
 \ \BBA {} Grisetti%
 }{%
@@ -1462,10 +1751,34 @@ Uy, M\BPBI A.%
   {Recognition}}.{\BBCQ}
 \newblock
 \BIn{} (\BPGS\ 4470--4479).
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+{van Dongen}%
+}{%
+{van Dongen}%
+}{%
+{\protect \APACyear {2000}}%
+}]{%
+van_dongen_cluster_2000}
+\APACinsertmetastar {%
+van_dongen_cluster_2000}%
+\begin{APACrefauthors}%
+{van Dongen}.%
+\end{APACrefauthors}%
+\unskip\
 \newblock
-\begin{APACrefURL}
-  [{2022-09-29}]\url{https://openaccess.thecvf.com/content_cvpr_2018/html/Uy_PointNetVLAD_Deep_Point_CVPR_2018_paper.html}
+\APACrefYearMonthDay{2000}{{\APACmonth{01}}}{}.
+\newblock
+\APACrefbtitle {A cluster algorithm for graphs.} {A cluster algorithm for
+  graphs.}
+\newblock
+\APACaddressPublisher{}{CWI}.
+\newblock
+\begin{APACrefURL} [{2022-09-30}]\url{https://ir.cwi.nl/pub/4463}
   \end{APACrefURL}
+\newblock
+\APACrefnote{Issue: R 0010 Publication Title: Information Systems [INS]}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -1555,10 +1868,6 @@ Wang, Y.%
   {Representations} for {Point} {Cloud} {Registration}}.{\BBCQ}
 \newblock
 \BIn{} (\BPGS\ 3523--3532).
-\newblock
-\begin{APACrefURL}
-  [{2022-09-29}]\url{https://openaccess.thecvf.com/content_ICCV_2019/html/Wang_Deep_Closest_Point_Learning_Representations_for_Point_Cloud_Registration_ICCV_2019_paper.html}
-  \end{APACrefURL}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%

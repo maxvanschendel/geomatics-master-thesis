@@ -21,49 +21,51 @@ Reallocated wiz_functions (elt_size=4) to 9000 items from 6000.
 Reallocated singl_function (elt_size=4) to 100 items from 50.
 Database file #1: bibliography.bib
 apacite.bst [2013/07/21 v6.03 APA bibliography style]
+Warning--No journal in amanatides_fast_1987
 Warning--No journal in dudek_topological_1998
+Warning--No journal in han_comprehensive_2018
 Warning--No journal in kuipers_robust_1988
 Warning--No journal in ochmann_towards_2014
 Warning--No school in volodine_point_2007
-You've used 49 entries,
+You've used 59 entries,
             6951 wiz_defined-function locations,
-            1647 strings with 24211 characters,
-and the built_in function-call counts, 105384 in all, are:
-= -- 12949
-> -- 994
-< -- 4896
-+ -- 4943
-- -- 100
-* -- 6912
-:= -- 18453
-add.period$ -- 228
-call.type$ -- 49
-change.case$ -- 914
+            1705 strings with 26601 characters,
+and the built_in function-call counts, 128218 in all, are:
+= -- 15721
+> -- 1219
+< -- 6002
++ -- 6110
+- -- 122
+* -- 8395
+:= -- 22514
+add.period$ -- 274
+call.type$ -- 59
+change.case$ -- 1103
 chr.to.int$ -- 0
-cite$ -- 102
-duplicate$ -- 2962
-empty$ -- 4208
-format.name$ -- 1604
-if$ -- 20119
+cite$ -- 124
+duplicate$ -- 3654
+empty$ -- 5063
+format.name$ -- 2001
+if$ -- 24383
 int.to.chr$ -- 0
-int.to.str$ -- 147
+int.to.str$ -- 177
 missing$ -- 0
-newline$ -- 1446
-num.names$ -- 392
-pop$ -- 1997
+newline$ -- 1734
+num.names$ -- 472
+pop$ -- 2433
 preamble$ -- 1
-purify$ -- 268
+purify$ -- 324
 quote$ -- 0
-skip$ -- 6672
+skip$ -- 8061
 stack$ -- 0
-substring$ -- 5512
-swap$ -- 1764
-text.length$ -- 279
+substring$ -- 6795
+swap$ -- 2154
+text.length$ -- 334
 text.prefix$ -- 0
 top$ -- 1
-type$ -- 5008
-warning$ -- 4
-while$ -- 628
+type$ -- 6000
+warning$ -- 6
+while$ -- 774
 width$ -- 0
-write$ -- 1832
-(There were 4 warnings)
+write$ -- 2208
+(There were 6 warnings)

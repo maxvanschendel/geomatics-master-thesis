@@ -912,6 +912,16 @@ INPUT ./fig/feature_matching.png
 INPUT ./fig/feature_matching.png
 INPUT ./fig/feature_matching.png
 INPUT ./fig/feature_matching.png
+INPUT ./fig/visibility_clustering.png
+INPUT ./fig/visibility_clustering.png
+INPUT ./fig/visibility_clustering.png
+INPUT ./fig/visibility_clustering.png
+INPUT ./fig/visibility_clustering.png
+INPUT ./fig/gorte.png
+INPUT ./fig/gorte.png
+INPUT ./fig/gorte.png
+INPUT ./fig/gorte.png
+INPUT ./fig/gorte.png
 INPUT ./methodology.tex
 INPUT ./methodology.tex
 INPUT ./methodology.tex
@@ -972,11 +982,11 @@ INPUT map_extraction.tex
 INPUT ./map_extraction.tex
 INPUT ./map_extraction.tex
 INPUT map_extraction.tex
-INPUT ./fig/flowchart_extract.pdf
-INPUT ./fig/flowchart_extract.pdf
-INPUT ./fig/flowchart_extract.pdf
-INPUT ./fig/flowchart_extract.pdf
-INPUT ./fig/flowchart_extract.pdf
+INPUT ./fig/flowchart_complete-Map extract.drawio.pdf
+INPUT ./fig/flowchart_complete-Map extract.drawio.pdf
+INPUT ./fig/flowchart_complete-Map extract.drawio.pdf
+INPUT ./fig/flowchart_complete-Map extract.drawio.pdf
+INPUT ./fig/flowchart_complete-Map extract.drawio.pdf
 INPUT ./fig/structuring_element.drawio.pdf
 INPUT ./fig/structuring_element.drawio.pdf
 INPUT ./fig/structuring_element.drawio.pdf
@@ -1019,11 +1029,11 @@ INPUT map_matching.tex
 INPUT ./map_matching.tex
 INPUT ./map_matching.tex
 INPUT map_matching.tex
-INPUT ./fig/flowchart_match.pdf
-INPUT ./fig/flowchart_match.pdf
-INPUT ./fig/flowchart_match.pdf
-INPUT ./fig/flowchart_match.pdf
-INPUT ./fig/flowchart_match.pdf
+INPUT ./fig/flowchart_complete-Map match.drawio.pdf
+INPUT ./fig/flowchart_complete-Map match.drawio.pdf
+INPUT ./fig/flowchart_complete-Map match.drawio.pdf
+INPUT ./fig/flowchart_complete-Map match.drawio.pdf
+INPUT ./fig/flowchart_complete-Map match.drawio.pdf
 INPUT ./fig/embed_geometry.pdf
 INPUT ./fig/embed_geometry.pdf
 INPUT ./fig/embed_geometry.pdf
@@ -1056,11 +1066,11 @@ INPUT map_fusion.tex
 INPUT ./map_fusion.tex
 INPUT ./map_fusion.tex
 INPUT map_fusion.tex
-INPUT ./fig/flowchart_fuse.pdf
-INPUT ./fig/flowchart_fuse.pdf
-INPUT ./fig/flowchart_fuse.pdf
-INPUT ./fig/flowchart_fuse.pdf
-INPUT ./fig/flowchart_fuse.pdf
+INPUT ./fig/flowchart_complete-Map fuse.drawio.pdf
+INPUT ./fig/flowchart_complete-Map fuse.drawio.pdf
+INPUT ./fig/flowchart_complete-Map fuse.drawio.pdf
+INPUT ./fig/flowchart_complete-Map fuse.drawio.pdf
+INPUT ./fig/flowchart_complete-Map fuse.drawio.pdf
 INPUT ./results.tex
 INPUT ./results.tex
 INPUT ./results.tex
@@ -1096,6 +1106,11 @@ INPUT ./fig/area_1_topo.pdf
 INPUT ./fig/area_1_topo.pdf
 INPUT ./fig/area_1_topo.pdf
 INPUT ./fig/area_1_topo.pdf
+INPUT ./fig/multi_storey_segmentation.png
+INPUT ./fig/multi_storey_segmentation.png
+INPUT ./fig/multi_storey_segmentation.png
+INPUT ./fig/multi_storey_segmentation.png
+INPUT ./fig/multi_storey_segmentation.png
 INPUT ./fig/map_match_eval.drawio.pdf
 INPUT ./fig/map_match_eval.drawio.pdf
 INPUT ./fig/map_match_eval.drawio.pdf
@@ -1116,11 +1131,11 @@ INPUT ./fig/registration_charts.pdf
 INPUT ./fig/registration_charts.pdf
 INPUT ./fig/registration_charts.pdf
 INPUT ./fig/registration_charts.pdf
-INPUT ./fig/ransac_optima.pdf
-INPUT ./fig/ransac_optima.pdf
-INPUT ./fig/ransac_optima.pdf
-INPUT ./fig/ransac_optima.pdf
-INPUT ./fig/ransac_optima.pdf
+INPUT ./fig/ransac_optima.png
+INPUT ./fig/ransac_optima.png
+INPUT ./fig/ransac_optima.png
+INPUT ./fig/ransac_optima.png
+INPUT ./fig/ransac_optima.png
 INPUT ./fig/icp_convergence.pdf
 INPUT ./fig/icp_convergence.pdf
 INPUT ./fig/icp_convergence.pdf

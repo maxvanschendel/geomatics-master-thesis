@@ -25,7 +25,7 @@ We define a \gls{voxelgrid} as a set of voxels with an associated edge length \(
     \mathcal{V}=\{\voxel_{i}\}_{i=1}^{n},\ n \in [1, \prod{\boldsymbol{v_{V_{max}}}}]
 \end{equation}
 
-To generate a voxel grid we divide a 3D axis-aligned volume \(V\), defined by minimum and maximum bounds \(V_{min}, V_{max} \in \mathbb{R}^{3}\) into a grid of cubic cells with edges of length \(e_{l}\). A voxel represents a subvolume of \(V\) bounded by a single cell. A voxel coordinate only consists of integer values that represent multiples of the edge length along each dimension. Voxel \(\boldsymbol{v_{V_{min}}} = (0,0,0)\) represents the first cell along each of the voxel grid's axes and the minimum of the volume's bounds, voxel represents \((0,1,1)\) the first cell along the x and the second along the y and z axes, etc. We also restrict voxel coordinates to only be positive as negative coordinates would fall outside of the bounds of the volume. For the same reason a voxel's coordinates can not be larger than that of the voxel representing the volume's maximum bounds \(\boldsymbol{v_{V_{max}}} = (V_{max} - V_{min})\ //\ e_l\), where \(//\) denotes integer division. 
+To generate a voxel grid we divide a 3D axis-aligned volume \(V\), defined by minimum and maximum bounds \(V_{min}, V_{max} \in \mathbb{R}^{3}\) into a grid of cubic cells with edges of length \(e_{l}\). A voxel represents a subvolume of \(V\) bounded by a single cell. A voxel coordinate only consists of integer values that represent multiples of the edge length along each dimension. Voxel \(\boldsymbol{v_{V_{min}}} = (0,0,0)\) represents the first cell along each of the voxel grid's axes and the minimum of the volume's bounds, voxel \((0,1,1)\) represents the first cell along the x- and the second along the y- and z-axes, etc. We also restrict voxel coordinates to only be positive as negative coordinates would fall outside of the bounds of the volume. For the same reason a voxel's coordinates can not be larger than that of the voxel representing the volume's maximum bounds \(\boldsymbol{v_{V_{max}}} = (V_{max} - V_{min})\ //\ e_l\), where \(//\) denotes integer division. 
 
 
 \begin{equation}
@@ -59,7 +59,7 @@ A property of a voxel is given by equation \ref{eq:vproperty}. We define a prope
 
 \begin{equation}
     \label{eq:vproperty}
-    \mathcal{V}_{property}: \mathbb{Z}^{3+} \mapsto \mathbb{R}^{m*n},\ \mathcal{V}_{property}(\boldsymbol{v}) = \boldsymbol{v}_{property}
+    \mathcal{V}_{property}: \mathbb{Z}^{3+} \mapsto \mathbb{R}^{m \times n},\ \mathcal{V}_{property}(\boldsymbol{v}) = \boldsymbol{v}_{property}
 \end{equation}
 
 
@@ -73,7 +73,7 @@ Several operations on voxel grids benefit from using a spatial index, including 
     \label{fig:vg_morton}
 \end{figure}
 
-To generate the SVO we first create a Morton order for the voxel grid. A Morton order maps the three-dimensional coordinates of the voxels to one dimension while preserving locality. It does by interleaving the binary representation of the voxel's coordinates into a single binary string which is interpreted as a positive integer, a Morton code. The ascending sorted vector of Morton codes gives us the Morton order. We divide the Morton order into buckets with size 8, such that each bucket contains at most 8 Morton codes, with a maximum difference of 8. Each non-empty bucket represents a parent node of at most 8 child nodes in the octree. By recursively performing this step until only one bucket remains, the root node, we can construct an SVO.
+To generate the SVO we first create a Morton order for the voxel grid, this is illustrated in figure \ref{fig:vg_morton}. A Morton order maps the three-dimensional coordinates of the voxels to one dimension while preserving locality. It does by interleaving the binary representation of the voxel's coordinates into a single binary string which is interpreted as a positive integer, a Morton code. The ascending sorted vector of Morton codes gives us the Morton order. We divide the Morton order into buckets with size 8, such that each bucket contains at most 8 Morton codes, with a maximum difference of 8. Each non-empty bucket represents a parent node of at most 8 child nodes in the octree. By recursively performing this step until only one bucket remains, the root node, we can construct an SVO. The SVO corresponding to the Morton code in figure \ref{fig:vg_morton} is shown in figure \ref{fig:vg_svo}.
 
 \begin{figure}[h]
     \centering
@@ -90,8 +90,10 @@ We denote the function that returns all \(n\) voxels within range \(r\) of a vox
 
 The voxels within a sphere around a point can be found by recursively intersecting the sphere with the octants of the SVO. If the sphere does not intersect with an octant then none of its leaf nodes do and the corresponding voxels are not within the sphere. If an octant does intersect with the sphere then its children are tested for intersection. The algorithm returns all leaf nodes that intersect with the sphere.
 
+Levels of detail can be generated by using the occupied octants at the levels above leaf nodes as a simplified voxel grid. This can enable certain operations that are not computationally feasible at the original level of detail.
+
 \paragraph{Voxel convolution}
-Voxel convolution involves moving a sliding window, or kernel, over each voxel in the grid to retrieve its neighbourhood and then computing a new value for the voxel based on the weighted sum of its neighbours. We can define a kernel \(\mathcal{K}\) as a voxel grid with an associated weight for each voxel and an origin voxel.
+Voxel convolution involves moving a sliding window, or kernel, over each voxel in the grid to retrieve its neighbourhood and then computing a new value for the voxel based on the weighted sum of its neighbours. We can define a kernel \(\mathcal{K}\) as a voxel grid with an associated weight for each voxel and an origin voxel \(\boldsymbol{o}_{\mathcal{K}}\).
 
 \begin{equation}
 weight: \mathbb{Z}^{3+} \mapsto \mathbb{R}
@@ -138,9 +140,9 @@ The neighbourhood graph of a voxel grid represents the connectivity between voxe
 
 
 \subsubsection{Topological map}
-\Gls{topologicalmap} are a graph representation of an environment's structure, where vertices represent locally distinctive places, often rooms, and edges represent traversable paths between them  (see figure \ref{fig:topo_ex}) \citep{thrun_learning_1998,kuipers_robust_1988}. Topological maps are based on observations that cognitive maps, the mental maps used by humans to navigate within an environment, consist of multiple layers with a topological description of the environment being a fundamental component \citep{kuipers_robust_1988,kuipers_modeling_1978}. 
+\Gls{topologicalmap} are a graph representation of an environment's structure, where nodes represent locally distinctive places and edges represent traversable paths between them  (see figure \ref{fig:topomap}) \citep{thrun_learning_1998,kuipers_robust_1988}. Topological maps are based on observations that cognitive maps, the mental maps used by humans to navigate within an environment, consist of multiple layers with a topological description of the environment being a fundamental component \citep{kuipers_robust_1988,kuipers_modeling_1978}. 
 
-We denote a topological map as shown in equations \ref{eq:G}, \ref{eq:V} and \ref{eq:E}. The topological map consists of a graph \(G\), where nodes \(N\) represent distinctive places \(n\) and edges \(E\) represent the presence of a navigable path between neighbouring pairs of places \((v_j,v_k)\) that does not pass through any other places. Whether a path is navigable depends on who or what is navigating. For the purpose of this thesis a navigable path is a path that can be reasonably used by humans to walk from one room to another. Following this definition, only a part of the environment can be used as a navigable path. This includes the parts of the floor that are at sufficient distance from a wall or ceiling, stairs, and ramps.
+We denote a topological map as shown in equations \ref{eq:G}, \ref{eq:V} and \ref{eq:E}. The topological map consists of a graph \(G\), where nodes \(N\) represent distinctive places \(n_i\) and edges \(E\) represent the presence of a navigable path between neighbouring pairs of places \((v_j,v_k)\) that does not pass through any other places. Whether a path is navigable depends on who or what is navigating. For the purpose of this thesis a navigable path is a path that can be reasonably used by humans to walk from one room to another. Following this definition, only a part of the environment can be used as a navigable path. This includes the parts of the floor, stairs or ramps that are at sufficient distance from a wall, the ceiling or other obstructions.
 
 
 \begin{equation}
@@ -168,14 +170,14 @@ Figure \ref{fig:topomap} shows an example topological map of a house with five r
 \pagebreak
 
 \subsubsection{Topometric map}
-A hybrid map representation combining both the topological and geometric characteristics of the environment. This map representation allows the end-user to use either topological or metric information depending on the needs of the situation, e.g. the topological layer can be used for large-scale navigation and abstract reasoning while the metric layer can be used for place recognition and obstacle avoidance. In the context of this thesis a topometric map refers to a graph representation of an indoor environment where the nodes represent rooms and their associated geometry as a voxel grid and the edges represent the navigability relationship between them. It is thus a hybrid representation of the environment that combines the properties of the voxel grid and the topological map which we described above.We denote a topometric map \(\topometricmap\) as shown in equation \ref{eq:topometricmap}, where \(\voxelgrid\) represents the complete geometry of the environment and \(G\) the topological graph.
+A hybrid map representation combining both the topological and geometric characteristics of the environment. This map representation allows the end-user to use either topological or metric information depending on the needs of the situation, e.g. the topological layer can be used for large-scale navigation and abstract reasoning while the metric layer can be used for place recognition and obstacle avoidance. In the context of this thesis a topometric map refers to a graph representation of an indoor environment where the nodes represent rooms and their associated geometry as a voxel grid and the edges represent the navigability relationship between them. It is thus a hybrid representation of the environment that combines the properties of the voxel grid and the topological map which we described above. We denote a topometric map \(\topometricmap\) as shown in equation \ref{eq:topometricmap}, where \(\voxelgrid\) represents the complete geometry of the environment and \(G\) the topological graph.
 
 \begin{equation}
     \label{eq:topometricmap}
     \topometricmap = (\voxelgrid,\ G),\ \voxelgrid=\{\voxel_{i}\}_{i=1}^{n}
 \end{equation}
 
-The topological graph, which we denote as in \ref{eq:place_subset}, consists of a set of nodes \(N\) and a set of edges \(E\). Each node \(n \in N\) represents a room and contains a subset of \(\voxelgrid\) that describes the geometry of that room. The nodes' subsets of \(\voxelgrid\) are not allowed to overlap, which means they represent a segmentation of \(\voxelgrid\).
+The topological graph, which we denote as shown in equation \ref{eq:place_subset}, consists of a set of nodes \(N\) and a set of edges \(E\). Each node \(n \in N\) represents a room and contains a subset of \(\voxelgrid\) that describes the geometry of that room. The nodes' subsets of \(\voxelgrid\) are not allowed to overlap, which means they represent a segmentation of \(\voxelgrid\).
 
 \begin{equation}
     \label{eq:place_subset}
