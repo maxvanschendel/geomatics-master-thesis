@@ -13,7 +13,7 @@
 \end{figure}
 
 % what is it
-The problem of creating a single \gls{globalmap} from multiple \gls{partialmap}s is called \gls{mapmerging}. Map merging is challenging because the relative positions and orientations of agents within the environment are unknown. In indoor environments where external positioning signals like GNSS are highly attenuated map merging can only rely on the properties of the partial maps themselves. Figure \ref{fig:map_merging} illustrates the map merging problem, showing two agents with unknown relative positions and orientations within the same environment. Map merging can be subdivided into two subproblems. The first is \gls{mapmatching}, the identification of overlapping areas between partial maps. The second is \gls{mapfusion}, the alignment and combination of the partial maps based on the overlapping areas. 
+The problem of creating a single \gls{globalmap} from multiple \gls{partialmap}s is called \gls{mapmerging}. Map merging is challenging because the relative positions and orientations (and sometimes scale) of agents within the environment are unknown. In indoor environments where external positioning signals like GNSS are highly attenuated map merging can only rely on the properties of the partial maps themselves. Figure \ref{fig:map_merging} illustrates the map merging problem, showing two agents with unknown relative positions and orientations within the same environment. Map merging can be subdivided into two subproblems. The first is \gls{mapmatching}, the identification of overlapping areas between partial maps. The second is \gls{mapfusion}, the alignment and combination of the partial maps based on the overlapping areas. 
 
 \begin{figure}[h]
     \centering

@@ -44,7 +44,7 @@
 \newglossaryentry{globalmap}
 {
     name=global map,
-    description={A single, more complete map constructed by merging multiple partial maps.}
+    description={A single, complete map constructed by merging multiple partial maps.}
 }
 
 \newglossaryentry{mapmerging}
@@ -88,7 +88,7 @@
 \newglossaryentry{topologicalmap}
 {
     name=topological map,
-    description={Topological maps are a qualitative graph representation of an environment's structure, where vertices represent locally distinctive places, often rooms, and edges represent traversable paths between them  \citep{thrun_learning_1998,kuipers_robust_1988}. Topological maps are inspired by the fact that humans are capable of spatial learning despite limited sensory and processing capability and only having partial knowledge of the environment. This is based on observations that cognitive maps, the mental maps used by humans to navigate within an environment, consist of multiple layers with a topological description of the environment being a fundamental component \citep{kuipers_robust_1988}.}
+    description={Topological maps are a  graph representation of an environment's structure, where vertices represent locally distinctive places, often rooms, and edges represent traversable paths between them  \citep{thrun_learning_1998,kuipers_robust_1988}. Topological maps are inspired by the fact that humans are capable of spatial learning despite limited sensory and processing capability and only having partial knowledge of the environment. This is based on observations that cognitive maps, the mental maps used by humans to navigate within an environment, consist of multiple layers with a topological description of the environment being a fundamental component \citep{kuipers_robust_1988}.}
 }
 
 \newglossaryentry{pointcloud}
@@ -100,7 +100,7 @@
 \newglossaryentry{voxelgrid}
 {
     name=voxel grid,
-    description={Also known as an occupancy grid, a voxel grid is a "multi-dimensional (typically 2D or 3D) tesselation of space into cells, where each cell stores a probabilistic estimate of its state." \citep{elfes_occupancy_1990}.}
+    description={Also known as an occupancy grid, a voxel grid is a "multi-dimensional (typically 2D or 3D) tesselation of space into cells, where each cell stores a probabilistic estimate of its state." \citep{elfes_occupancy_1990}. In practice this probabilistic estimate is often a binary value that represents whether a cell is occupied or not.}
 }
 
 \newglossaryentry{topometricmap}
@@ -115,7 +115,7 @@
     description={The problem of finding a transformation that optimally aligns two point clouds.}
 }
 
-\title{Extraction and Merging of Topometric Maps of Indoor Environments}
+\title{Merging of Topometric Maps of Indoor Environments \\ \large Extraction, matching and fusion}
 
 \author{
   Maximiliaan van Schendel\\
@@ -125,9 +125,10 @@
   1st supervisor: Edward Verbree \\
   2nd supervisor: Pirouz Nourian \\
   external supervisor: Robert Voûte \\
+  co-reader: Hans Hoogenboom \\
 }
 
-\date{30/09/2022}
+\date{31/10/2022}
 \begin{document}
 \pagenumbering{gobble}
 
@@ -161,6 +162,8 @@ The merging of multiple partial \gls{map}s of indoor environments created by tea
 \include{results}
 \pagebreak
 \include{discussion}
+\pagebreak
+\include{reflection}
 
 
 \bibliographystyle{apacite}

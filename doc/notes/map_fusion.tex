@@ -8,9 +8,9 @@ To achieve geometric fusion we designate one partial map as the source and the o
 To find the transformation between the partial maps we first find the transformation between each pair of matched rooms. We do so by using RANSAC to find a global alignment which we then refine using the iterative closest point algorithm. Afterwards, we cluster the transformations and find the mean transformation of each cluster. We use the mean transformation which leads to the smallest difference between partial maps as our final rigid transformation. We then apply this transformation to the source map and fuse the geometry of the two maps into a global voxel grid map. Finally, we extract a new, global topometric map from the fused geometry. Figure \ref{fig:flowchart_fuse} shows an overview of our map fusion approach. In the rest of this section we will describe our map fusion approach in detail.
 
 \afterpage{
-    \begin{figure}[h]
+    \begin{figure}[p]
         \centering
-        \includegraphics*[width=.9\textwidth]{./fig/flowchart_complete-Map fuse.drawio.pdf}
+        \includegraphics*[width=\textwidth]{./fig/flowchart_complete-Map fuse.drawio.pdf}
         \caption{Diagram showing overview of map fusion methodology.}
         \label{fig:flowchart_fuse}
     \end{figure}
@@ -105,7 +105,7 @@ We discard the matches where the registration error is too high and cluster the 
 
 \begin{equation}
     \label{eq:t_clusters}
-    \mathbf{C}_{\mathbf{T}} = \{c_i\}_{i=1}^{|\mathbf{T}|},\ c_i \in \mathbb{Z}^+
+    \mathbf{C} = \{c_i\}_{i=1}^{|\mathbf{T}|},\ c_i \in \mathbb{N}
 \end{equation}
 
 

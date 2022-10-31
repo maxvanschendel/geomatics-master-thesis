@@ -742,6 +742,9 @@ INPUT results.aux
 INPUT ./discussion.aux
 INPUT discussion.aux
 INPUT discussion.aux
+INPUT ./reflection.aux
+INPUT reflection.aux
+INPUT reflection.aux
 OUTPUT main.aux
 INPUT c:/texlive/2022/texmf-dist/tex/latex/ucs/ucsencs.def
 INPUT c:/texlive/2022/texmf-dist/tex/latex/ucs/ucsencs.def
@@ -907,6 +910,11 @@ INPUT ./fig/euler_diagram.drawio.pdf
 INPUT ./fig/euler_diagram.drawio.pdf
 INPUT ./fig/euler_diagram.drawio.pdf
 INPUT ./fig/euler_diagram.drawio.pdf
+INPUT ./fig/fpfh.png
+INPUT ./fig/fpfh.png
+INPUT ./fig/fpfh.png
+INPUT ./fig/fpfh.png
+INPUT ./fig/fpfh.png
 INPUT ./fig/feature_matching.png
 INPUT ./fig/feature_matching.png
 INPUT ./fig/feature_matching.png
@@ -922,6 +930,16 @@ INPUT ./fig/gorte.png
 INPUT ./fig/gorte.png
 INPUT ./fig/gorte.png
 INPUT ./fig/gorte.png
+INPUT ./fig/fanny_bot_graph.png
+INPUT ./fig/fanny_bot_graph.png
+INPUT ./fig/fanny_bot_graph.png
+INPUT ./fig/fanny_bot_graph.png
+INPUT ./fig/fanny_bot_graph.png
+INPUT ./fig/huang_beevers.png
+INPUT ./fig/huang_beevers.png
+INPUT ./fig/huang_beevers.png
+INPUT ./fig/huang_beevers.png
+INPUT ./fig/huang_beevers.png
 INPUT ./methodology.tex
 INPUT ./methodology.tex
 INPUT ./methodology.tex
@@ -949,7 +967,6 @@ INPUT ./fig/voxel_basics.pdf
 INPUT ./fig/voxel_basics.pdf
 INPUT ./fig/voxel_basics.pdf
 INPUT ./fig/voxel_basics.pdf
-INPUT c:/texlive/2022/texmf-dist/fonts/tfm/public/cm/cmti10.tfm
 INPUT ./fig/morton_code.pdf
 INPUT ./fig/morton_code.pdf
 INPUT ./fig/morton_code.pdf
@@ -987,6 +1004,11 @@ INPUT ./fig/flowchart_complete-Map extract.drawio.pdf
 INPUT ./fig/flowchart_complete-Map extract.drawio.pdf
 INPUT ./fig/flowchart_complete-Map extract.drawio.pdf
 INPUT ./fig/flowchart_complete-Map extract.drawio.pdf
+INPUT ./fig/flowchart_complete-Map extract_02.drawio.pdf
+INPUT ./fig/flowchart_complete-Map extract_02.drawio.pdf
+INPUT ./fig/flowchart_complete-Map extract_02.drawio.pdf
+INPUT ./fig/flowchart_complete-Map extract_02.drawio.pdf
+INPUT ./fig/flowchart_complete-Map extract_02.drawio.pdf
 INPUT ./fig/structuring_element.drawio.pdf
 INPUT ./fig/structuring_element.drawio.pdf
 INPUT ./fig/structuring_element.drawio.pdf
@@ -1171,10 +1193,21 @@ INPUT ./fig/hypothesis_Growing_ideal_chain.drawio.pdf
 INPUT ./fig/hypothesis_Growing_ideal_chain.drawio.pdf
 INPUT ./fig/hypothesis_Growing_ideal_chain.drawio.pdf
 INPUT ./fig/hypothesis_Growing_ideal_chain.drawio.pdf
+INPUT ./reflection.tex
+INPUT ./reflection.tex
+INPUT ./reflection.tex
+OUTPUT reflection.aux
+INPUT ./reflection.tex
+INPUT ./reflection.tex
+INPUT ./reflection.tex
+INPUT reflection.tex
+INPUT ./reflection.tex
+INPUT reflection.tex
 INPUT ./main.bbl
 INPUT main.bbl
 INPUT ./main.bbl
 INPUT main.bbl
+INPUT c:/texlive/2022/texmf-dist/fonts/tfm/public/cm/cmti10.tfm
 INPUT c:/texlive/2022/texmf-dist/fonts/tfm/public/cm/cmtt10.tfm
 INPUT c:/texlive/2022/texmf-dist/tex/latex/ucs/data/uni-32.def
 INPUT c:/texlive/2022/texmf-dist/tex/latex/ucs/data/uni-32.def
@@ -1205,6 +1238,9 @@ INPUT results.aux
 INPUT ./discussion.aux
 INPUT discussion.aux
 INPUT discussion.aux
+INPUT ./reflection.aux
+INPUT reflection.aux
+INPUT reflection.aux
 INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cmextra/cmbsy7.pfb
 INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
 INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb
@@ -1214,7 +1250,6 @@ INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb
 INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb
 INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb
 INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmmib10.pfb
-INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cmextra/cmmib5.pfb
 INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cmextra/cmmib7.pfb
 INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb
 INPUT c:/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb

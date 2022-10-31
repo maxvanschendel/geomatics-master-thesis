@@ -17,7 +17,14 @@ In this section we give an overview of the existing research into metric map ext
 Metric maps are a map representation that represent the geometry of an environment. Two common metric map types that are relevant for our research are point clouds and voxel grids. Point clouds are usually the direct output of 3D mapping sensors and algorithms so it is not necessary to extract them from another map representation \citep{rusu_3d_2011}. \citet{volodine_point_2007} gives an overview of point clouds and how to process them. \citet{elfes_occupancy_1990} gives a description of voxel grids and how to extract them from point cloud maps.
 
 \subsubsection{Metric map merging}
-Metric map matching is the problem of recognizing overlapping areas between partial maps based purely on their geometry. Metric map matching is a mature area of research that has applications for 3D mapping and place recognition.  Some approaches use \gls{localdescriptor}s that describe the properties of each point in the point cloud to identify corresponding points between point clouds. Descriptors may include corners, lines, planes or other points of interest, e.g. SIFT, SURF, FPFH or Harris points \citep{andersone_heterogeneous_2019,rusu_fast_2009}. Some descriptors are better suited for different environments and input data. For example, the descriptor approach by \citet{li_general_2010} is scale-independent and the approach of \citet{yang_fast_2016} is able to deal with differences in resolution. Recent research into using deep learning for local descriptor extraction has also shown great potential, examples include PointNet and DGCNN \citep{qi_pointnet_2017,phan_dgcnn_2018}.
+Metric map matching is the problem of recognizing overlapping areas between partial maps based purely on their geometry. Metric map matching is a mature area of research that has applications for 3D mapping and place recognition.  Some approaches use \gls{localdescriptor}s that describe the properties of each point in the point cloud to identify corresponding points between point clouds. Descriptors may include corners, lines, planes or other points of interest, e.g. SIFT, SURF, FPFH or Harris points \citep{andersone_heterogeneous_2019,rusu_fast_2009}. Some descriptors are better suited for different kinds of input data. For example, the descriptor approach by \citet{li_general_2010} is scale-independent and the approach of \citet{yang_fast_2016} is able to deal with differences in resolution. Recent research into using deep learning for local descriptor extraction has also shown great potential, examples include PointNet and DGCNN \citep{qi_pointnet_2017,phan_dgcnn_2018}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=0.5\textwidth]{./fig/fpfh.png}
+    \caption{Illustration of FPFH local descriptor \citep{rusu_fast_2009}.}
+    \label{fig:huang}
+\end{figure}
 
 Another approach to metric map matching uses \gls{globaldescriptor}s that describe the properties of segments of the point cloud, overlapping segments can then be identified based on the similarity of their global descriptor \citep{dube_segmatch_2017}. A large number of global descriptors have been proposed which describe the point cloud based on various properties, such as its volume, planarity or roughness \citep{han_comprehensive_2018}. Another approach to global descriptor extraction aggregrates the local descriptor of each point into a global descriptor, examples include DBoW and VLAD \citep{shan_robust_2021,arandjelovic_all_2013}. Global descriptors can also be based on the spectral characteristics of graphs derived from the point cloud, including approaches such as ShapeDNA and heat kernel signatures \citep{reuter_laplacebeltrami_2006,bronstein_scale-invariant_2010}. An advantage of these approaches is that they do not require manual selection of relevant descriptors. Finally, recent research has shown that deep learning can be used to extract global descriptors, with approaches such as PointNetVLAD, LPDNet and MinkLoc3D \citep{uy_pointnetvlad_2018-1,liu_lpd-net_2019,komorowski_minkloc3d_2021}. Although these approaches claim to have better resilience against differences between partial maps than other approaches they often require large amounts of training data and may not be able to deal with environments that are not similar to the training data. Note that the above deep learning approaches often use a trainable variation of the local descriptor aggregration described above \citep{arandjelovic_netvlad_2016}. 
 
@@ -27,7 +34,7 @@ The ICP algorithm and its variations are not guarantueed to find a globally opti
 
 \begin{figure}[h]
     \centering
-    \includegraphics*[width=\textwidth]{./fig/feature_matching.png}
+    \includegraphics*[width=.8\textwidth]{./fig/feature_matching.png}
     \caption{Illustration of two-step approach to registration \citep{yang_fast_2016}.}
     \label{fig:global_local}
 \end{figure}
@@ -42,7 +49,7 @@ In this section we discuss the existing research into the extraction and merging
 \subsubsection{Topometric map extraction}
 Various approaches for extracting topological maps from raw sensor data or metric maps have been proposed. \citet{bormann_room_2016} and \citet{pintore_state---art_2020} both give a review of different methods for extracting structured maps of indoor spaces in which different room segmentation methods are discussed and compared.
 
-\citet{kuipers_robot_1991} first proposes identifying distinctive places, nodes of the topological map, directly from sensor data by finding local maxima of a distinctiveness measure within a neighbourhood. Edges are identified by having the robot try to move between vertices, if this is possible an edge is created. Local metric information in the form of an occupancy grid is associated with the nearest vertex in the graph, resulting in a topometric map. Note that this approach is dependent on the mapping agent's exploration strategy. 
+\citet{kuipers_robot_1991} first proposes identifying distinctive places, nodes of the topological map, directly from sensor data by finding local maxima of a distinctiveness measure within a neighbourhood. Its edges are identified by having the robot try to move between the identified nodes, if this is possible an edge is created. Note that this approach is dependent on the mapping agent's exploration strategy. 
 
 % visibility clustering
 \citet{thrun_learning_1998} extracts a 2D topological map from a 2D metric map by identifying narrow passages. They then partition the metric map into areas divided by passages which are respectively the vertices and the edges of the graph. This approach is not able to deal with 3D environments with multiple storeys and it assumes that rooms are always separated by narrow passages.
@@ -56,18 +63,29 @@ Various approaches for extracting topological maps from raw sensor data or metri
     \label{fig:vis_cluster}
 \end{figure}
 
-\citet{ochmann_towards_2014} describes extracting hierarchical topometric maps directly from point clouds. The hierachy is divided into four encapsulating layers, building - storey - room - object. Entities within the graph are represented as vertices, with edges representing the topological and spatial relationships between entities. Each vertex is linked to a local metric map of the entity's geometry. 
+\citet{ochmann_towards_2014} describe extracting hierarchical topometric maps directly from point clouds. The hierachy is divided into four encapsulating layers, building - storey - room - object. Entities within the graph are represented as vertices, with edges representing the topological and spatial relationships between entities. Each vertex is linked to a local metric map of the entity's geometry. 
 
-\citet{gorte_navigation_2019} provides a novel approach for extracting the walkable floor space from a voxel grid across multiple storeys (see figure \ref{fig:gorte}). They do so by first applying a 3D convolution filter using a stick-shaped kernel to extract the parts of the floor without obstructions. They then apply an upwards dilation to connect steps of stairways into a connected volume. Because the topology of the environment depends on the traversability between spaces the extraction of navigable floor space is essential for the extraction of topological maps.
+\citet{gorte_navigation_2019} provide a novel approach for extracting the walkable floor space from a voxel grid across multiple storeys (see figure \ref{fig:gorte}). They do so by first applying a 3D convolution filter using a stick-shaped kernel to extract the parts of the floor without obstructions. They then apply an upwards dilation to connect steps of stairways into a connected volume. Because the topology of the environment depends on the traversability between spaces the extraction of navigable floor space is essential for the extraction of topological maps.
 
 \begin{figure}[h]
     \centering
     \includegraphics*[width=.7\textwidth]{./fig/gorte.png}
-    \caption{Illustration of walkable floor space extraction \citep{gorte_navigation_2019}.}
+    \caption{Illustration of walkable floor space extraction\citep{gorte_navigation_2019}.}
     \label{fig:gorte}
 \end{figure}
 
+\citet{bot_graph-matching_2019} propose a graph matching approach to the map merging problem. They use spectral graph matching on dual graphs of a mesh representation of the environment to localize an agent within a pre-existing BIM map (see figure \ref{fig:bot}). Although their approach is not specifically proposed for map merging without prior maps their work should be well-suited for this purpose too. Additionally, the graphs used in this approach do not represent the connectivity of places within the environment, Nevertheless, their approach could also be applied to topometric maps. Finally, the graph clustering approach proposed in this research could also be applied to room segmentation.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.7\textwidth]{./fig/fanny_bot_graph.png}
+    \caption{Dual graph of a mesh representation of the environment coloured according to its spectrum (\citep{bot_graph-matching_2019}).}
+    \label{fig:bot}
+\end{figure}
+
 \citet{he_hierarchical_2021} describes an approach for extracting a hierarchical topological-metric map with three layers: storey - region - volume, from a voxel grid map. To extract the map they use a novel approach to room segmentation using raycasting. A downside of their methodology is that it depends on the presence of ceilings in the metric map, which are often not captured in practice when using handheld scanners. 
+
+
 
 % deep learning
 \citet{ma_semantic_2020} and \citet{tang_bim_2022} both propose a deep learning approach to semantic segmentation of indoor spaces. Despite the fact that the primary goal of these methods is not room segmentation but instance segmentation (splitting the map into walls, floor, furniture, etc.) their findings can also be applied to room segmentation. In contrast to previous approaches these approaches require training a model on a labelled dataset.
@@ -75,7 +93,14 @@ Various approaches for extracting topological maps from raw sensor data or metri
 \subsubsection{Topometric map merging}
 In comparison to topometric map extraction relatively little work has been done on the subject of topometric map merging. \citet{dudek_topological_1998} first proposes an approach to topological map merging which depends on a robot meeting strategy to merge partial maps created by each robot. When new distinctive places are recognized at the frontier of the global map the other robots will travel towards it and synchronize their maps. As with other early approaches to map extraction and map merging this approach depends on a coordinated exploration strategy.
 
-The work of \citet{huang_topological_2005} is a significant milestone in topological map merging, demonstrating that topological maps can be merged using both map structure and map geometry. They first identify vertex matches by comparing the similarity of their attributes, such as their degree, and the spatial relationships of incident edges. Vertex matches are then expanded using a region growing approach, where every added edge and vertex is compared for similarity and rejected if too dissimilar. The results are multiple hypotheses for overlapping areas between partial maps. They then estimate a rigid transformation between the partial maps for each hypothesis. Afterwards, hypotheses that result in similar transformations are grouped into hypothesis clusters. They then select the most appropriate hypothesis cluster by using a heuristic that includes the number of vertices in the cluster, the error between matched vertices after transformation and the number of hypotheses in the cluster.
+The work of \citet{huang_topological_2005} is a significant milestone in topological map merging, demonstrating that topological maps can be merged using both map structure and map geometry. They first identify vertex matches by comparing the similarity of their attributes, such as their degree, and the spatial relationships of incident edges. Vertex matches are then expanded using a region growing approach, where every added edge and vertex is compared for similarity and rejected if too dissimilar (see figure \ref{fig:huang}). The results are multiple hypotheses for overlapping areas between partial maps. They then estimate a rigid transformation between the partial maps for each hypothesis. Afterwards, hypotheses that result in similar transformations are grouped into hypothesis clusters. They then select the most appropriate hypothesis cluster by using a heuristic that includes the number of vertices in the cluster, the error between matched vertices after transformation and the number of hypotheses in the cluster.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/huang_beevers.png}
+    \caption{Illustration of hypothesis growing approach from \citep{huang_topological_2005}.}
+    \label{fig:huang}
+\end{figure}
 
 \citet{bonanni_3-d_2017} provides a unique approach to topometric map merging using the pose graph of mapping agents as the topological component and the point cloud captured at each node as the metric component. Matches between nodes are identified by computing the similarity of their associated point cloud. In comparison to most other map merging approaches they fuse the maps using a non-rigid transformation, meaning the partial maps are deformed to improve their alignment. 
 
@@ -83,4 +108,4 @@ The work of \citet{huang_topological_2005} is a significant milestone in topolog
 
 \citet{rincon_map_2019} proposes an approach to topological map merging that is based on both the similarity of nodes and their context within the graph based on a model of human object recognition. This approach depends on the previous alignment of partial maps.
 
-\citet{rozemberczki_multi-scale_2021} propose an approach to feature embedding in graphs that combines each node's associated attribute with the distribution of its neighbourhood's attributes over multiple scales. While they do not use this for 3D mapping their approach can be applied to topometric maps.
+\citet{rozemberczki_multi-scale_2021} propose an approach to feature embedding in graphs that combines each node's associated attribute with the distribution of the attributes of its neighbourhood over multiple scales. While they do not use this for 3D mapping their approach can be applied to topometric maps.

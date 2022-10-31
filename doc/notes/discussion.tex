@@ -54,6 +54,19 @@ Based on the results our approach for registration is able to succesfully find a
 
 \pagebreak
 
+\section{Conclusion}
+In our research, we tried to answer how the properties of 3D topometric maps of indoor environments can be applied to the map merging problem. In this section we will give our conclusion to each of our subquestions that together will answer our main question.
+
+Our first subquestion asked how to extract these topometric maps from point clouds. We find that visibility clustering of synthetic scanning positions using the MCL algorithm, combined with some post-processing steps, can be used for room segmentation. We also find that plausible synthetic scanning positions can be found by computing the local maxima of the environment's navigation graph's horizontal distance field. We further find that this navigation graph can be extracted for multi-storey environments by applying voxel convolution using a stick kernel and that the room segmentation can be combined with the navigation graph to create a topometric map. However, this approach is currently sensitive to map quality, with failures occuring when the map of the environment is incomplete.
+
+Our second subquestion asked how to find matches between partial topometric maps to identify their overlapping areas. After comparing various descriptor approaches we conclude that the spectral approach approach gives the best results. We also find that embedding the context of a room into the room's descriptor improves matching performance. So does hypothesis growing in the average case, but it may also cause map matching to fail completely. Based on the above we further conclude that the topological aspect of topometric maps can be used to increase map matching performance. Possible failure modes of this approach include similar rooms which have similar contexts and differences in segmentation between partial maps.
+
+Our third subquestion asked how to fuse the partial topometric maps after matches have been identified. We find that a combination of RANSAC based global registration using FPFH features and gravity-aligned ICP local registration can succesfully identify the transformation between rooms. We also find that DBSCAN can be used to cluster these transformations based on their similarity and that a correct final transformation can be computed based on this clustering. 
+
+With the above conclusions we can answer our main research question: partial topometric maps can be extracted from partial point clouds by using visibility clustering and voxel convolution. Matches can be found using a combination of spectral descriptors, contextual embedding and hypothesis growing. By using these matches we can succesfully find the transformation between rooms, from which the final transformation can be found by clustering them using DBSCAN. Based on our conclusions we identify multiple avenues for future research, for which the focus should lie on robust topometric map extraction, improved room descriptors and non-rigid map fusion.
+
+\pagebreak
+
 \section{Future Works}
 In this section we discuss our recommendations for future developments of the three major components of this thesis: map extraction, map matching and map fusion. We make these recommendations based on the achieved results and our research during the creation of this thesis. 
 
@@ -104,13 +117,3 @@ Our current approach uses FPFH features to match points during RANSAC global reg
 
 \pagebreak
 
-\section{Conclusion}
-In our research, we tried to answer how the properties of 3D topometric maps of indoor environments can be applied to the map merging problem. In this section we will give our conclusion to each of our subquestions that together will answer our main question.
-
-Our first subquestion asked how to extract these topometric maps from point clouds. We find that visibility clustering of synthetic scanning positions using the MCL algorithm, combined with some post-processing steps, can be used for room segmentation. We also find that plausible synthetic scanning positions can be found by computing the local maxima of the environment's navigation graph's horizontal distance field. We further find that this navigation graph can be extracted for multi-storey environments by applying voxel convolution using a stick kernel and that the room segmentation can be combined with the navigation graph to create a topometric map. However, this approach is currently sensitive to map quality, with failures occuring when the map of the environment is incomplete.
-
-Our second subquestion asked how to find matches between partial topometric maps to identify their overlapping areas. After comparing various descriptor approaches we conclude that the spectral approach approach gives the best results. We also find that embedding the context of a room into the room's descriptor improves matching performance. So does hypothesis growing in the average case, but it may also cause map matching to fail completely. Based on the above we further conclude that the topological aspect of topometric maps can be used to increase map matching performance. Possible failure modes of this approach include similar rooms which have similar contexts and differences in segmentation between partial maps.
-
-Our third subquestion asked how to fuse the partial topometric maps after matches have been identified. We find that a combination of RANSAC based global registration using FPFH features and gravity-aligned ICP local registration can succesfully identify the transformation between rooms. We also find that DBSCAN can be used to cluster these transformations based on their similarity and that a correct final transformation can be computed based on this clustering. 
-
-With the above conclusions we can answer our main research question: partial topometric maps can be extracted from partial point clouds by using visibility clustering and voxel convolution. Matches can be found using a combination of spectral descriptors, contextual embedding and hypothesis growing. By using these matches we can succesfully find the transformation between rooms, from which the final transformation can be found by clustering them using DBSCAN. Based on our conclusions we identify multiple avenues for future research, for which the focus should lie on robust topometric map extraction, improved room descriptors and non-rigid map fusion.

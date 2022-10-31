@@ -251,6 +251,41 @@ Bonanni, T\BPBI M.%
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
+Bonnassie%
+, Peyrin%
+\BCBL {}\ \BBA {} Attali%
+}{%
+Bonnassie%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2003}}%
+}]{%
+bonnassie_new_2003}
+\APACinsertmetastar {%
+bonnassie_new_2003}%
+\begin{APACrefauthors}%
+Bonnassie, A.%
+, Peyrin, F.%
+\BCBL {}\ \BBA {} Attali, D.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2003}{{\APACmonth{08}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {A new method for analyzing local shape in
+  three-dimensional images based on medial axis transformation} {A new method
+  for analyzing local shape in three-dimensional images based on medial axis
+  transformation}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{IEEE Transactions on Systems, Man, and Cybernetics,
+  Part B (Cybernetics)}{33}{4}{700--705}.
+\newblock
+\APACrefnote{Conference Name: IEEE Transactions on Systems, Man, and
+  Cybernetics, Part B (Cybernetics)}
+\newblock
+\begin{APACrefDOI} \doi{10.1109/TSMCB.2003.814298} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
 Bormann%
 , Jordan%
 , Li%
@@ -289,6 +324,43 @@ Bormann, R.%
   \end{APACrefURL}
 \newblock
 \begin{APACrefDOI} \doi{10.1109/ICRA.2016.7487234} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Bot%
+, Nourian%
+\BCBL {}\ \BBA {} Verbree%
+}{%
+Bot%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2019}}%
+}]{%
+bot_graph-matching_2019}
+\APACinsertmetastar {%
+bot_graph-matching_2019}%
+\begin{APACrefauthors}%
+Bot, F\BPBI J.%
+, Nourian, P.%
+\BCBL {}\ \BBA {} Verbree, E.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2019}{{\APACmonth{06}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {A {Graph}-{Matching} {Approach} {To} {Indoor}
+  {Localization} {Using} {A} {Mobile} {Device} {And} {A} {Reference} {BIM}} {A
+  {Graph}-{Matching} {Approach} {To} {Indoor} {Localization} {Using} {A}
+  {Mobile} {Device} {And} {A} {Reference} {BIM}}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{The International Archives of the Photogrammetry,
+  Remote Sensing and Spatial Information Sciences}{XLII-2/W13}{}{761--767}.
+\newblock
+\begin{APACrefURL}
+  [{2021-06-18}]\url{https://www.int-arch-photogramm-remote-sens-spatial-inf-sci.net/XLII-2-W13/761/2019/}
+  \end{APACrefURL}
+\newblock
+\begin{APACrefDOI} \doi{10.5194/isprs-archives-XLII-2-W13-761-2019}
+  \end{APACrefDOI}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
@@ -968,9 +1040,44 @@ Li, Y.%
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
-Liu%
+L.~Liu%
+, Chambers%
+, Letscher%
+\BCBL {}\ \BBA {} Ju%
+}{%
+L.~Liu%
 \ \protect \BOthers {.}}{%
-Liu%
+{\protect \APACyear {2011}}%
+}]{%
+liu_extended_2011}
+\APACinsertmetastar {%
+liu_extended_2011}%
+\begin{APACrefauthors}%
+Liu, L.%
+, Chambers, E\BPBI W.%
+, Letscher, D.%
+\BCBL {}\ \BBA {} Ju, T.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2011}{{\APACmonth{11}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Extended grassfire transform on medial axes of {2D}
+  shapes} {Extended grassfire transform on medial axes of {2D} shapes}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Computer-Aided Design}{43}{11}{1496--1505}.
+\newblock
+\begin{APACrefURL}
+  [{2022-10-31}]\url{https://www.sciencedirect.com/science/article/pii/S0010448511002338}
+  \end{APACrefURL}
+\newblock
+\begin{APACrefDOI} \doi{10.1016/j.cad.2011.09.002} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Z.~Liu%
+\ \protect \BOthers {.}}{%
+Z.~Liu%
 \ \protect \BOthers {.}}{%
 {\protect \APACyear {2019}}%
 }]{%
@@ -1042,6 +1149,42 @@ Ma, J\BPBI W.%
   \end{APACrefURL}
 \newblock
 \begin{APACrefDOI} \doi{10.1016/j.autcon.2020.103144} \end{APACrefDOI}
+\PrintBackRefs{\CurrentBib}
+
+\bibitem [\protect \citeauthoryear {%
+Mille%
+, Leborgne%
+\BCBL {}\ \BBA {} Tougne%
+}{%
+Mille%
+\ \protect \BOthers {.}}{%
+{\protect \APACyear {2019}}%
+}]{%
+mille_euclidean_2019}
+\APACinsertmetastar {%
+mille_euclidean_2019}%
+\begin{APACrefauthors}%
+Mille, J.%
+, Leborgne, A.%
+\BCBL {}\ \BBA {} Tougne, L.%
+\end{APACrefauthors}%
+\unskip\
+\newblock
+\APACrefYearMonthDay{2019}{{\APACmonth{03}}}{}.
+\newblock
+{\BBOQ}\APACrefatitle {Euclidean {Distance}-{Based} {Skeletons}: {A} {Few}
+  {Notes} on {Average} {Outward} {Flux} and {Ridgeness}} {Euclidean
+  {Distance}-{Based} {Skeletons}: {A} {Few} {Notes} on {Average} {Outward}
+  {Flux} and {Ridgeness}}.{\BBCQ}
+\newblock
+\APACjournalVolNumPages{Journal of Mathematical Imaging and
+  Vision}{61}{3}{310--330}.
+\newblock
+\begin{APACrefURL}
+  [{2022-10-31}]\url{http://link.springer.com/10.1007/s10851-018-0836-7}
+  \end{APACrefURL}
+\newblock
+\begin{APACrefDOI} \doi{10.1007/s10851-018-0836-7} \end{APACrefDOI}
 \PrintBackRefs{\CurrentBib}
 
 \bibitem [\protect \citeauthoryear {%
