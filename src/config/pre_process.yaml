@@ -1,7 +1,0 @@
-!!python/object:processing.configuration.PreProcessingParameters
-reduce: 1
-scale:
-- 1
-- -1
-- 1
-noise_scale: 1

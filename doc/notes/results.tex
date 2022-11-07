@@ -1,0 +1,159 @@
+\section{Results}
+We evaluated the approach described in the methodology section on several datasets. In this section we describe these datasets and show the results we achieved with them. The shown results are divided into three sections based on the major components of our methodology: map extraction, map matching and map fusion. 
+
+\subsection{Datasets}
+In this section we describe the datasets that we used to test our algorithm. We also describe how we prepared the ground truth datasets so as to be able to compare our results to them and objectively measure their performance. 
+
+\subsubsection{Simulated Scan}
+To objectively evaluate the performance of our methodology it is necessary to compare the results to a ground truth. This ground truth must contain the following elements: room labels and their topological relationships to evaluate map extraction, room matches between partial maps to evaluate map matching, and the transformations between partial maps to evaluate map fusion. When capturing real-world data, the second and third elements are especially difficult to determine. Furthermore, little pre-existing data is available that contains exactly these elements. To solve this problem we simulate partial maps from annotated global maps. The annotations are integer labels for every point representing the ground truth room segmentation and a graph representing the ground truth topological map. 
+
+We create the partials maps by manually defining a trajectory for each desired partial map and simulating an agent moving along them that scans the global map at a regular interval. We do this by using the FVT algorithm described in the methodology section. This allows us to objectively evaluate our approach for a large number of different scenarios at the cost of missing some of the subtleties inherent in non-simulated partial maps, such as changes in the environment and measurement error. To mitigate this, we apply pre-processing steps to the global map. These pre-processing steps are: random removal of points, adding noise to points and random rotation and translation of the point cloud. The latter's purpose is to simulate the unknown transformation between real-world partial maps. By comparing the results of our approach to the annotations in the ground truth global map we can objectively measure the performance of map extraction, matching and fusion. Figure \ref{fig:simulated} shows an example global map with simulated viewpoints. Figure \ref{fig:area_1_partial_01} shows two simulated partial maps created from a single map.
+
+\pagebreak
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.6\textwidth]{./fig/simulated_views.png}
+    \caption{Global map with simulated viewpoints. Each coloured dot represents a viewpoint, the union of all views with the same color forms a partial map.}
+    \label{fig:simulated}
+\end{figure}
+
+\subsubsection{Stanford 3D Indoor Scene Dataset}
+The Stanford 3D Indoor Scene Dataset (S3DIS) consists of a collection of 3D scans of six different indoor environments (Area 1 through 6) and the raw measurements used to create them \citep{armeni_3d_2016}. The environments all span a single floor. Each environment scan in its original state consists of a number of point clouds, one for each room in the building. We merge these separate point clouds into a single cloud but retain the room labels as point attributes as we use these as our ground truth room labels for the map extraction step. We manually created the topological graph of each area. 
+
+\subsubsection{Collaborative SLAM Dataset}
+The Collaborative SLAM Dataset (CSLAMD) is a dataset meant specifically for collaborative SLAM. It consists of three environments (house, flat and lab), each consisting of multiple partial maps and their ground truth transformations. Two of the environments consist of multiple storeys. The partial maps were captured using a low-end 3D scanner and thus has a low point density. We merge the partial maps of each environment into a single global map to create the simulated partial maps described above. We then manually annotate each environment with our interpretation of an appropriate room segmentation and manually create the topological graph. Due to problems with the quality of this dataset we only use it to demonstrate that our map extraction approach is capable of extracting topometric maps from multi-storey environments.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/area_1_partial.pdf}
+    \caption{Simulated partial maps extracted from S3DIS area 1 dataset.}
+    \label{fig:area_1_partial_01}
+\end{figure}
+
+\pagebreak
+
+\subsection{Map Extraction}
+In this section we show the results of our map extraction approach. To evaluate the results of our map extraction approach we compare the extracted topometric partial maps to the ground truth global map. For each node's geometry in a topometric map we find its Jaccard index with every node in the global map's geometry. This gives us a weighted bipartite graph, one part being the nodes in the partial map and the other being the nodes in the global map, with the weight representing the Jaccard index between nodes' geometry. We assign each node in the partial map to a single node in the global map using linear assignment, as is described in the map matching section. This gives us the correspondence between nodes in the partial map and nodes in the global map.
+
+\paragraph{Room segmentation}
+After finding the correspondences between the partial maps and the ground truth global map we compute the mean Jaccard index of the correspondences. This metric is called Mean Intersection over Union (MIoU) and it measures the quality of our room segmentation. Figure \ref{fig:map_extract_perf} shows the MIoU for each of the partial maps in the S3DIS dataset. Partial maps where map extraction has completely failed are indicated by a dash pattern.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/map_extract_chart.pdf}
+    \caption{Comparison of map extraction results for the different areas of the S3DIS dataset.}
+    \label{fig:map_extract_perf}
+\end{figure}
+
+\paragraph{Sparse voxel octree}
+To measure the impact that the sparse voxel octree data structure has on ball query performance we compare its computation time for balls of different radii versus using a hash table to check each if each voxel in the ball is occupied. The results of this measurement are shown in figure \ref{fig:svo_perf}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/svo_chart.pdf}
+    \caption{Comparison of SVO radius search performance versus voxel hashing.}
+    \label{fig:svo_perf}
+\end{figure}
+
+\paragraph{Result maps}
+The results of our map extraction approach for area 1 from the S3DIS dataset are plotted as top-down views in figure \ref{fig:area_1_topo_01}. Each room is coloured using a unique random colour. The topological edges between rooms are shown as solid black lines. Figure \ref{fig:multi_storey_01} shows a topometric map extracted from a multi-storey environment from the CSLAM dataset.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/area_1_topo.pdf}
+    \caption{Topometric maps extracted from S3DIS area 1 dataset.}
+    \label{fig:area_1_topo_01}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.8\textwidth]{./fig/multi_storey_segmentation.png}
+    \caption{Topometric map extracted from the lab environment from the CSLAM dataset.}
+    \label{fig:multi_storey_01}
+\end{figure}
+
+\subsection{Map Matching}
+In this section we show the results of our map matching approach. Using the partial map to global map node correspondences described in the previous section we can distinguish incorrect matches from correct matches; a match between two partial maps is correct if both nodes in the match correspond to the same node in the global map. This is illustrated in figure \ref{fig:mapmatch_eval}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/map_match_eval.drawio.pdf}
+    \caption{Illustration of map matching results comparison to ground truth.}
+    \label{fig:mapmatch_eval}
+\end{figure}
+
+\paragraph{Matching precision}
+Figure \ref{fig:lpdnet_match} shows the accuracy of our map matching approaches divided by descriptor type, the number of steps included in the contextual embedding and whether hypothesis growing was used. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/match_charts.pdf}
+    \caption{Map matching results for the two descriptor types with different levels of contextual embedding and hypothesis growing.}
+    \label{fig:lpdnet_match}
+\end{figure}
+
+
+\paragraph{Matching results}
+Figure \ref{fig:area_1_match} shows the matches between the partial maps of area 1 of the S3DIS dataset, the same partial maps as in the previous sections. Each match is given a unique random colour, with a room in the first partial map having the same colour as its match in the second. These matches were generated using hypothesis growing and a one step contextual embedding with ShapeDNA descriptors
+
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/area_1_match.pdf}
+    \caption{Identified matches between S3DIS area 1 partial maps using ShapeDNA with one-step contextual embedding and hypothesis growing.}
+    \label{fig:area_1_match}
+\end{figure}
+
+\subsection{Map Fusion}
+In this section we show the results of our map merging approach. 
+
+\paragraph{Transformation error}
+We evaluate the performance of our map merging approach by finding the distance between every point in the target map to its closest point in the result map. The results of this are shown in figure \ref{fig:map_fuse_chart}.
+
+\paragraph{Relationship between descriptor and registration error}
+Figure \ref{fig:lpdnet_registration} shows the relationship between the distance in feature space between two rooms and their point-to-plane distance error after registration. This measures the degree to which descriptor similarity predicts how well two rooms align. Both results use two step context embedding.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/registration_charts.pdf}
+    \caption{Relationship between descriptor distance in feature space and point-to-plane error after registration.}
+    \label{fig:lpdnet_registration}
+\end{figure}
+
+\paragraph{RANSAC}
+Figure \ref{fig:ransac_results} shows the number of optimal transformations that were found by RANSAC within a range of iterations. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/ransac_optima.png}
+    \caption{Iteration in which RANSAC finds optimal global registration.}
+    \label{fig:ransac_results}
+\end{figure}
+
+\paragraph{ICP}
+Figure \ref{fig:icp_convergence} shows the relationship between the number of iterations of the iterative closest point algorithm and the point-to-plane error for a large number of matches. Individual iterative closest point runs are coloured in grey, the mean of all runs is coloured in red.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/icp_convergence.pdf}
+    \caption{Convergence of ICP algorithm over multiple iterations.}
+    \label{fig:icp_convergence}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/map_fuse_chart.pdf}
+    \caption{Comparison of point-to-plane error for each area in S3DIS dataset after registration.}
+    \label{fig:map_fuse_chart}
+\end{figure}
+
+\paragraph{Fuse results}
+Figure \ref{fig:area_1_global} shows the global map created by fusing the partial maps of area 1 of the S3DIS dataset. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.8\textwidth]{./fig/area_1_global.jpg}
+    \caption{Topometric map created from fusion of the two simulated partial maps of area 1 of the S3DIS dataset.}
+    \label{fig:area_1_global}
+\end{figure}

@@ -1,0 +1,113 @@
+\subsection{Map Matching}
+
+\subsubsection{Overview}
+The process of identifying overlapping areas between partial maps is called map matching. In the case of topometric map matching this refers to identifying which nodes represent the same rooms between two partial maps. We denote our two partial topometric maps as:
+
+\begin{equation}
+    \label{eq:tmap_a}
+    \topometricmap_a = (\mathcal{G}_a,\ \voxelgrid_a),\ \mathcal{G}_a=(N_a,E_a)
+\end{equation}
+
+\begin{equation}
+    \label{eq:tmap_b}
+    \topometricmap_b = (\mathcal{G}_b,\ \voxelgrid_b),\ \mathcal{G}_b=(N_b,E_b)
+\end{equation}
+
+The goal of map matching is to find a one-to-one mapping between the rooms of both partial maps which corresponds to the real world and is robust to differences in coordinate system, resolution and quality between partial maps. To identify matches between rooms we need to be able to compute their similarity. To do so, we first transform each room into a descriptor, an n-dimensional vector, which represents both the geometry of the room. The descriptor of two nodes with similar geometry should be close to eachother in feature space, meaning the distance between their vectors should be small. Conversely, the descriptors of two dissimilar rooms should be far away from eachother in feature space. We then use the topological properties of the topometric maps to improve map matching in two ways. The first is contextual embedding. This means that we combine the descriptor of each room with the descriptor of its neighbourhood in the topological graph. This improves matching because multiple rooms may have similar geometry but not necessarily similar neighbourhoods. The second is hypothesis growing, which means that we grow multiple matching hypotheses along the topological graph in a constrained manner and only use the hypothesis that contains the most matches. Figure \ref{fig:flowchart_match} shows an overview of the steps described above. In the rest of this section we will describe the aforementioned steps in depth.
+
+\begin{figure}[p]
+    \centering
+    \includegraphics*[width=0.8\textwidth]{./fig/flowchart_complete-Map match.drawio.pdf}
+    \caption{Diagram showing map matching methodology.}
+    \label{fig:flowchart_match}
+\end{figure}
+
+\pagebreak
+
+\subsubsection{Geometric descriptor}
+Geometric feature embedding transforms a geometric object, in our case a voxel grid, into an m-dimensional vector, a descriptor, such that objects with similar geometry have similar descriptors (their Euclidean distance is small) and vice versa. We implement geometric feature embedding using two different approaches, which we discuss below. The concept of geometric feature embedding is illustrated in figure \ref{fig:geometric_embedding}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.8\textwidth]{./fig/embed_geometry.pdf}
+    \caption{Diagram showing geometric feature embedding.}
+    \label{fig:geometric_embedding}
+\end{figure}
+
+\paragraph{Spectral Features}
+Our first approach to geometric feature embedding uses ShapeDNA \citep{reuter_laplacebeltrami_2006}. This approach uses the first \(n\) sorted, non-zero eigenvalues of the graph Laplacian, in our case of the neighbourhood graph of a room's geometry, as a geometric descriptor. To compute this we first convert each room's neighbourhood graph \(\mathcal{G}\) to an adjacency matrix \(A\) and a degree matrix \(D\). We then find the Laplacian matrix of the neighbourhood graph by subtracting its adjacency matrix from its degree matrix, as shown in equation \ref{eq:laplacian_matrix}.
+
+\begin{equation}
+    \label{eq:laplacian_matrix}
+L = D - A
+\end{equation}
+
+After computing the Laplacian matrix we find its eigenvalues, sort them in ascending order and use the first 256 non-zero values as the descriptor. 
+
+
+\paragraph{Deep Learning}
+Our second approach to geometric feature embedding uses deep learning. Specifically, we use the LPDNet neural network architecture. This architecture is used for place recognition, it does so by learning descriptors, typically 2048 or 4096-dimensional, of point clouds that are theoretically independent of transformation, perspective and completeness. It does so by computing a local descriptor for every point in the point cloud and aggregrating them into a global descriptor. The LPDNet model we use is trained on outdoor maps which have different characteristics from indoor maps. However, the authors of LPDNet claim that a model trained on outdoor data can also effectively be used for indoor data. Figure \ref{fig:lpdnet_architecture} shows the network architecture of LPDNet.
+
+% network architecture w/figure
+% training data / transfer learning
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/network_architecture.png}
+    \caption{Diagram showing LPDNet network architecture \citep{liu_lpd-net_2019}.}
+    \label{fig:lpdnet_architecture}
+\end{figure}
+
+\subsubsection{Contextual Embedding}
+After computing a descriptor for each individual room we augment them by taking into account the descriptor of the neighbourhood. For every room we find their neighbours and merge their geometry into one voxel grid, for which we compute a new descriptor. We do this step multiple times for neighbours that are at most one or multiple steps away from the room. We then append the descriptors of the neighbourhood to the room's descriptor. By doing so we can distinguish between rooms with similar geometry but dissimilar neighbourhoods, which are often present in indoor environments. The concept of contextual embedding is illustrated in figure \ref{fig:contextual_embedding}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/embed_context.pdf}
+    \caption{Diagram showing contextual embedding.}
+    \label{fig:contextual_embedding}
+\end{figure}
+
+\subsubsection{Initial Matching}
+The above steps are applied to both partial maps. This gives us two sets of descriptors \(\mathbf{G}_a,\ \mathbf{G}_b\) representing the contextual embedding of the rooms of both topometric maps. To identify the most likely overlapping rooms between the partial maps we find the one-to-one mapping between the sets of descriptors that maximizes the similarity (or minimizes the distances) between the chosen pairs. This is an example of the unbalanced assignment problem, which consists of finding a matching in a weighted bipartite graph that minimizes the sum of its edge weights. It is unbalanced because there may be more nodes in one part of the bipartite graph than the other, which means it is not possible to assign every node in one part to a node in the other. This is illustrated in figure \ref{fig:assignment}.
+
+To construct the weighted bipartite graph we first find the Cartesian product of the feature vectors.
+
+\begin{equation}
+    \label{eq:E_ab}
+    \mathbf{G}_{ab} = \mathbf{G}_a \times \mathbf{G}_b = \{(a,b) \mid a \in \mathbf{G}_a,\ b \in \mathbf{G}_b\}
+\end{equation}
+
+We then compute the Euclidean distance in feature space between every pair of nodes in \(\mathbf{G}_{ab}\), creating the cost matrix that represents the weighted bipartite graph.
+
+\begin{equation}
+    \label{eq:C}
+    \mathbf{S} \in \mathbb{R}^{|N_a| \times |N_b|},\ \mathbf{S}_{ij} = ||row_i(\mathbf{G}_a) - row_j(\mathbf{G}_b)||
+\end{equation}
+
+
+We can then find unbalanced assignment using the Jonker-Volgenant algorithm \citep{jonker_shortest_1987}. We denote the resulting matching between the nodes of both partial maps and their distance in feature space as a matrix:
+
+\begin{equation}
+    \label{eq:M}
+    \mathbf{M} \in \{0,\ 1\}^{|N_a| \times |N_b|},\  \mathbf{1}_n^T\mathbf{M}
+ \in \{0,1\}^n,\ \mathbf{1}_n \in \{1\}^n
+\end{equation}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=.9\textwidth]{./fig/assignment.drawio.pdf}
+    \caption{Illustration of unbalanced assignment problem.}
+    \label{fig:assignment}
+\end{figure}
+
+\subsubsection{Hypothesis growing}
+
+In practice it is unlikely that every match in \(\mathbf{M}\) is correct. However, we can use them as seeds to generate hypotheses similar to the approach described in \citet{huang_topological_2005}. Starting at each initial match we get the neighbourhood of both nodes. We then construct a new cost matrix from the Euclidean distance between the embeddings of both neighbourhoods, again creating a weighted bipartite graph for which we can solve the assignment problem. By doing this we identify which neighbours of the nodes in the match are most likely to also match. We recursively apply this step to the matching neighbours to grow our initial matches into hypotheses. To decrease the risk of incorrectly identifying neighbourhood matches we constrain hypothesis growing in two ways. First, the cost of two potential matches must be below a given threshold \(c_{max}\). Second, a newly identified match may not bring the existing matching too much out of alignment. To check this, we perform a registration (see next section) between the centroids of the geometry of the identified matches at every step of the hypothesis growing. If the error increases between steps, and the increase is too large such that \(\triangle e \geq \triangle e_{max} \), then the matching is rejected. By adjusting the values of \(c_{max}\) and \(\triangle e_{max}\) more or less uncertainty is allowed when growing hypotheses. Hypothesis growing is illustrated in figure \ref{fig:hgrowing}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics*[width=\textwidth]{./fig/hypothesis_growing.drawio.pdf}
+    \caption{Illustration of hypothesis growing.}
+    \label{fig:hgrowing}
+\end{figure}
