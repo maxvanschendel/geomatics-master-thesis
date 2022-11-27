@@ -1,0 +1,32 @@
+\section{Methodology}
+In this section we will describe our methodology for solving the map merging problem. We divide our methodology into three major components: map extraction, map matching and map fusion, which correspond with the three research subquestions. This section follows this division, with an added subsection describing the different map representations that we use. Figure \ref{fig:flowchart_complete} shows the steps of our methodology. Refer to the specific subsections for each step for a further description of the algorithms and notation. We will now give a short summary of each of the steps of our methodology.
+
+\paragraph{Map extraction}
+For each input partial map, a point cloud, we create a voxel grid with a given cell size. Within these voxel grids we detect which voxels could feasibly be used to navigate (walk) through the environment. Using this information we segment the voxel grids into submaps which closely match a human interpretation of how an indoor environment can be divided into rooms. We do so by finding areas with many common viewpoints. By combining the room submaps with the navigable voxels we can extract the environment's topological graph. We then create a topometric map for each input point cloud by merging the topological graph with the segmented voxel grid into a single map.
+
+\paragraph{Map matching}
+In the second part of our methodology, map matching, we identify matches between the rooms of the partial topometric maps with the purpose of detecting overlapping areas. We do this by first generating a global descriptor for each room that captures its geometric features and those of its context, the rooms that lie within a number of steps in the topological graph. We then find a matching by growing multiple matching hypotheses along the topological graphs in a constrained manner and selecting the one that contains the largest number of matches.
+
+\paragraph{Map fusion}
+In the final part of our methodology, map fusion, we find the transformation that aligns the partial maps' geometry and use it to create a single, global topometric map. We do so by finding the optimal transformation between each pair of matched rooms. We then cluster the transformations based on similarity and select the cluster whose mean transformation best aligns the partial maps as the most likely correct transformation. After using the mean transformation to align the geometry of the partial maps into a global voxel grid map we extract a topometric map from it to create the global topometric map.
+
+\afterpage{
+    \begin{figure}[h]
+        \centering
+        \includegraphics*[width=.8\textwidth]{./fig/flowchart_complete-All.pdf}
+        \caption{Diagram showing overview of methodology.}
+        \label{fig:flowchart_complete}
+    
+    \end{figure}
+    \clearpage
+}
+
+
+\pagebreak
+\input{map_representation}
+\pagebreak
+\input{map_extraction}
+\pagebreak
+\input{map_matching}
+\pagebreak
+\input{map_fusion}

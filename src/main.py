@@ -1,133 +1,161 @@
-from os import listdir
-from typing import List
 
-from analysis.analysis import DataAnalysis, DataViz
-from model.point_cloud import PointCloud
+import logging
+import matplotlib
+matplotlib.use('agg')
+from processing.configuration import *
+from processing.extract import (extract_analyse, extract_create, extract_read,
+                                extract_visualize, extract_write)
+from processing.fuse import (fuse_analyze, fuse_create, fuse_read,
+                             fuse_visualize, fuse_write)
+from processing.match import (match_analyse, match_create, match_read,
+                              match_visualize, match_write)
 
-import numpy as np
-from scipy import signal, ndimage
-from sklearn.cluster import DBSCAN
-import matplotlib.pyplot as plt
-import open3d as o3d
-import copy 
+from utils.datasets import *
+from utils.pipeline import process_step
 
-# HELPER FUNCTIONS
-def get_files_with_extension(dir: str, ext: str):
-    '''Get all files in directory that end with specified extension'''
+logging.getLogger().setLevel(logging.INFO)
 
-    return filter(lambda x: x[-len(ext):] == ext, listdir(dir))
-
-def batch_read_ply(dir: str, files: List[str]) -> List[PointCloud]:
-    '''Read multiple .ply files at once to point clouds.'''
-
-    return map(lambda fn: PointCloud.read_ply(dir + fn), files)
-
-def read_input_clouds(dir: str) -> List[PointCloud]:
-    '''Get all .ply files in a directory and read their point clouds.'''
-
-    ply_files = get_files_with_extension(dir, '.ply')
-    point_clouds = batch_read_ply(dir, ply_files)
-
-    return point_clouds
+numba_logger = logging.getLogger('numba')
+numba_logger.setLevel(logging.WARNING)
 
 
+def run(**kwargs):
+    """ 
+    Pipeline entrypoint, executes steps in order using the provided configuration. 
+    """
 
-class o3dviz:
-    i = 0
+    if kwargs["logging"]:
+        import logging
+        logging.getLogger().setLevel(logging.INFO)
 
-    def __init__(self, pcd):
-        self.pcd = pcd
+    # Either simulate partial maps or load them from files
+    partial_maps = process_step(kwargs["simulate_partial_maps"],
+                                kwargs["write_partial_maps"],
+                                kwargs["visualize_partial_maps"],
+                                kwargs["analyse_partial_maps"],
 
-        self.cur = o3d.geometry.PointCloud()
-        self.cur.points = self.pcd[self.i].points
-        self.cur.colors = self.pcd[self.i].colors
+                                lambda args: simulate_create(
+                                    extract_cfg, args),
+                                simulate_write,
+                                simulate_read,
+                                simulate_visualize,
+                                None,
+                                kwargs
+                                )
 
-        self.custom_draw_geometry_with_key_callback()
+    # Only prepare ground truth if performance analysis is enabled
+    if  kwargs["analyse_partial_maps"] or \
+        kwargs["analyse_extract"] or \
+        kwargs["analyse_match"] or \
+        kwargs["fuse_analyse"]:
 
-    def change_background_to_black(self, vis):
-        opt = vis.get_render_option()
-        opt.background_color = np.asarray([0, 0, 0])
-        return False
+        # Get ground truth topometric global maps that are aligned with simulated partial maps.
+        # Results are compared to these to evaluate performance
+        ground_truths = aligned_ground_truth(partial_maps,
+                                             extract_cfg.leaf_voxel_size *
+                                             (2**extract_cfg.segmentation_lod),
+                                             kwargs["graph"])
+    else:
+        ground_truths = None
 
-    def load_render_option(self,vis):
-        self.i += 1
-        # self.cur = self.pcd[self.i%2]
+    # Extract topometric maps from voxel grid partial maps
+    topometric_maps = process_step(kwargs["extract"],
+                                   kwargs["write_extract"],
+                                   kwargs["visualize_extract"],
+                                   kwargs["analyse_extract"],
 
-        self.cur.points = self.pcd[self.i%len(self.pcd)].points
-        self.cur.colors = self.pcd[self.i%len(self.pcd)].colors
+                                   lambda args: extract_create(
+        [p.voxel_grid for p in partial_maps], extract_cfg, args),
+        extract_write,
+        extract_read,
+        extract_visualize,
+        lambda ts, args: extract_analyse(
+        ground_truths, ts, args),
+        kwargs,
+    )
 
-        vis.update_geometry(self.cur)
-        vis.poll_events()
-        vis.update_renderer()
+    # Map matching using attributed graph embedding
+    matches = process_step(
+        kwargs["match"],
+        kwargs["write_match"],
+        kwargs["visualize_match"],
+        kwargs["analyse_match"],
 
-        return False
+        lambda args: match_create(topometric_maps, partial_maps, args),
+        match_write,
+        match_read,
+        lambda m, args: match_visualize(topometric_maps, m, args),
+        lambda m, args: match_analyse(ground_truths, m, topometric_maps, args),
+        kwargs
+    )
 
-    def custom_draw_geometry_with_key_callback(self):
-        key_to_callback = {}
-        key_to_callback[ord("K")] = self.change_background_to_black
-        key_to_callback[ord("R")] = self.load_render_option
+    # Map fusion of partial topometric maps into global topometric map
+    global_map = process_step(
+        kwargs["fuse"],
+        kwargs["write_fuse"],
+        kwargs["fuse_visualize"],
+        kwargs["fuse_analyse"],
 
-        o3d.visualization.draw_geometries_with_key_callbacks([self.cur], key_to_callback)
-
-def normal_floor_filter(cloud: PointCloud):
-    cloud.normals = cloud.estimate_normals(12)
-
-    vertical_cells = int((cloud.aabb[1][1] - cloud.aabb[1][0]) // voxel_size)
-    cloud_horizontal = cloud.filter(cloud.normals, lambda x: abs(np.dot(x, (0,1,0))) > .95)
-
-    histo, labels = DataAnalysis.dimensional_histogram(cloud_horizontal, 1, vertical_cells)
-    peaks = ndimage.filters.maximum_filter1d(histo, vertical_cells)
-    unique, counts = np.unique(peaks, return_counts=True)
-
-    two_max_peaks = unique[np.argpartition(counts, -2)[-2:]]
-    peak_heights = [float(labels[1:][histo == p]) for p in two_max_peaks]
-    floor, ceiling = min(peak_heights), max(peak_heights)
-
-    cloud_floor = cloud_horizontal.filter(cloud_horizontal.points, lambda x: abs(x[1] - ceiling) < voxel_size)
-    cloud_ceiling = cloud_horizontal.filter(cloud_horizontal.points, lambda x: abs(x[1] - floor) < voxel_size)
-
-    return cloud_floor, cloud_ceiling
+        lambda args: fuse_create(matches, extract_cfg, partial_maps, args),
+        fuse_write,
+        fuse_read,
+        fuse_visualize,
+        lambda m, t, args: fuse_analyze(
+            m, ground_truths, partial_maps, t, args),
+        kwargs
+    )
 
 
 if __name__ == "__main__":
-    '''
-    1. read directory containing multiply .ply point clouds                                         ✔
+    extract_cfg_fn: str = './config/map_extract.yaml'
+    merge_cfg_fn: str = './config/map_merge.yaml'
 
-    2. extract topometric maps from point clouds                                                    x
-    (He, Z., Sun, H., Hou, J., Ha, Y., & Schwertfeger, S. (2021). 
-    Hierarchical topometric representation of 3D robotic maps. 
-    Autonomous Robots, 45(5), 755–771. https://doi.org/10.1007/s10514-021-09991-8)
-    2.1. Preprocess
-    2.1.1   Voxel filter
-    2.1.2   Denoising
-    2.2. Ceiling/floor extraction
-    2.3. Column generation
-    2.4. Region/passage generation
-    2.5. Area graph segmentation
+    datasets = [s3dis_area_1_dataset]
 
-    3. merge local topometric maps into global topometric map                                       x
-    3.1 find correspondences between nodes
-    3.2 find non-rigid transformation between local maps that maximizes global consistency
+    # Read configuration from YAML files in config directory
+    extract_cfg = MapExtractionParameters.read(extract_cfg_fn)
+    merge_cfg = MapMergeParameters.read(merge_cfg_fn)
 
-    4. validate results                                                                             x
-    4.1. compare error to ground truth
-    4.2. estimate likelihood of correctness
+    for dataset in datasets:
+        logging.info(
+            f"Running {dataset} with configs {extract_cfg_fn} and {merge_cfg_fn}")
 
-    5. write output .ply point cloud and visualise                                                  x
-    '''
+        try:
+            run(
+                logging=True,
+                
+                # input data
+                simulate_partial_maps=False,
+                write_partial_maps=False,
+                visualize_partial_maps=False,
+                analyse_partial_maps=False,
 
-    # INPUT PARAMETERS #
-    input_dir = "C:/Users/max.van.schendel/Documents/Source/geomatics-master-thesis/data/flat/low/"
-    voxel_size = 0.05
+                # map extraction
+                extract=False,
+                write_extract=False,
+                visualize_extract=False,
+                analyse_extract=False,
 
-    print("Reading input maps")
-    cloud = list(read_input_clouds(input_dir))[0]
-    
-    print("Preprocessing maps")
-    # voxel_map = cloud.voxel_filter(voxel_size)
-    voxel_map = cloud.voxelize(voxel_size)
-    viz = o3dviz([voxel_map.to_pcd().to_o3d()])
+                # map matching
+                match=False,
+                write_match=False,
+                visualize_match=False,
+                analyse_match=False,
 
-    # Visualisation
-    
+                # map fusion
+                fuse=True,
+                write_fuse=False,
+                fuse_visualize=True,
+                fuse_analyse=False,
 
+                # dataset
+                partial_maps=dataset.partial_maps,
+                point_cloud=dataset.point_cloud,
+                graph=dataset.graph,
+                trajectories=dataset.trajectories,
+                topometric_maps=dataset.topometric_maps,
+                matches=dataset.matches,
+                fuse_fn=dataset.fuse,
+            )
+        except Exception as e:
+            raise e
